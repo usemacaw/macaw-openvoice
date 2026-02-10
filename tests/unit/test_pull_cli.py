@@ -34,8 +34,8 @@ class TestPullCommand:
         runner = CliRunner()
         result = runner.invoke(cli, ["pull", "faster-whisper-tiny", "--models-dir", str(tmp_path)])
         assert result.exit_code == 0
-        assert "Baixando" in result.output
-        assert "instalado" in result.output.lower() or "Modelo instalado" in result.output
+        assert "Downloading" in result.output
+        assert "Model installed" in result.output or "installed" in result.output.lower()
 
     def test_pull_model_not_in_catalog(
         self, mock_catalog_cls: MagicMock, mock_downloader_cls: MagicMock
@@ -48,7 +48,7 @@ class TestPullCommand:
         runner = CliRunner()
         result = runner.invoke(cli, ["pull", "nonexistent-model"])
         assert result.exit_code == 1
-        assert "nao encontrado" in result.output
+        assert "not found" in result.output
 
     def test_pull_already_installed_without_force(
         self, mock_catalog_cls: MagicMock, mock_downloader_cls: MagicMock
@@ -66,7 +66,7 @@ class TestPullCommand:
         runner = CliRunner()
         result = runner.invoke(cli, ["pull", "faster-whisper-tiny"])
         assert result.exit_code == 0
-        assert "ja esta instalado" in result.output
+        assert "is already installed" in result.output
 
     def test_pull_with_force_reinstalls(
         self, mock_catalog_cls: MagicMock, mock_downloader_cls: MagicMock, tmp_path: Path
