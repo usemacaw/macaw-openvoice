@@ -71,7 +71,6 @@ async def _serve(
 ) -> None:
     """Main async flow for serve."""
     import uvicorn
-
     from macaw._types import ModelType
     from macaw.registry.registry import ModelRegistry
     from macaw.scheduler.scheduler import Scheduler

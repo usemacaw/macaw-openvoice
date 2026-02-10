@@ -25,7 +25,11 @@ from .stt_worker_pb2_grpc import (
 )
 from .tts_worker_pb2 import (
     HealthRequest as TTSHealthRequest,
+)
+from .tts_worker_pb2 import (
     HealthResponse as TTSHealthResponse,
+)
+from .tts_worker_pb2 import (
     SynthesizeChunk,
     SynthesizeRequest,
 )

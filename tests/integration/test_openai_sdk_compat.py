@@ -14,8 +14,8 @@ import threading
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import uvicorn
 
+import uvicorn
 from macaw._types import BatchResult, SegmentDetail, WordTimestamp
 from macaw.server.app import create_app
 
