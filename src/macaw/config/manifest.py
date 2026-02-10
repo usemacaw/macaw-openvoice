@@ -77,7 +77,7 @@ class ModelManifest(BaseModel):
         """Load manifest from a YAML file."""
         path = Path(path)
         if not path.exists():
-            raise ManifestParseError(str(path), "File not found")
+            raise ManifestParseError(str(path), "Arquivo nao encontrado")
 
         try:
             raw = path.read_text(encoding="utf-8")
@@ -92,10 +92,10 @@ class ModelManifest(BaseModel):
         try:
             data = yaml.safe_load(raw)
         except yaml.YAMLError as e:
-            raise ManifestParseError(source_path, f"Invalid YAML: {e}") from e
+            raise ManifestParseError(source_path, f"YAML invalido: {e}") from e
 
         if not isinstance(data, dict):
-            raise ManifestParseError(source_path, "YAML content must be a mapping")
+            raise ManifestParseError(source_path, "Conteudo YAML deve ser um mapeamento")
 
         # Normalize 'type' field -> 'model_type' (macaw.yaml uses 'type')
         if "type" in data and "model_type" not in data:

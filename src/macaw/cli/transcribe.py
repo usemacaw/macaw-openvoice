@@ -28,7 +28,7 @@ def _post_audio(
     url = f"{server_url}{endpoint}"
 
     if not file_path.exists():
-        click.echo(f"Error: file not found: {file_path}", err=True)
+        click.echo(f"Erro: arquivo nao encontrado: {file_path}", err=True)
         sys.exit(1)
 
     data: dict[str, str] = {"model": model, "response_format": response_format}
@@ -49,7 +49,7 @@ def _post_audio(
             )
     except httpx.ConnectError:
         click.echo(
-            f"Error: server not available at {server_url}. Run 'macaw serve' first.",
+            f"Erro: servidor nao disponivel em {server_url}. Execute 'macaw serve' primeiro.",
             err=True,
         )
         sys.exit(1)
@@ -60,7 +60,7 @@ def _post_audio(
             msg = error.get("error", {}).get("message", response.text)
         except Exception:
             msg = response.text
-        click.echo(f"Error ({response.status_code}): {msg}", err=True)
+        click.echo(f"Erro ({response.status_code}): {msg}", err=True)
         sys.exit(1)
 
     # Output depends on format
@@ -89,8 +89,7 @@ def _stream_microphone(
         import sounddevice  # noqa: F401
     except ImportError:
         click.echo(
-            "Error: sounddevice is not installed. "
-            "Install with: pip install macaw-openvoice[stream]",
+            "Erro: sounddevice nao esta instalado. Instale com: pip install macaw-openvoice[stream]",
             err=True,
         )
         sys.exit(1)
@@ -99,7 +98,7 @@ def _stream_microphone(
         import websockets  # noqa: F401
     except ImportError:
         click.echo(
-            "Error: websockets is not installed. Install with: pip install macaw-openvoice[stream]",
+            "Erro: websockets nao esta instalado. Instale com: pip install macaw-openvoice[stream]",
             err=True,
         )
         sys.exit(1)
@@ -155,8 +154,8 @@ async def _stream_microphone_async(
     if language:
         ws_url += f"&language={language}"
 
-    click.echo(f"Connecting to {ws_url} ...")
-    click.echo("Press Ctrl+C to stop.\n")
+    click.echo(f"Conectando em {ws_url} ...")
+    click.echo("Pressione Ctrl+C para parar.\n")
 
     last_partial = ""
 
@@ -177,9 +176,9 @@ async def _stream_microphone_async(
             event = json.loads(msg)
             if event.get("type") == "session.created":
                 session_id = event.get("session_id", "?")
-                click.echo(f"Session created: {session_id}")
+                click.echo(f"Sessao criada: {session_id}")
             else:
-                click.echo(f"Unexpected event: {event.get('type')}", err=True)
+                click.echo(f"Evento inesperado: {event.get('type')}", err=True)
 
             stop_event = asyncio.Event()
 
@@ -225,9 +224,9 @@ async def _stream_microphone_async(
                         msg_text = event.get("message", "unknown error")
                         recoverable = event.get("recoverable", False)
                         if recoverable:
-                            click.echo(f"\n[recovering] {msg_text}", err=True)
+                            click.echo(f"\n[recuperando] {msg_text}", err=True)
                         else:
-                            click.echo(f"\n[error] {msg_text}", err=True)
+                            click.echo(f"\n[erro] {msg_text}", err=True)
                             stop_event.set()
                             return
 
@@ -268,18 +267,18 @@ async def _stream_microphone_async(
                     await ws.send(json.dumps({"type": "session.close"}))
 
     except KeyboardInterrupt:
-        click.echo("\n\nSession ended.")
+        click.echo("\n\nSessao encerrada.")
     except ConnectionRefusedError:
         click.echo(
-            f"Error: server not available at {server_url}. Run 'macaw serve' first.",
+            f"Erro: servidor nao disponivel em {server_url}. Execute 'macaw serve' primeiro.",
             err=True,
         )
         sys.exit(1)
     except Exception as exc:
-        click.echo(f"\nError: {exc}", err=True)
+        click.echo(f"\nErro: {exc}", err=True)
         sys.exit(1)
 
-    click.echo("\nFinished.")
+    click.echo("\nConcluido.")
 
 
 @cli.command()
@@ -327,7 +326,7 @@ def transcribe(
     stream: bool,
     server: str,
 ) -> None:
-    """Transcribe an audio file."""
+    """Transcreve um arquivo de audio."""
     if stream:
         _stream_microphone(
             server_url=server,
@@ -339,7 +338,7 @@ def transcribe(
         return
 
     if file is None:
-        click.echo("Error: FILE is required (or use --stream for microphone).", err=True)
+        click.echo("Erro: informe FILE ou utilize --stream para o microfone.", err=True)
         sys.exit(1)
 
     _post_audio(
@@ -390,7 +389,7 @@ def translate(
     hot_words: str | None,
     server: str,
 ) -> None:
-    """Translate an audio file to English."""
+    """Traduz um arquivo de audio para ingles."""
     _post_audio(
         server_url=server,
         endpoint="/v1/audio/translations",

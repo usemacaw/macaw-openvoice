@@ -64,7 +64,7 @@ class RingBuffer:
     ) -> None:
         self._capacity_bytes: int = int(duration_s * sample_rate * bytes_per_sample)
         if self._capacity_bytes <= 0:
-            msg = f"Buffer capacity must be positive, got {self._capacity_bytes}"
+            msg = f"Capacidade do buffer deve ser positiva, valor atual: {self._capacity_bytes}"
             raise ValueError(msg)
         self._buffer: bytearray = bytearray(self._capacity_bytes)
         self._write_pos: int = 0
@@ -133,15 +133,15 @@ class RingBuffer:
         """
         if offset < self._read_fence:
             msg = (
-                f"Commit offset ({offset}) cannot be less than "
-                f"current read_fence ({self._read_fence})"
+                f"Offset de commit ({offset}) nao pode ser menor que o read_fence atual "
+                f"({self._read_fence})"
             )
             raise ValueError(msg)
 
         if offset > self._total_written:
             msg = (
-                f"Commit offset ({offset}) cannot be greater than "
-                f"total_written ({self._total_written})"
+                f"Offset de commit ({offset}) nao pode ser maior que total_written "
+                f"({self._total_written})"
             )
             raise ValueError(msg)
 
@@ -180,8 +180,8 @@ class RingBuffer:
                 available = 0
             if data_len > available:
                 msg = (
-                    f"Writing {data_len} bytes would overwrite uncommitted data. "
-                    f"Available: {available} bytes, "
+                    f"Escrita de {data_len} bytes sobrescreveria dados nao comitados. "
+                    f"Disponivel: {available} bytes, "
                     f"read_fence={self._read_fence}, total_written={self._total_written}"
                 )
                 raise BufferOverrunError(msg)
@@ -261,11 +261,11 @@ class RingBuffer:
             return b""
 
         if offset < 0:
-            msg = f"Offset cannot be negative: {offset}"
+            msg = f"Offset nao pode ser negativo: {offset}"
             raise ValueError(msg)
 
         if length < 0:
-            msg = f"Length cannot be negative: {length}"
+            msg = f"Comprimento nao pode ser negativo: {length}"
             raise ValueError(msg)
 
         end_offset = offset + length
@@ -273,7 +273,7 @@ class RingBuffer:
         # Check if data is still available in the buffer
         if end_offset > self._total_written:
             msg = (
-                f"Read past written data: offset={offset}, length={length}, "
+                f"Leitura alem do escrito: offset={offset}, length={length}, "
                 f"total_written={self._total_written}"
             )
             raise BufferOverrunError(msg)
@@ -281,7 +281,10 @@ class RingBuffer:
         # Oldest available data: total_written - capacity (or 0 if buffer has not wrapped)
         oldest_available = max(0, self._total_written - self._capacity_bytes)
         if offset < oldest_available:
-            msg = f"Data already overwritten: offset={offset}, oldest_available={oldest_available}"
+            msg = (
+                f"Dados ja foram sobrescritos: offset={offset}, "
+                f"oldest_available={oldest_available}"
+            )
             raise BufferOverrunError(msg)
 
         # Convert absolute offset to circular position
@@ -315,7 +318,7 @@ class RingBuffer:
             ValueError: If offset is negative.
         """
         if offset < 0:
-            msg = f"Offset cannot be negative: {offset}"
+            msg = f"Offset nao pode ser negativo: {offset}"
             raise ValueError(msg)
 
         if offset >= self._total_written:

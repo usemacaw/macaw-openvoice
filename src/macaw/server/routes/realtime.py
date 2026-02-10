@@ -786,7 +786,7 @@ async def realtime_endpoint(
         )
         error_event = StreamingErrorEvent(
             code="internal_error",
-            message="Internal server error",
+            message="Erro interno do servidor",
             recoverable=False,
         )
         await _send_event(websocket, error_event, session_id=session_id)

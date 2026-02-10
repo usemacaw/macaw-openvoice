@@ -69,7 +69,7 @@ class ModelDownloader:
         try:
             from huggingface_hub import snapshot_download
         except ImportError:
-            msg = "huggingface_hub is not installed. Install with: pip install huggingface_hub"
+            msg = "huggingface_hub nao esta instalado. Instale com: pip install huggingface_hub"
             raise RuntimeError(msg) from None
 
         model_dir = self._models_dir / entry.name
@@ -78,8 +78,8 @@ class ModelDownloader:
             manifest_path = model_dir / "macaw.yaml"
             if manifest_path.exists():
                 msg = (
-                    f"Model '{entry.name}' is already installed in {model_dir}. "
-                    f"Use --force to reinstall."
+                    f"Modelo '{entry.name}' ja esta instalado em {model_dir}. "
+                    f"Use --force para reinstalar."
                 )
                 raise FileExistsError(msg)
 
@@ -137,7 +137,7 @@ class ModelDownloader:
         """Write macaw.yaml to the model directory."""
         manifest_data = entry.manifest
         if not manifest_data:
-            msg = f"Catalog has no manifest for model '{entry.name}'"
+            msg = f"Catalogo sem manifesto para o modelo '{entry.name}'"
             raise ValueError(msg)
 
         manifest_path = model_dir / "macaw.yaml"

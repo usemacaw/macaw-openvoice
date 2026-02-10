@@ -96,7 +96,7 @@ class TestCatalogLoad:
 
     def test_load_nonexistent_file_raises(self, tmp_path: Path) -> None:
         catalog = ModelCatalog(tmp_path / "nonexistent.yaml")
-        with pytest.raises(FileNotFoundError, match="Catalogo nao encontrado"):
+        with pytest.raises(FileNotFoundError, match="Catalog not found"):
             catalog.load()
 
     def test_load_invalid_catalog_raises(self, invalid_catalog_yaml: Path) -> None:

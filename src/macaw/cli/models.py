@@ -20,7 +20,7 @@ from macaw.cli.serve import DEFAULT_MODELS_DIR
     help="Directory with installed models.",
 )
 def list_models(models_dir: str) -> None:
-    """List installed models."""
+    """Lista modelos instalados."""
     asyncio.run(_list_models(models_dir))
 
 
@@ -33,8 +33,8 @@ async def _list_models(models_dir: str) -> None:
 
     models = registry.list_models()
     if not models:
-        click.echo("No models installed.")
-        click.echo(f"Models directory: {models_path}")
+        click.echo("Nenhum modelo instalado.")
+        click.echo(f"Diretorio de modelos: {models_path}")
         return
 
     # Header
@@ -60,7 +60,7 @@ async def _list_models(models_dir: str) -> None:
     help="Directory with installed models.",
 )
 def inspect(model_name: str, models_dir: str) -> None:
-    """Show details for an installed model."""
+    """Mostra detalhes de um modelo instalado."""
     asyncio.run(_inspect(model_name, models_dir))
 
 
@@ -75,9 +75,9 @@ async def _inspect(model_name: str, models_dir: str) -> None:
     try:
         manifest = registry.get_manifest(model_name)
     except ModelNotFoundError:
-        click.echo(f"Error: model '{model_name}' not found.", err=True)
+        click.echo(f"Erro: modelo '{model_name}' nao encontrado.", err=True)
         click.echo(
-            f"Run 'macaw list --models-dir {models_dir}' to see available models.",
+            f"Execute 'macaw list --models-dir {models_dir}' para ver os modelos instalados.",
             err=True,
         )
         sys.exit(1)

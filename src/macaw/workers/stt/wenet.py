@@ -60,7 +60,7 @@ class WeNetBackend(STTBackend):
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if wenet_lib is None:
-            msg = "wenet is not installed. Install with: pip install macaw-openvoice[wenet]"
+            msg = "wenet nao esta instalado. Instale com: pip install macaw-openvoice[wenet]"
             raise ModelLoadError(model_path, msg)
 
         language = str(config.get("language", "chinese"))
@@ -109,11 +109,11 @@ class WeNetBackend(STTBackend):
         word_timestamps: bool = False,
     ) -> BatchResult:
         if self._model is None:
-            msg = "Model not loaded. Call load() first."
+            msg = "Modelo nao carregado. Chame load() primeiro."
             raise ModelLoadError("unknown", msg)
 
         if not audio_data:
-            msg = "Empty audio"
+            msg = "Audio vazio"
             raise AudioFormatError(msg)
 
         audio_array = _audio_bytes_to_numpy(audio_data)
@@ -175,7 +175,7 @@ class WeNetBackend(STTBackend):
             is_final=True for confirmed segments.
         """
         if self._model is None:
-            msg = "Model not loaded. Call load() first."
+            msg = "Modelo nao carregado. Chame load() primeiro."
             raise ModelLoadError("unknown", msg)
 
         # CTC streaming: process each chunk immediately for lowest TTFB.
@@ -292,7 +292,7 @@ def _audio_bytes_to_numpy(audio_data: bytes) -> np.ndarray:
         AudioFormatError: If the byte length is not even.
     """
     if len(audio_data) % 2 != 0:
-        msg = "16-bit PCM audio must have an even number of bytes"
+        msg = "Audio PCM 16-bit deve ter numero par de bytes"
         raise AudioFormatError(msg)
 
     int16_array = np.frombuffer(audio_data, dtype=np.int16)

@@ -18,9 +18,9 @@ from macaw.cli.transcribe import DEFAULT_SERVER_URL
     help="Macaw server URL.",
 )
 def ps(server: str) -> None:
-    """List models loaded on the server.
+    """Lista modelos carregados no servidor.
 
-    Requires the server to be running (macaw serve).
+    Requer o servidor em execucao (macaw serve).
     """
     import httpx
 
@@ -30,20 +30,20 @@ def ps(server: str) -> None:
         response = httpx.get(url, timeout=10.0)
     except httpx.ConnectError:
         click.echo(
-            f"Error: server not available at {server}. Run 'macaw serve' first.",
+            f"Erro: servidor nao disponivel em {server}. Execute 'macaw serve' primeiro.",
             err=True,
         )
         sys.exit(1)
 
     if response.status_code != 200:
-        click.echo(f"Error ({response.status_code}): {response.text}", err=True)
+        click.echo(f"Erro ({response.status_code}): {response.text}", err=True)
         sys.exit(1)
 
     data = response.json()
     models = data.get("models", [])
 
     if not models:
-        click.echo("No models loaded.")
+        click.echo("Nenhum modelo carregado.")
         return
 
     # Header

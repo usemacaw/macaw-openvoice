@@ -43,7 +43,7 @@ def _create_backend(engine: str) -> STTBackend:
 
         return WeNetBackend()
 
-    msg = f"Unsupported STT engine: {engine}"
+    msg = f"Engine STT nao suportada: {engine}"
     raise ValueError(msg)
 
 

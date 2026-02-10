@@ -38,7 +38,7 @@ def _create_backend(engine: str) -> TTSBackend:
 
         return KokoroBackend()
 
-    msg = f"Unsupported TTS engine: {engine}"
+    msg = f"Engine TTS nao suportada: {engine}"
     raise ValueError(msg)
 
 

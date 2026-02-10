@@ -37,16 +37,16 @@ def remove(model_name: str, models_dir: str, yes: bool) -> None:
     downloader = ModelDownloader(Path(models_dir).expanduser())
 
     if not downloader.is_installed(model_name):
-        click.echo(f"Error: model '{model_name}' is not installed.", err=True)
+        click.echo(f"Erro: modelo '{model_name}' nao esta instalado.", err=True)
         sys.exit(1)
 
-    if not yes and not click.confirm(f"Remove model '{model_name}'?"):
-        click.echo("Cancelled.")
+    if not yes and not click.confirm(f"Remover o modelo '{model_name}'?", default=False):
+        click.echo("Cancelado.")
         return
 
     removed = downloader.remove(model_name)
     if removed:
-        click.echo(f"Model '{model_name}' removed.")
+        click.echo(f"Modelo '{model_name}' removido.")
     else:
-        click.echo(f"Error removing model '{model_name}'.", err=True)
+        click.echo(f"Erro ao remover modelo '{model_name}'.", err=True)
         sys.exit(1)

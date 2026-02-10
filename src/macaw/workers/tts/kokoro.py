@@ -70,7 +70,7 @@ class KokoroBackend(TTSBackend):
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if kokoro_lib is None:
-            msg = "kokoro is not installed. Install with: pip install macaw-openvoice[kokoro]"
+            msg = "kokoro nao esta instalado. Instale com: pip install macaw-openvoice[kokoro]"
             raise ModelLoadError(model_path, msg)
 
         device_str = str(config.get("device", "cpu"))
@@ -143,11 +143,11 @@ class KokoroBackend(TTSBackend):
             TTSSynthesisError: If synthesis fails.
         """
         if self._pipeline is None:
-            msg = "Model not loaded. Call load() first."
+            msg = "Modelo nao carregado. Chame load() primeiro."
             raise ModelLoadError("unknown", msg)
 
         if not text.strip():
-            raise TTSSynthesisError(self._model_path, "Empty text")
+            raise TTSSynthesisError(self._model_path, "Texto vazio")
 
         voice_path = _resolve_voice_path(
             voice,
@@ -172,7 +172,7 @@ class KokoroBackend(TTSBackend):
             raise TTSSynthesisError(self._model_path, str(exc)) from exc
 
         if len(audio_data) == 0:
-            msg = "Synthesis returned empty audio"
+            msg = "Sintese retornou audio vazio"
             raise TTSSynthesisError(self._model_path, msg)
 
         # Yield in chunks for streaming
@@ -343,7 +343,7 @@ def _synthesize_with_pipeline(
             audio_arrays.append(arr)
 
     if not audio_arrays:
-        msg = "Synthesis returned empty audio"
+        msg = "Sintese retornou audio vazio"
         raise TTSSynthesisError("kokoro", msg)
 
     combined = np.concatenate(audio_arrays)

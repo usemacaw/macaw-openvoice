@@ -75,7 +75,7 @@ async def create_speech(
 
     # Validate non-empty text
     if not body.input.strip():
-        raise InvalidRequestError("The 'input' field must not be empty.")
+        raise InvalidRequestError("O campo 'input' nao pode estar vazio.")
 
     # Validate response format
     if body.response_format not in _SUPPORTED_FORMATS:

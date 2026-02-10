@@ -49,7 +49,7 @@ class FasterWhisperBackend(STTBackend):
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if WhisperModel is None:
-            msg = "faster-whisper is not installed. Install with: pip install macaw-openvoice[faster-whisper]"
+            msg = "faster-whisper nao esta instalado. Instale com: pip install macaw-openvoice[faster-whisper]"
             raise ModelLoadError(model_path, msg)
 
         model_size = str(config.get("model_size", model_path))
@@ -96,11 +96,11 @@ class FasterWhisperBackend(STTBackend):
         word_timestamps: bool = False,
     ) -> BatchResult:
         if self._model is None:
-            msg = "Model not loaded. Call load() first."
+            msg = "Modelo nao carregado. Chame load() primeiro."
             raise ModelLoadError("unknown", msg)
 
         if not audio_data:
-            msg = "Empty audio"
+            msg = "Audio vazio"
             raise AudioFormatError(msg)
 
         audio_array = _audio_bytes_to_numpy(audio_data)
@@ -178,7 +178,7 @@ class FasterWhisperBackend(STTBackend):
             TranscriptSegment with is_final=True for each transcribed buffer.
         """
         if self._model is None:
-            msg = "Model not loaded. Call load() first."
+            msg = "Modelo nao carregado. Chame load() primeiro."
             raise ModelLoadError("unknown", msg)
 
         accumulation_threshold_seconds = 5.0
@@ -294,7 +294,7 @@ def _audio_bytes_to_numpy(audio_data: bytes) -> np.ndarray:
         AudioFormatError: If the byte length is not even (16-bit PCM = 2 bytes/sample).
     """
     if len(audio_data) % 2 != 0:
-        msg = "16-bit PCM audio must have an even number of bytes"
+        msg = "Audio PCM 16-bit deve ter numero par de bytes"
         raise AudioFormatError(msg)
 
     int16_array = np.frombuffer(audio_data, dtype=np.int16)

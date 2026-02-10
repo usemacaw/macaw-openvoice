@@ -5,7 +5,7 @@
 <h1 align="center">Macaw OpenVoice</h1>
 
 <p align="center">
-  <strong>Unified voice runtime (STT + TTS) with OpenAI-compatible API</strong>
+  <strong>Voice runtime (STT + TTS) with OpenAI-compatible API</strong>
 </p>
 
 <p align="center">

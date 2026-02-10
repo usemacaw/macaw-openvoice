@@ -81,7 +81,7 @@ class LocalAgreementPolicy:
 
     def __init__(self, min_confirm_passes: int = 2) -> None:
         if min_confirm_passes < 1:
-            msg = f"min_confirm_passes must be >= 1, got {min_confirm_passes}"
+            msg = f"min_confirm_passes deve ser >= 1, valor recebido: {min_confirm_passes}"
             raise ValueError(msg)
         self._min_confirm_passes = min_confirm_passes
         self._previous_tokens: list[str] = []

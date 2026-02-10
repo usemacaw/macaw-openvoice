@@ -56,7 +56,7 @@ def serve(
     log_format: str,
     log_level: str,
 ) -> None:
-    """Start the Macaw API Server with workers for installed models."""
+    """Inicia o Macaw API Server com workers para modelos instalados."""
     configure_logging(log_format=log_format, level=log_level)
     origins = [o.strip() for o in cors_origins.split(",") if o.strip()] if cors_origins else []
     asyncio.run(_serve(host, port, models_dir, cors_origins=origins))
@@ -87,8 +87,8 @@ async def _serve(
     models = registry.list_models()
     if not models:
         logger.error("no_models_found", models_dir=str(models_path))
-        click.echo(f"Error: no models found in {models_path}", err=True)
-        click.echo("Run 'macaw pull <model>' to install a model.", err=True)
+        click.echo(f"Erro: nenhum modelo encontrado em {models_path}", err=True)
+        click.echo("Execute 'macaw pull <model>' para instalar um modelo.", err=True)
         sys.exit(1)
 
     # 2. Spawn workers for STT models

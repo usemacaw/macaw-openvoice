@@ -64,8 +64,8 @@ class SileroVADClassifier:
         """
         if sample_rate != _EXPECTED_SAMPLE_RATE:
             msg = (
-                f"Silero VAD requires sample rate {_EXPECTED_SAMPLE_RATE}Hz, "
-                f"received {sample_rate}Hz. Resample first."
+                f"Silero VAD requer sample rate {_EXPECTED_SAMPLE_RATE}Hz, "
+                f"recebido {sample_rate}Hz. Faca o resample antes."
             )
             raise ValueError(msg)
 

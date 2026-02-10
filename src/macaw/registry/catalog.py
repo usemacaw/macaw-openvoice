@@ -52,12 +52,12 @@ class ModelCatalog:
         data = yaml.safe_load(raw)
 
         if not isinstance(data, dict) or "models" not in data:
-            msg = f"Invalid catalog: {self._path} (missing 'models' field)"
+            msg = f"Catalogo invalido: {self._path} (campo 'models' ausente)"
             raise ValueError(msg)
 
         models = data["models"]
         if not isinstance(models, dict):
-            msg = f"Invalid catalog: {self._path} ('models' must be a mapping)"
+            msg = f"Catalogo invalido: {self._path} ('models' deve ser mapeamento)"
             raise ValueError(msg)
 
         self._entries.clear()

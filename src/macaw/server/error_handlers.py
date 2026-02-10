@@ -147,7 +147,7 @@ async def _handle_macaw_error(request: Request, exc: MacawError) -> JSONResponse
         request_id=_get_request_id(request),
         exc_info=True,
     )
-    return _error_response(500, "Internal server error", "internal_error", "internal_error")
+    return _error_response(500, "Erro interno do servidor", "internal_error", "internal_error")
 
 
 async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
@@ -158,7 +158,7 @@ async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResp
         request_id=_get_request_id(request),
         exc_info=True,
     )
-    return _error_response(500, "Internal server error", "internal_error", "internal_error")
+    return _error_response(500, "Erro interno do servidor", "internal_error", "internal_error")
 
 
 def register_error_handlers(app: FastAPI) -> None:
