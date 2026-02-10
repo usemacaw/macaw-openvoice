@@ -65,7 +65,7 @@ jobs:
         run: pip install -e ".[dev,grpc]"
 
       - name: Integration tests
-        run: python -m pytest tests/ -v -m integration --timeout=300
+        run: python -m pytest tests/ -v -m integration
         timeout-minutes: 10
 
   build:
