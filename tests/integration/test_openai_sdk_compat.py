@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import uvicorn
 
-from Macaw._types import BatchResult, SegmentDetail, WordTimestamp
-from Macaw.server.app import create_app
+from macaw._types import BatchResult, SegmentDetail, WordTimestamp
+from macaw.server.app import create_app
 
 
 def _make_batch_result() -> BatchResult:

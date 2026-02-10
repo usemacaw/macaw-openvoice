@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from Macaw._types import ModelType, STTArchitecture
-from Macaw.config.manifest import ModelManifest
-from Macaw.workers.stt.main import _create_backend
+from macaw._types import ModelType, STTArchitecture
+from macaw.config.manifest import ModelManifest
+from macaw.workers.stt.main import _create_backend
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -75,13 +75,13 @@ class TestCreateBackendFactory:
     """Testes da factory _create_backend para WeNet."""
 
     def test_create_wenet_backend(self) -> None:
-        from Macaw.workers.stt.wenet import WeNetBackend
+        from macaw.workers.stt.wenet import WeNetBackend
 
         backend = _create_backend("wenet")
         assert isinstance(backend, WeNetBackend)
 
     def test_create_faster_whisper_backend(self) -> None:
-        from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = _create_backend("faster-whisper")
         assert isinstance(backend, FasterWhisperBackend)

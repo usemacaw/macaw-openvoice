@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
-from Macaw._types import BatchResult, SegmentDetail
-from Macaw.server.app import create_app
+from macaw._types import BatchResult, SegmentDetail
+from macaw.server.app import create_app
 
 
 def _make_mock_scheduler(text: str = "Ola mundo") -> MagicMock:

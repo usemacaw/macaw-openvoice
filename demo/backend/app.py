@@ -1,4 +1,4 @@
-"""Aplicacao FastAPI para o demo end-to-end."""
+"""FastAPI application for the end-to-end demo."""
 
 from __future__ import annotations
 
@@ -11,24 +11,24 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette import status
 
-from Macaw._types import ModelType, ResponseFormat
-from Macaw.config.postprocessing import PostProcessingConfig
-from Macaw.config.preprocessing import PreprocessingConfig
-from Macaw.logging import get_logger
-from Macaw.postprocessing.itn import ITNStage
-from Macaw.postprocessing.pipeline import PostProcessingPipeline
-from Macaw.preprocessing.dc_remove import DCRemoveStage
-from Macaw.preprocessing.gain_normalize import GainNormalizeStage
-from Macaw.preprocessing.pipeline import AudioPreprocessingPipeline
-from Macaw.preprocessing.resample import ResampleStage
-from Macaw.registry.registry import ModelRegistry
-from Macaw.scheduler.queue import RequestPriority
-from Macaw.scheduler.scheduler import Scheduler
-from Macaw.scheduler.streaming import StreamingGRPCClient
-from Macaw.server.error_handlers import register_error_handlers
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.server.routes import health, realtime, speech, transcriptions, translations
-from Macaw.workers.manager import WorkerManager
+from macaw._types import ModelType, ResponseFormat
+from macaw.config.postprocessing import PostProcessingConfig
+from macaw.config.preprocessing import PreprocessingConfig
+from macaw.logging import get_logger
+from macaw.postprocessing.itn import ITNStage
+from macaw.postprocessing.pipeline import PostProcessingPipeline
+from macaw.preprocessing.dc_remove import DCRemoveStage
+from macaw.preprocessing.gain_normalize import GainNormalizeStage
+from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
+from macaw.preprocessing.resample import ResampleStage
+from macaw.registry.registry import ModelRegistry
+from macaw.scheduler.queue import RequestPriority
+from macaw.scheduler.scheduler import Scheduler
+from macaw.scheduler.streaming import StreamingGRPCClient
+from macaw.server.error_handlers import register_error_handlers
+from macaw.server.models.requests import TranscribeRequest
+from macaw.server.routes import health, realtime, speech, transcriptions, translations
+from macaw.workers.manager import WorkerManager
 
 from .config import DemoConfig
 from .jobs import DemoJob, DemoJobStore
@@ -36,14 +36,14 @@ from .jobs import DemoJob, DemoJobStore
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from Macaw.postprocessing.stages import TextStage
-    from Macaw.preprocessing.stages import AudioStage
+    from macaw.postprocessing.stages import TextStage
+    from macaw.preprocessing.stages import AudioStage
 
 logger = get_logger("demo.backend")
 
 
 def create_demo_app(config: DemoConfig | None = None) -> FastAPI:
-    """Cria aplicacao FastAPI com lifecycle completo do Macaw."""
+    """Create the FastAPI app with the full Macaw lifecycle."""
 
     settings = config or DemoConfig()
 
@@ -61,9 +61,7 @@ def create_demo_app(config: DemoConfig | None = None) -> FastAPI:
         stt_manifests = [m for m in models if m.model_type == ModelType.STT]
         tts_manifests = [m for m in models if m.model_type == ModelType.TTS]
         if not stt_manifests and not tts_manifests:
-            msg = (
-                "Nenhum modelo encontrado. Execute 'Macaw pull <modelo>' antes de iniciar o demo."
-            )
+            msg = "No models found. Run 'macaw pull <model>' before starting the demo."
             logger.error("demo_no_models", models_dir=str(settings.models_dir))
             raise RuntimeError(msg)
 
@@ -164,7 +162,7 @@ def create_demo_app(config: DemoConfig | None = None) -> FastAPI:
     app = FastAPI(
         title="Macaw OpenVoice Demo",
         version="1.0",
-        description="Demo interativa do Scheduler e API Macaw",
+        description="Interactive demo for the Scheduler and Macaw API",
         lifespan=lifespan,
     )
 
@@ -260,7 +258,7 @@ def _register_demo_routes(app: FastAPI) -> None:
         store: DemoJobStore = request.app.state.demo_jobs
         job = await store.get(request_id)
         if job is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job nao encontrado")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
         return job.as_dict()
 
     @app.post("/demo/jobs")
@@ -278,7 +276,7 @@ def _register_demo_routes(app: FastAPI) -> None:
         if not registry.has_model(model):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Modelo '{model}' nao encontrado",
+                detail=f"Model '{model}' not found",
             )
 
         try:
@@ -286,14 +284,14 @@ def _register_demo_routes(app: FastAPI) -> None:
         except KeyError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Prioridade invalida. Use REALTIME ou BATCH.",
+                detail="Invalid priority. Use REALTIME or BATCH.",
             ) from exc
 
         payload = await file.read()
         if not payload:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Arquivo de audio vazio.",
+                detail="Empty audio file.",
             )
 
         request_id = uuid.uuid4().hex
@@ -342,7 +340,7 @@ def _register_demo_routes(app: FastAPI) -> None:
         if job is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job nao encontrado",
+                detail="Job not found",
             )
         logger.info("demo_job_cancel", request_id=request_id, cancelled=cancelled)
         return {

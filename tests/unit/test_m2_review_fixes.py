@@ -17,24 +17,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import grpc
 import pytest
 
-from Macaw._types import (
+from macaw._types import (
     BatchResult,
     EngineCapabilities,
     SegmentDetail,
     STTArchitecture,
 )
-from Macaw.proto.stt_worker_pb2 import TranscribeFileRequest
-from Macaw.workers.manager import (
+from macaw.proto.stt_worker_pb2 import TranscribeFileRequest
+from macaw.workers.manager import (
     WorkerManager,
     _build_worker_cmd,
 )
-from Macaw.workers.stt.interface import STTBackend
-from Macaw.workers.stt.servicer import STTWorkerServicer
+from macaw.workers.stt.interface import STTBackend
+from macaw.workers.stt.servicer import STTWorkerServicer
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from Macaw._types import TranscriptSegment
+    from macaw._types import TranscriptSegment
 
 
 class MockBackend(STTBackend):
@@ -178,7 +178,7 @@ class TestFix2BuildWorkerCmd:
         )
         assert sys.executable in cmd
         assert "-m" in cmd
-        assert "Macaw.workers.stt" in cmd
+        assert "macaw.workers.stt" in cmd
         assert "--port" in cmd
         assert "50051" in cmd
         assert "--engine" in cmd
@@ -266,7 +266,7 @@ class TestFix3HealthCheckImport:
 
     async def test_channel_closed_on_success(self) -> None:
         """Channel e fechado mesmo quando health retorna com sucesso."""
-        from Macaw.workers.manager import _check_worker_health
+        from macaw.workers.manager import _check_worker_health
 
         mock_response = MagicMock()
         mock_response.status = "ok"
@@ -281,7 +281,7 @@ class TestFix3HealthCheckImport:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch(
-                "Macaw.proto.stt_worker_pb2_grpc.STTWorkerStub",
+                "macaw.proto.stt_worker_pb2_grpc.STTWorkerStub",
                 return_value=mock_stub_instance,
             ),
         ):
@@ -291,7 +291,7 @@ class TestFix3HealthCheckImport:
 
     async def test_channel_closed_on_error(self) -> None:
         """Channel e fechado mesmo quando ocorre erro."""
-        from Macaw.workers.manager import _check_worker_health
+        from macaw.workers.manager import _check_worker_health
 
         mock_stub_instance = MagicMock()
         mock_stub_instance.Health = AsyncMock(side_effect=Exception("Connection refused"))
@@ -301,7 +301,7 @@ class TestFix3HealthCheckImport:
         with (
             patch("grpc.aio.insecure_channel", return_value=mock_channel),
             patch(
-                "Macaw.proto.stt_worker_pb2_grpc.STTWorkerStub",
+                "macaw.proto.stt_worker_pb2_grpc.STTWorkerStub",
                 return_value=mock_stub_instance,
             ),
         ):
@@ -345,7 +345,7 @@ class TestFix4DoubleShutdownProtection:
         """Verifica que o signal handler e uma funcao nomeada, nao um lambda."""
         import inspect
 
-        from Macaw.workers.stt import main as main_mod
+        from macaw.workers.stt import main as main_mod
 
         source = inspect.getsource(main_mod.serve)
         # Nao deve haver lambda no add_signal_handler
@@ -360,13 +360,13 @@ class TestFix4DoubleShutdownProtection:
 class TestFix5TasksAwaitedAfterCancel:
     """Verifica que background tasks sao awaited apos cancel."""
 
-    @patch("Macaw.workers.manager._spawn_worker_process")
+    @patch("macaw.workers.manager._spawn_worker_process")
     async def test_tasks_removed_from_dict_after_stop(self, mock_spawn: MagicMock) -> None:
         mock_spawn.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             await manager.spawn_worker(
@@ -386,7 +386,7 @@ class TestFix5TasksAwaitedAfterCancel:
             # Tasks should be removed from dict after stop (popped by _cancel_background_tasks)
             assert worker_id not in manager._tasks
 
-    @patch("Macaw.workers.manager._spawn_worker_process")
+    @patch("macaw.workers.manager._spawn_worker_process")
     async def test_cancel_background_tasks_gathers_with_return_exceptions(
         self, mock_spawn: MagicMock
     ) -> None:
@@ -395,7 +395,7 @@ class TestFix5TasksAwaitedAfterCancel:
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             await manager.spawn_worker(
@@ -417,14 +417,14 @@ class TestFix5TasksAwaitedAfterCancel:
 
             await manager.stop_all()
 
-    @patch("Macaw.workers.manager._spawn_worker_process")
+    @patch("macaw.workers.manager._spawn_worker_process")
     async def test_spawn_uses_extracted_spawn_function(self, mock_spawn: MagicMock) -> None:
         """spawn_worker usa _spawn_worker_process (DRY)."""
         mock_spawn.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             await manager.spawn_worker(

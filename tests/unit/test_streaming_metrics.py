@@ -17,13 +17,13 @@ from unittest.mock import AsyncMock, Mock, patch
 import numpy as np
 import pytest
 
-from Macaw._types import TranscriptSegment
-from Macaw.server.models.events import (
+from macaw._types import TranscriptSegment
+from macaw.server.models.events import (
     TranscriptFinalEvent,
     TranscriptPartialEvent,
 )
-from Macaw.session.streaming import StreamingSession
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw.session.streaming import StreamingSession
+from macaw.vad.detector import VADEvent, VADEventType
 
 # Verificar se prometheus_client esta disponivel para testes de valores
 try:
@@ -207,13 +207,13 @@ def _get_histogram_sum(metric_name: str) -> float:
 async def test_active_sessions_increments_on_init():
     """Active sessions incrementa quando uma sessao e criada."""
     # Arrange
-    initial_value = _get_gauge_value("Macaw_stt_active_sessions")
+    initial_value = _get_gauge_value("macaw_stt_active_sessions")
 
     # Act
     session, _, _, _ = _make_session(session_id="active_inc_test")
 
     # Assert
-    current_value = _get_gauge_value("Macaw_stt_active_sessions")
+    current_value = _get_gauge_value("macaw_stt_active_sessions")
     assert current_value == initial_value + 1
 
     # Cleanup
@@ -225,13 +225,13 @@ async def test_active_sessions_decrements_on_close():
     """Active sessions decrementa quando uma sessao e fechada."""
     # Arrange
     session, _, _, _ = _make_session(session_id="active_dec_test")
-    value_after_init = _get_gauge_value("Macaw_stt_active_sessions")
+    value_after_init = _get_gauge_value("macaw_stt_active_sessions")
 
     # Act
     await session.close()
 
     # Assert
-    value_after_close = _get_gauge_value("Macaw_stt_active_sessions")
+    value_after_close = _get_gauge_value("macaw_stt_active_sessions")
     assert value_after_close == value_after_init - 1
 
 
@@ -240,7 +240,7 @@ async def test_active_sessions_idempotent_close():
     """Multiplas chamadas a close() decrementam apenas uma vez."""
     # Arrange
     session, _, _, _ = _make_session(session_id="active_idempotent_test")
-    value_after_init = _get_gauge_value("Macaw_stt_active_sessions")
+    value_after_init = _get_gauge_value("macaw_stt_active_sessions")
 
     # Act
     await session.close()
@@ -248,7 +248,7 @@ async def test_active_sessions_idempotent_close():
     await session.close()
 
     # Assert: decrementou apenas 1x
-    value_after_close = _get_gauge_value("Macaw_stt_active_sessions")
+    value_after_close = _get_gauge_value("macaw_stt_active_sessions")
     assert value_after_close == value_after_init - 1
 
 
@@ -262,7 +262,7 @@ async def test_vad_speech_start_increments_counter():
     """Evento speech_start incrementa counter VAD."""
     # Arrange
     initial_starts = _get_counter_value(
-        "Macaw_stt_vad_events",
+        "macaw_stt_vad_events",
         {"event_type": "speech_start"},
     )
     vad = _make_vad_mock()
@@ -279,7 +279,7 @@ async def test_vad_speech_start_increments_counter():
 
     # Assert
     current_starts = _get_counter_value(
-        "Macaw_stt_vad_events",
+        "macaw_stt_vad_events",
         {"event_type": "speech_start"},
     )
     assert current_starts == initial_starts + 1
@@ -293,7 +293,7 @@ async def test_vad_speech_end_increments_counter():
     """Evento speech_end incrementa counter VAD."""
     # Arrange
     initial_ends = _get_counter_value(
-        "Macaw_stt_vad_events",
+        "macaw_stt_vad_events",
         {"event_type": "speech_end"},
     )
     vad = _make_vad_mock()
@@ -323,7 +323,7 @@ async def test_vad_speech_end_increments_counter():
 
     # Assert
     current_ends = _get_counter_value(
-        "Macaw_stt_vad_events",
+        "macaw_stt_vad_events",
         {"event_type": "speech_end"},
     )
     assert current_ends == initial_ends + 1
@@ -348,7 +348,7 @@ async def test_ttfb_recorded_on_first_partial():
     vad = _make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[partial_seg])
 
-    initial_count = _get_histogram_count("Macaw_stt_ttfb_seconds")
+    initial_count = _get_histogram_count("macaw_stt_ttfb_seconds")
 
     session, _, _, on_event = _make_session(
         vad=vad,
@@ -368,7 +368,7 @@ async def test_ttfb_recorded_on_first_partial():
     await asyncio.sleep(0.05)
 
     # Assert: TTFB foi registrado
-    current_count = _get_histogram_count("Macaw_stt_ttfb_seconds")
+    current_count = _get_histogram_count("macaw_stt_ttfb_seconds")
     assert current_count == initial_count + 1
 
     # Assert: partial event foi emitido
@@ -403,7 +403,7 @@ async def test_ttfb_recorded_once_per_segment():
     vad = _make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[partial1, partial2])
 
-    initial_count = _get_histogram_count("Macaw_stt_ttfb_seconds")
+    initial_count = _get_histogram_count("macaw_stt_ttfb_seconds")
 
     session, _, _, _ = _make_session(
         vad=vad,
@@ -422,7 +422,7 @@ async def test_ttfb_recorded_once_per_segment():
     await asyncio.sleep(0.05)
 
     # Assert: TTFB registrado apenas 1 vez (nao 2)
-    current_count = _get_histogram_count("Macaw_stt_ttfb_seconds")
+    current_count = _get_histogram_count("macaw_stt_ttfb_seconds")
     assert current_count == initial_count + 1
 
     # Cleanup
@@ -443,7 +443,7 @@ async def test_ttfb_value_reflects_elapsed_time():
     vad = _make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[partial_seg])
 
-    initial_sum = _get_histogram_sum("Macaw_stt_ttfb_seconds")
+    initial_sum = _get_histogram_sum("macaw_stt_ttfb_seconds")
 
     # Usar monotonic time real (o TTFB sera pequeno mas > 0)
     session, _, _, _ = _make_session(
@@ -463,7 +463,7 @@ async def test_ttfb_value_reflects_elapsed_time():
     await asyncio.sleep(0.05)
 
     # Assert: TTFB sum increased by a positive value
-    current_sum = _get_histogram_sum("Macaw_stt_ttfb_seconds")
+    current_sum = _get_histogram_sum("macaw_stt_ttfb_seconds")
     assert current_sum > initial_sum
 
     # Cleanup
@@ -542,7 +542,7 @@ async def test_final_delay_not_recorded_when_no_speech_end():
     vad = _make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[final_seg])
 
-    initial_count = _get_histogram_count("Macaw_stt_final_delay_seconds")
+    initial_count = _get_histogram_count("macaw_stt_final_delay_seconds")
 
     session, _, _, _ = _make_session(
         vad=vad,
@@ -561,7 +561,7 @@ async def test_final_delay_not_recorded_when_no_speech_end():
     await asyncio.sleep(0.05)
 
     # Assert: final_delay NAO foi registrado (speech_end_monotonic e None)
-    current_count = _get_histogram_count("Macaw_stt_final_delay_seconds")
+    current_count = _get_histogram_count("macaw_stt_final_delay_seconds")
     assert current_count == initial_count
 
     # Cleanup
@@ -582,15 +582,15 @@ async def test_session_works_without_prometheus():
     """
     # Arrange: simular HAS_METRICS = False
     with (
-        patch("Macaw.session.streaming.HAS_METRICS", False),
-        patch("Macaw.session.streaming.stt_active_sessions", None),
-        patch("Macaw.session.streaming.stt_vad_events_total", None),
-        patch("Macaw.session.streaming.stt_ttfb_seconds", None),
-        patch("Macaw.session.streaming.stt_final_delay_seconds", None),
-        patch("Macaw.session.streaming.stt_session_duration_seconds", None),
-        patch("Macaw.session.streaming.stt_segments_force_committed_total", None),
-        patch("Macaw.session.streaming.stt_confidence_avg", None),
-        patch("Macaw.session.streaming.stt_worker_recoveries_total", None),
+        patch("macaw.session.streaming.HAS_METRICS", False),
+        patch("macaw.session.streaming.stt_active_sessions", None),
+        patch("macaw.session.streaming.stt_vad_events_total", None),
+        patch("macaw.session.streaming.stt_ttfb_seconds", None),
+        patch("macaw.session.streaming.stt_final_delay_seconds", None),
+        patch("macaw.session.streaming.stt_session_duration_seconds", None),
+        patch("macaw.session.streaming.stt_segments_force_committed_total", None),
+        patch("macaw.session.streaming.stt_confidence_avg", None),
+        patch("macaw.session.streaming.stt_worker_recoveries_total", None),
     ):
         vad = _make_vad_mock()
         stream_handle = _make_stream_handle_mock()
@@ -632,7 +632,7 @@ async def test_session_works_without_prometheus():
 
 async def test_metrics_module_has_metrics_flag():
     """Modulo metrics exporta HAS_METRICS indicando disponibilidade."""
-    from Macaw.session import metrics as metrics_mod
+    from macaw.session import metrics as metrics_mod
 
     # Com prometheus_client instalado, HAS_METRICS deve ser True
     # Se nao estiver instalado, deve ser False
@@ -643,7 +643,7 @@ async def test_metrics_module_has_metrics_flag():
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_metrics_objects_are_not_none():
     """Quando prometheus_client esta instalado, metricas nao sao None."""
-    from Macaw.session import metrics as metrics_mod
+    from macaw.session import metrics as metrics_mod
 
     # M5 metrics
     assert metrics_mod.stt_active_sessions is not None
@@ -678,7 +678,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
     grpc_client = _make_grpc_client_mock(stream_handle1)
     on_event = _make_on_event()
 
-    initial_count = _get_histogram_count("Macaw_stt_ttfb_seconds")
+    initial_count = _get_histogram_count("macaw_stt_ttfb_seconds")
 
     session = StreamingSession(
         session_id="ttfb_multi_seg_test",
@@ -725,7 +725,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
     await asyncio.sleep(0.05)
 
     # Assert: TTFB registrado 2x (uma por segmento)
-    current_count = _get_histogram_count("Macaw_stt_ttfb_seconds")
+    current_count = _get_histogram_count("macaw_stt_ttfb_seconds")
     assert current_count == initial_count + 2
 
     # Cleanup
@@ -740,7 +740,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_session_duration_recorded_on_close():
     """session_duration_seconds e registrado quando sessao e fechada."""
-    initial_count = _get_histogram_count("Macaw_stt_session_duration_seconds")
+    initial_count = _get_histogram_count("macaw_stt_session_duration_seconds")
 
     session, _, _, _ = _make_session(session_id="duration_test")
 
@@ -748,25 +748,25 @@ async def test_session_duration_recorded_on_close():
     await session.close()
 
     # Assert: duracao registrada
-    current_count = _get_histogram_count("Macaw_stt_session_duration_seconds")
+    current_count = _get_histogram_count("macaw_stt_session_duration_seconds")
     assert current_count == initial_count + 1
 
     # Sum deve ter aumentado (duracao > 0)
-    current_sum = _get_histogram_sum("Macaw_stt_session_duration_seconds")
+    current_sum = _get_histogram_sum("macaw_stt_session_duration_seconds")
     assert current_sum > 0
 
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_session_duration_not_recorded_twice_on_double_close():
     """session_duration_seconds registrado apenas 1x mesmo com close() duplo."""
-    initial_count = _get_histogram_count("Macaw_stt_session_duration_seconds")
+    initial_count = _get_histogram_count("macaw_stt_session_duration_seconds")
 
     session, _, _, _ = _make_session(session_id="duration_double_test")
 
     await session.close()
     await session.close()
 
-    current_count = _get_histogram_count("Macaw_stt_session_duration_seconds")
+    current_count = _get_histogram_count("macaw_stt_session_duration_seconds")
     assert current_count == initial_count + 1
 
 
@@ -790,7 +790,7 @@ async def test_confidence_recorded_on_final_transcript():
 
     vad = _make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[final_seg])
-    initial_count = _get_histogram_count("Macaw_stt_confidence_avg")
+    initial_count = _get_histogram_count("macaw_stt_confidence_avg")
 
     session, _, _, _on_event = _make_session(
         vad=vad,
@@ -808,7 +808,7 @@ async def test_confidence_recorded_on_final_transcript():
     await asyncio.sleep(0.05)
 
     # Assert: confidence registrado
-    current_count = _get_histogram_count("Macaw_stt_confidence_avg")
+    current_count = _get_histogram_count("macaw_stt_confidence_avg")
     assert current_count == initial_count + 1
 
     await session.close()
@@ -828,7 +828,7 @@ async def test_confidence_not_recorded_when_none():
 
     vad = _make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[final_seg])
-    initial_count = _get_histogram_count("Macaw_stt_confidence_avg")
+    initial_count = _get_histogram_count("macaw_stt_confidence_avg")
 
     session, _, _, _ = _make_session(
         vad=vad,
@@ -845,7 +845,7 @@ async def test_confidence_not_recorded_when_none():
     await asyncio.sleep(0.05)
 
     # Assert: confidence NAO registrado
-    current_count = _get_histogram_count("Macaw_stt_confidence_avg")
+    current_count = _get_histogram_count("macaw_stt_confidence_avg")
     assert current_count == initial_count
 
     await session.close()
@@ -859,10 +859,10 @@ async def test_confidence_not_recorded_when_none():
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_force_commit_counter_increments():
     """segments_force_committed_total incrementa no callback do ring buffer."""
-    from Macaw.session.ring_buffer import RingBuffer
+    from macaw.session.ring_buffer import RingBuffer
 
     initial_count = _get_counter_value(
-        "Macaw_stt_segments_force_committed",
+        "macaw_stt_segments_force_committed",
         {},
     )
 
@@ -903,7 +903,7 @@ async def test_force_commit_counter_increments():
 
     # Assert: force commit counter incrementou
     current_count = _get_counter_value(
-        "Macaw_stt_segments_force_committed",
+        "macaw_stt_segments_force_committed",
         {},
     )
     assert current_count > initial_count
@@ -919,10 +919,10 @@ async def test_force_commit_counter_increments():
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_recovery_success_increments_counter():
     """worker_recoveries_total com result=success incrementa apos recovery."""
-    from Macaw.exceptions import WorkerCrashError
+    from macaw.exceptions import WorkerCrashError
 
     initial_success = _get_counter_value(
-        "Macaw_stt_worker_recoveries",
+        "macaw_stt_worker_recoveries",
         {"result": "success"},
     )
 
@@ -963,7 +963,7 @@ async def test_recovery_success_increments_counter():
 
     # Assert: recovery success counter incrementou
     current_success = _get_counter_value(
-        "Macaw_stt_worker_recoveries",
+        "macaw_stt_worker_recoveries",
         {"result": "success"},
     )
     assert current_success == initial_success + 1

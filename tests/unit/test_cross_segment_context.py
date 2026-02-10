@@ -13,10 +13,10 @@ from unittest.mock import AsyncMock, Mock
 
 import numpy as np
 
-from Macaw._types import TranscriptSegment
-from Macaw.session.cross_segment import CrossSegmentContext
-from Macaw.session.streaming import StreamingSession
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw._types import TranscriptSegment
+from macaw.session.cross_segment import CrossSegmentContext
+from macaw.session.streaming import StreamingSession
+from macaw.vad.detector import VADEvent, VADEventType
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import numpy as np
 
-from Macaw._types import STTArchitecture, TranscriptSegment
-from Macaw.session.streaming import StreamingSession
+from macaw._types import STTArchitecture, TranscriptSegment
+from macaw.session.streaming import StreamingSession
 
 
 class _AsyncIterFromList:
@@ -342,7 +342,7 @@ class TestCTCStateAndVAD:
     """CTC: state machine e VAD funcionam normalmente."""
 
     async def test_ctc_session_starts_in_init(self) -> None:
-        from Macaw._types import SessionState
+        from macaw._types import SessionState
 
         session = _make_session(architecture=STTArchitecture.CTC)
         assert session.session_state == SessionState.INIT

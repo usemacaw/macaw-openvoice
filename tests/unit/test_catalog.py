@@ -10,7 +10,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from Macaw.registry.catalog import CatalogEntry, ModelCatalog
+from macaw.registry.catalog import CatalogEntry, ModelCatalog
 
 
 @pytest.fixture

@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 from starlette.testclient import TestClient
 
-from Macaw.exceptions import ModelNotFoundError
-from Macaw.server.app import create_app
+from macaw.exceptions import ModelNotFoundError
+from macaw.server.app import create_app
 
 
 def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:
@@ -132,7 +132,7 @@ def test_cancel_does_not_emit_duplicate_session_closed() -> None:
 
 def test_default_timeouts_used_when_not_configured() -> None:
     """Valores default sao usados quando app.state nao tem configuracao."""
-    from Macaw.server.routes.realtime import (
+    from macaw.server.routes.realtime import (
         _DEFAULT_CHECK_INTERVAL_S,
         _DEFAULT_HEARTBEAT_INTERVAL_S,
         _DEFAULT_INACTIVITY_TIMEOUT_S,

@@ -1,127 +1,127 @@
 # Macaw OpenVoice Demo
 
-Aplicacao de demonstracao end-to-end com backend FastAPI e frontend React/Next.js (componentes shadcn/Radix UI).
+End-to-end demo application with a FastAPI backend and a React/Next.js frontend (shadcn/Radix UI components).
 
-## Inicio Rapido
+## Quickstart
 
 ```bash
-./examples/demo/start-demo.sh
+./demo/start.sh
 ```
 
-Isso inicia backend (porta 9000) e frontend (porta 3000) juntos. Ctrl+C encerra ambos.
+This starts the backend (port 9000) and frontend (port 3000) together. Ctrl+C stops both.
 
-## Estrutura
+## Structure
 
 ```
-examples/demo/
-  backend/          # FastAPI: registry, workers gRPC, scheduler, rotas Macaw + /demo/*
+demo/
+  backend/          # FastAPI: registry, gRPC workers, scheduler, Macaw routes + /demo/*
   frontend/         # Next.js 14: dashboard, streaming STT, TTS playback
-  start-demo.sh     # Script que inicia backend + frontend
+  start.sh     # Script that starts backend + frontend
 ```
 
-## Pre-requisitos
+## Prerequisites
 
 - Python 3.12+ (via `uv`)
 - Node.js 18+
-- Pelo menos um modelo STT instalado em `~/.Macaw/models` (ou configure `DEMO_MODELS_DIR`)
+- At least one STT model installed in `~/.macaw/models` (or configure `DEMO_MODELS_DIR`)
 
-## Instalacao
+## Installation
 
 ### Backend
 
 ```bash
-# Do root do projeto
-cd /path/to/Macaw-openvoice
+# From the project root
+cd /path/to/macaw-openvoice
 .venv/bin/pip install -e ".[server,grpc]"
 ```
 
 ### Frontend
 
 ```bash
-cd examples/demo/frontend
+cd demo/frontend
 npm install
 ```
 
-## Iniciando Separadamente
+## Running Separately
 
-### So backend
+### Backend only
 
 ```bash
-# Opcao 1: script
-SKIP_FRONTEND=1 ./examples/demo/start-demo.sh
+# Option 1: script
+SKIP_FRONTEND=1 ./demo/start.sh
 
-# Opcao 2: direto
-.venv/bin/python -m uvicorn examples.demo.backend.app:app --reload --host 127.0.0.1 --port 9000
+# Option 2: direct
+.venv/bin/python -m uvicorn demo.backend.app:app --reload --host 127.0.0.1 --port 9000
 ```
 
-### So frontend
+### Frontend only
 
 ```bash
-# Opcao 1: script
-SKIP_BACKEND=1 ./examples/demo/start-demo.sh
+# Option 1: script
+SKIP_BACKEND=1 ./demo/start.sh
 
-# Opcao 2: direto
-cd examples/demo/frontend
+# Option 2: direct
+cd demo/frontend
 NEXT_PUBLIC_DEMO_API=http://localhost:9000 npm run dev
 ```
 
-## Variaveis de Ambiente
+## Environment Variables
 
-| Variavel | Default | Descricao |
+| Variable | Default | Description |
 |----------|---------|-----------|
-| `DEMO_HOST` | `127.0.0.1` | Host do backend |
-| `DEMO_PORT` | `9000` | Porta do backend |
-| `FRONTEND_PORT` | `3000` | Porta do frontend Next.js |
-| `DEMO_MODELS_DIR` | `~/.Macaw/models` | Diretorio dos modelos |
-| `DEMO_ALLOWED_ORIGINS` | `http://localhost:3000` | CORS origins (separados por virgula) |
-| `DEMO_BATCH_ACCUMULATE_MS` | `75` | Tempo de acumulacao do batcher |
-| `DEMO_BATCH_MAX_SIZE` | `8` | Tamanho maximo do batch |
-| `UVICORN_RELOAD` | `1` | Hot-reload do backend (`0` para desabilitar) |
-| `SKIP_FRONTEND` | `0` | `1` para iniciar so o backend |
-| `SKIP_BACKEND` | `0` | `1` para iniciar so o frontend |
-| `NEXT_PUBLIC_DEMO_API` | `http://localhost:9000` | URL do backend para o frontend |
+| `DEMO_HOST` | `127.0.0.1` | Backend host |
+| `DEMO_PORT` | `9000` | Backend port |
+| `FRONTEND_PORT` | `3000` | Next.js frontend port |
+| `DEMO_MODELS_DIR` | `~/.macaw/models` | Models directory |
+| `DEMO_ALLOWED_ORIGINS` | `http://localhost:3000` | CORS origins (comma-separated) |
+| `DEMO_BATCH_ACCUMULATE_MS` | `75` | Batcher accumulation time |
+| `DEMO_BATCH_MAX_SIZE` | `8` | Maximum batch size |
+| `UVICORN_RELOAD` | `1` | Backend hot-reload (`0` to disable) |
+| `SKIP_FRONTEND` | `0` | `1` to start only the backend |
+| `SKIP_BACKEND` | `0` | `1` to start only the frontend |
+| `NEXT_PUBLIC_DEMO_API` | `http://localhost:9000` | Backend URL for the frontend |
 
-## Funcionalidades da Demo
+## Demo Features
 
-A interface tem 3 tabs:
+The interface has 3 tabs:
 
 ### Dashboard (Batch STT)
-- Lista de modelos instalados (STT/TTS) com badges de arquitetura
-- Metricas da fila do scheduler (profundidade, prioridade)
-- Upload de arquivo de audio para transcricao batch
-- Tabela de jobs com status, resultado e cancelamento
+- List of installed models (STT/TTS) with architecture badges
+- Scheduler queue metrics (depth, priority)
+- Audio file upload for batch transcription
+- Jobs table with status, result, and cancellation
 
 ### Streaming STT
-- Gravacao de microfone em tempo real via Web Audio API
-- WebSocket `/v1/realtime` com protocolo de eventos JSON
-- Indicadores visuais: conexao, VAD (fala detectada), waveform
-- Transcricoes parciais e finais com scroll automatico
+- Real-time microphone recording via Web Audio API
+- WebSocket `/v1/realtime` with JSON event protocol
+- Visual indicators: connection, VAD (speech detected), waveform
+- Partial and final transcriptions with auto-scroll
 
 ### Text-to-Speech
-- Sintese de voz via `POST /v1/audio/speech`
-- Controles: voz, velocidade (0.5x-2.0x)
-- Player de audio integrado
-- Medicao de TTFB (Time to First Byte)
+- Speech synthesis via `POST /v1/audio/speech`
+- Controls: voice, speed (0.5x-2.0x)
+- Integrated audio player
+- TTFB measurement (Time to First Byte)
 
 ## Endpoints
 
-### Rotas Macaw (prefixo `/api`)
-- `POST /api/v1/audio/transcriptions` — transcricao batch
-- `POST /api/v1/audio/translations` — traducao para ingles
-- `POST /api/v1/audio/speech` — sintese TTS
+### Macaw routes (prefix `/api`)
+- `POST /api/v1/audio/transcriptions` — batch transcription
+- `POST /api/v1/audio/translations` — translation to English
+- `POST /api/v1/audio/speech` — TTS synthesis
 - `WS /api/v1/realtime` — streaming STT + TTS full-duplex
 - `GET /api/health` — health check
 
-### Rotas Demo
-- `GET /demo/models` — lista modelos do registry
-- `GET /demo/queue` — metricas da fila
-- `GET /demo/jobs` — lista jobs
-- `POST /demo/jobs` — submete job de transcricao
-- `POST /demo/jobs/{id}/cancel` — cancela job
+### Demo routes
+- `GET /demo/models` — list registry models
+- `GET /demo/queue` — queue metrics
+- `GET /demo/jobs` — list jobs
+- `POST /demo/jobs` — submit transcription job
+- `POST /demo/jobs/{id}/cancel` — cancel job
 
-## Observabilidade
+## Observability
 
 - Swagger UI: http://localhost:9000/docs
 - Health: http://localhost:9000/api/health
-- Scheduler real com PriorityQueue, CancellationManager, BatchAccumulator e LatencyTracker
-- Workers gRPC isolados como subprocessos
+- Real scheduler with PriorityQueue, CancellationManager, BatchAccumulator, and LatencyTracker
+- gRPC workers isolated as subprocesses

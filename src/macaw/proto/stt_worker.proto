@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package macaw.stt;
+
+service STTWorker {
+  // Batch transcription (full file)
+  rpc TranscribeFile (TranscribeFileRequest) returns (TranscribeFileResponse);
+
+  // Streaming transcription (bidirectional)
+  rpc TranscribeStream (stream AudioFrame) returns (stream TranscriptEvent);
+
+  // Request/session cancellation
+  rpc Cancel (CancelRequest) returns (CancelResponse);
+
+  // Health check (unary)
+  rpc Health (HealthRequest) returns (HealthResponse);
+}
+
+// --- TranscribeFile messages ---
+
+message TranscribeFileRequest {
+  string request_id = 1;
+  bytes audio_data = 2;
+  string language = 3;           // ISO 639-1 or "auto" or "mixed"
+  string response_format = 4;    // json, verbose_json, text, srt, vtt
+  float temperature = 5;
+  repeated string timestamp_granularities = 6;  // "segment", "word"
+  string initial_prompt = 7;
+  repeated string hot_words = 8;
+  string task = 9;               // "transcribe" or "translate"
+}
+
+message TranscribeFileResponse {
+  string text = 1;
+  string language = 2;
+  float duration = 3;
+  repeated Segment segments = 4;
+  repeated Word words = 5;
+}
+
+// --- TranscribeStream messages ---
+
+message AudioFrame {
+  string session_id = 1;
+  bytes data = 2;               // PCM 16-bit 16kHz mono (already preprocessed)
+  bool is_last = 3;             // Signals end of stream
+  string initial_prompt = 4;    // Context from previous segment
+  repeated string hot_words = 5;
+}
+
+message TranscriptEvent {
+  string session_id = 1;
+  string event_type = 2;        // "partial" or "final"
+  string text = 3;
+  int32 segment_id = 4;
+  int64 start_ms = 5;
+  int64 end_ms = 6;
+  string language = 7;
+  float confidence = 8;
+  repeated Word words = 9;
+}
+
+// --- Shared messages ---
+
+message Segment {
+  int32 id = 1;
+  float start = 2;
+  float end = 3;
+  string text = 4;
+  float avg_logprob = 5;
+  float no_speech_prob = 6;
+  float compression_ratio = 7;
+}
+
+message Word {
+  string word = 1;
+  float start = 2;
+  float end = 3;
+  float probability = 4;
+}
+
+// --- Cancellation ---
+
+message CancelRequest {
+  string request_id = 1;
+  string session_id = 2;        // For streaming
+}
+
+message CancelResponse {
+  bool acknowledged = 1;
+}
+
+// --- Health ---
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;            // "ok", "loading", "error"
+  string model_name = 2;
+  string engine = 3;
+  map<string, string> metadata = 4;
+}

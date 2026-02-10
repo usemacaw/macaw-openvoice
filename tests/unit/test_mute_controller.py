@@ -9,7 +9,7 @@ Valida:
 
 from __future__ import annotations
 
-from Macaw.session.mute import MuteController
+from macaw.session.mute import MuteController
 
 
 class TestMuteControllerInitialState:

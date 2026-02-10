@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from Macaw.exceptions import BufferOverrunError
-from Macaw.session.ring_buffer import RingBuffer
+from macaw.exceptions import BufferOverrunError
+from macaw.session.ring_buffer import RingBuffer
 
 # --- Construcao e pre-alocacao ---
 

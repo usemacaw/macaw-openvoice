@@ -23,11 +23,11 @@ make proto              # generate protobuf stubs
 ## Architecture
 
 ```
-src/Macaw/
+src/macaw/
 ├── server/           # FastAPI — endpoints REST + WebSocket
 │   └── routes/       # transcriptions, translations, speech, health, realtime
 ├── scheduler/        # Async priority queue, cancellation, batching, latency tracking, TTS converters, metrics
-├── registry/         # Model Registry (Macaw.yaml, lifecycle)
+├── registry/         # Model Registry (macaw.yaml, lifecycle)
 ├── workers/          # Subprocess gRPC management
 │   ├── stt/          # STTBackend interface + FasterWhisperBackend + WeNetBackend
 │   └── tts/          # TTSBackend interface + KokoroBackend
@@ -64,7 +64,7 @@ Como adicionar nova engine: @docs/ADDING_ENGINE.md
 - Python 3.12 (via `uv`), tipagem estrita com mypy
 - Async-first: todas as interfaces publicas sao `async`
 - Formatacao: ruff (format + lint)
-- Imports: absolutos a partir de `Macaw.` (ex: `from Macaw.registry import Registry`)
+- Imports: absolutos a partir de `macaw.` (ex: `from macaw.registry import Registry`)
 - Nomenclatura: snake_case para funcoes/variaveis, PascalCase para classes
 - Docstrings: apenas em interfaces publicas (ABC) e funcoes nao-obvias
 - Sem comentarios obvios — o codigo deve ser auto-explicativo
@@ -101,19 +101,19 @@ Como adicionar nova engine: @docs/ADDING_ENGINE.md
 - **CancellationManager remove entry no cancel.** Apos `cancel()`, a request e removida do tracking. `unregister()` e no-op se ja foi cancelada.
 - **BatchAccumulator flush e fire-and-forget.** O flush callback (`_dispatch_batch`) e chamado pelo timer asyncio. Se o scheduler para antes do flush, `stop()` faz flush manual.
 - **LatencyTracker usa TTL.** Entries expiram apos 300s. `cleanup()` deve ser chamado periodicamente para evitar memory leak em requests que nunca completam.
-- **Metricas do Scheduler sao opcionais.** Usam `try/except ImportError` identico a `Macaw.session.metrics`. Sempre verificar `if metric is not None` antes de observar.
+- **Metricas do Scheduler sao opcionais.** Usam `try/except ImportError` identico a `macaw.session.metrics`. Sempre verificar `if metric is not None` antes de observar.
 - **Mute-on-speak e try/finally.** `_tts_speak_task()` chama `session.mute()` antes do TTS e `session.unmute()` em `finally`. Se o TTS crashar, o unmute AINDA acontece. Nunca mutar sem garantir unmute.
 - **TTS binary frames sao server->client.** No WebSocket, binary frames server->client sao SEMPRE audio TTS. Client->server sao SEMPRE audio STT. Sem ambiguidade de direcao.
 - **`tts.speak` cancela o anterior.** Se um `tts.speak` chegar enquanto outro esta em andamento, o anterior e cancelado automaticamente (cancel_event.set()). Nao acumula.
 - **TTS worker e subprocess separado.** O TTS worker roda em porta diferente (default 50052 vs 50051 para STT). A factory `_create_backend("kokoro")` faz lazy import da engine.
-- **Metricas TTS sao opcionais.** Usam mesmo padrao lazy import (`try/except ImportError` + `HAS_TTS_METRICS` flag) que `Macaw.session.metrics`. Sempre verificar antes de observar.
+- **Metricas TTS sao opcionais.** Usam mesmo padrao lazy import (`try/except ImportError` + `HAS_TTS_METRICS` flag) que `macaw.session.metrics`. Sempre verificar antes de observar.
 - **`POST /v1/audio/speech` retorna WAV ou PCM.** Default e WAV com header. `response_format=pcm` retorna raw PCM 16-bit.
 
 ## Workflow
 
 - Ler o PRD (@docs/PRD.md) antes de implementar qualquer componente
 - Consultar a arquitetura (@docs/ARCHITECTURE.md) para entender onde cada peca se encaixa
-- Ao adicionar nova engine STT: seguir guia em @docs/ADDING_ENGINE.md (5 passos: implementar `STTBackend` ABC, criar manifesto `Macaw.yaml`, registrar na factory, declarar dependencia, escrever testes). Zero mudancas no runtime core.
+- Ao adicionar nova engine STT: seguir guia em @docs/ADDING_ENGINE.md (5 passos: implementar `STTBackend` ABC, criar manifesto `macaw.yaml`, registrar na factory, declarar dependencia, escrever testes). Zero mudancas no runtime core.
 - Ao adicionar novo stage de preprocessing/postprocessing: seguir o padrao pipeline existente (cada stage e toggleavel via config)
 - Full-duplex guide: @docs/FULL_DUPLEX.md para integracao STT+TTS no mesmo WebSocket
 

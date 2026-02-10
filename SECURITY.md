@@ -8,7 +8,7 @@ vulnerability.
 
 ## Reporting a Vulnerability
 
-Please report security issues privately by emailing security@useMacaw.com.
+Please report security issues privately by emailing security@macaw-voicecom.
 
 Do not open public GitHub issues for security vulnerabilities.
 

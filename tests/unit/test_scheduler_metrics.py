@@ -13,12 +13,12 @@ import asyncio
 import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from Macaw._types import ResponseFormat
-from Macaw.proto import Segment, TranscribeFileResponse, Word
-from Macaw.scheduler.queue import RequestPriority
-from Macaw.scheduler.scheduler import Scheduler
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.workers.manager import WorkerHandle, WorkerState
+from macaw._types import ResponseFormat
+from macaw.proto import Segment, TranscribeFileResponse, Word
+from macaw.scheduler.queue import RequestPriority
+from macaw.scheduler.scheduler import Scheduler
+from macaw.server.models.requests import TranscribeRequest
+from macaw.workers.manager import WorkerHandle, WorkerState
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -100,14 +100,14 @@ class TestMetricDefinitions:
 
     def test_has_metrics_flag(self) -> None:
         """HAS_METRICS reflects whether prometheus_client is available."""
-        from Macaw.scheduler.metrics import HAS_METRICS
+        from macaw.scheduler.metrics import HAS_METRICS
 
         # In test env prometheus_client should be installed
         assert HAS_METRICS is True
 
     def test_all_metrics_defined(self) -> None:
         """All 7 metrics are defined (not None) when prometheus is available."""
-        from Macaw.scheduler import metrics
+        from macaw.scheduler import metrics
 
         assert metrics.scheduler_queue_depth is not None
         assert metrics.scheduler_queue_wait_seconds is not None
@@ -119,7 +119,7 @@ class TestMetricDefinitions:
 
     def test_queue_depth_has_priority_label(self) -> None:
         """queue_depth gauge accepts 'priority' label."""
-        from Macaw.scheduler.metrics import scheduler_queue_depth
+        from macaw.scheduler.metrics import scheduler_queue_depth
 
         assert scheduler_queue_depth is not None
         # Should not raise — valid label
@@ -137,7 +137,7 @@ class TestQueueDepthMetric:
         """submit() increments queue_depth for the given priority."""
         scheduler, _, _ = _make_scheduler()
 
-        with patch("Macaw.scheduler.scheduler.scheduler_queue_depth") as mock_gauge:
+        with patch("macaw.scheduler.scheduler.scheduler_queue_depth") as mock_gauge:
             mock_child = MagicMock()
             mock_gauge.labels.return_value = mock_child
 
@@ -153,11 +153,11 @@ class TestQueueDepthMetric:
 
         mock_child = MagicMock()
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth") as mock_gauge,
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total"),
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth") as mock_gauge,
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total"),
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
+            patch("macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
         ):
             mock_gauge.labels.return_value = mock_child
             mock_stub = AsyncMock()
@@ -180,7 +180,7 @@ class TestQueueDepthMetric:
         scheduler, _, _ = _make_scheduler()
 
         mock_child = MagicMock()
-        with patch("Macaw.scheduler.scheduler.scheduler_queue_depth") as mock_gauge:
+        with patch("macaw.scheduler.scheduler.scheduler_queue_depth") as mock_gauge:
             mock_gauge.labels.return_value = mock_child
 
             await scheduler.submit(
@@ -209,11 +209,11 @@ class TestQueueWaitMetric:
         scheduler, _, _ = _make_scheduler(worker)
 
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds") as mock_hist,
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total"),
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds") as mock_hist,
+            patch("macaw.scheduler.scheduler.scheduler_requests_total"),
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
+            patch("macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
         ):
             mock_stub = AsyncMock()
             mock_stub.TranscribeFile = AsyncMock(
@@ -244,11 +244,11 @@ class TestGRPCDurationMetric:
         scheduler, _, _ = _make_scheduler(worker)
 
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total"),
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds") as mock_hist,
-            patch("Macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total"),
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds") as mock_hist,
+            patch("macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
         ):
             mock_stub = AsyncMock()
             mock_stub.TranscribeFile = AsyncMock(
@@ -278,12 +278,12 @@ class TestBatchSizeMetric:
         scheduler, _, _ = _make_scheduler(worker)
 
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total"),
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_batch_size") as mock_hist,
-            patch("Macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total"),
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_batch_size") as mock_hist,
+            patch("macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
         ):
             mock_stub = AsyncMock()
             mock_stub.TranscribeFile = AsyncMock(
@@ -318,11 +318,11 @@ class TestRequestsTotalMetric:
         scheduler, _, _ = _make_scheduler(worker)
 
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total") as mock_counter,
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total") as mock_counter,
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
+            patch("macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
         ):
             mock_child = MagicMock()
             mock_counter.labels.return_value = mock_child
@@ -348,9 +348,9 @@ class TestRequestsTotalMetric:
         scheduler, _, _ = _make_scheduler()
 
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total") as mock_counter,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total") as mock_counter,
         ):
             mock_child = MagicMock()
             mock_counter.labels.return_value = mock_child
@@ -381,11 +381,11 @@ class TestRequestsTotalMetric:
         scheduler, _, _ = _make_scheduler(worker)
 
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total") as mock_counter,
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total") as mock_counter,
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
+            patch("macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
         ):
             mock_child = MagicMock()
             mock_counter.labels.return_value = mock_child
@@ -422,11 +422,11 @@ class TestRequestsTotalMetric:
 class TestCancelLatencyMetric:
     async def test_cancel_in_flight_observes_latency(self) -> None:
         """cancel_in_flight() observes cancel_latency_seconds."""
-        from Macaw.scheduler.cancel import CancellationManager
+        from macaw.scheduler.cancel import CancellationManager
 
         mgr = CancellationManager()
 
-        with patch("Macaw.scheduler.cancel.scheduler_cancel_latency_seconds") as mock_hist:
+        with patch("macaw.scheduler.cancel.scheduler_cancel_latency_seconds") as mock_hist:
             # Simulate gRPC cancel call — mock the channel and stub
             mock_channel = AsyncMock()
             mock_stub_instance = AsyncMock()
@@ -434,7 +434,7 @@ class TestCancelLatencyMetric:
                 return_value=MagicMock(acknowledged=True),
             )
 
-            with patch("Macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub_instance):
+            with patch("macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub_instance):
                 result = await mgr.cancel_in_flight(
                     "req_1",
                     "localhost:50051",
@@ -460,12 +460,12 @@ class TestAgingPromotionsMetric:
         scheduler, _, _ = _make_scheduler(worker, aging_threshold_s=0.001)
 
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total"),
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
-            patch("Macaw.scheduler.scheduler.scheduler_aging_promotions_total") as mock_counter,
-            patch("Macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total"),
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
+            patch("macaw.scheduler.scheduler.scheduler_aging_promotions_total") as mock_counter,
+            patch("macaw.scheduler.scheduler.STTWorkerStub") as mock_stub_cls,
         ):
             mock_stub = AsyncMock()
             mock_stub.TranscribeFile = AsyncMock(
@@ -497,17 +497,17 @@ class TestNoOpWithoutPrometheus:
 
         from prometheus_client import REGISTRY
 
-        import Macaw.scheduler.metrics as metrics_mod
+        import macaw.scheduler.metrics as metrics_mod
 
         # Unregister existing metrics to avoid "duplicated timeseries" on reload
         metric_names = [
-            "Macaw_scheduler_queue_depth",
-            "Macaw_scheduler_queue_wait_seconds",
-            "Macaw_scheduler_grpc_duration_seconds",
-            "Macaw_scheduler_cancel_latency_seconds",
-            "Macaw_scheduler_batch_size",
-            "Macaw_scheduler_requests_total",
-            "Macaw_scheduler_aging_promotions_total",
+            "macaw_scheduler_queue_depth",
+            "macaw_scheduler_queue_wait_seconds",
+            "macaw_scheduler_grpc_duration_seconds",
+            "macaw_scheduler_cancel_latency_seconds",
+            "macaw_scheduler_batch_size",
+            "macaw_scheduler_requests_total",
+            "macaw_scheduler_aging_promotions_total",
         ]
         for name in metric_names:
             with contextlib.suppress(KeyError):
@@ -539,12 +539,12 @@ class TestNoOpWithoutPrometheus:
     def test_scheduler_works_without_metrics(self) -> None:
         """Scheduler can be constructed when all metrics are None."""
         with (
-            patch("Macaw.scheduler.scheduler.scheduler_queue_depth", None),
-            patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds", None),
-            patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds", None),
-            patch("Macaw.scheduler.scheduler.scheduler_requests_total", None),
-            patch("Macaw.scheduler.scheduler.scheduler_aging_promotions_total", None),
-            patch("Macaw.scheduler.scheduler.scheduler_batch_size", None),
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth", None),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds", None),
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds", None),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total", None),
+            patch("macaw.scheduler.scheduler.scheduler_aging_promotions_total", None),
+            patch("macaw.scheduler.scheduler.scheduler_batch_size", None),
         ):
             scheduler, _, _ = _make_scheduler()
             # Should not raise

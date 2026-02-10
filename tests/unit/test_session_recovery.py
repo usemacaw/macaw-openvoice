@@ -20,15 +20,15 @@ from unittest.mock import AsyncMock, Mock
 
 import numpy as np
 
-from Macaw._types import SessionState
-from Macaw.exceptions import WorkerCrashError
-from Macaw.server.models.events import StreamingErrorEvent
-from Macaw.session.ring_buffer import RingBuffer
-from Macaw.session.streaming import StreamingSession
-from Macaw.session.wal import SessionWAL
+from macaw._types import SessionState
+from macaw.exceptions import WorkerCrashError
+from macaw.server.models.events import StreamingErrorEvent
+from macaw.session.ring_buffer import RingBuffer
+from macaw.session.streaming import StreamingSession
+from macaw.session.wal import SessionWAL
 
 if TYPE_CHECKING:
-    from Macaw.session.state_machine import SessionStateMachine
+    from macaw.session.state_machine import SessionStateMachine
 
 # Frame size padrao: 1024 samples a 16kHz = 64ms
 _FRAME_SIZE = 1024

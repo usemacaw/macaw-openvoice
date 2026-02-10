@@ -19,19 +19,19 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
-from Macaw._types import BatchResult, SegmentDetail, WordTimestamp
-from Macaw.config.postprocessing import PostProcessingConfig
-from Macaw.config.preprocessing import PreprocessingConfig
-from Macaw.postprocessing.pipeline import PostProcessingPipeline
-from Macaw.postprocessing.stages import TextStage
-from Macaw.preprocessing.dc_remove import DCRemoveStage
-from Macaw.preprocessing.gain_normalize import GainNormalizeStage
-from Macaw.preprocessing.pipeline import AudioPreprocessingPipeline
-from Macaw.preprocessing.resample import ResampleStage
-from Macaw.server.app import create_app
+from macaw._types import BatchResult, SegmentDetail, WordTimestamp
+from macaw.config.postprocessing import PostProcessingConfig
+from macaw.config.preprocessing import PreprocessingConfig
+from macaw.postprocessing.pipeline import PostProcessingPipeline
+from macaw.postprocessing.stages import TextStage
+from macaw.preprocessing.dc_remove import DCRemoveStage
+from macaw.preprocessing.gain_normalize import GainNormalizeStage
+from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
+from macaw.preprocessing.resample import ResampleStage
+from macaw.server.app import create_app
 
 if TYPE_CHECKING:
-    from Macaw.server.models.requests import TranscribeRequest
+    from macaw.server.models.requests import TranscribeRequest
 
 
 # --- Helpers ---

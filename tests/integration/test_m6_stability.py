@@ -25,14 +25,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 
-from Macaw._types import SessionState, TranscriptSegment
-from Macaw.server.models.events import SessionHoldEvent, StreamingErrorEvent
-from Macaw.session.cross_segment import CrossSegmentContext
-from Macaw.session.ring_buffer import RingBuffer
-from Macaw.session.state_machine import SessionStateMachine, SessionTimeouts
-from Macaw.session.streaming import StreamingSession
-from Macaw.session.wal import SessionWAL
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw._types import SessionState, TranscriptSegment
+from macaw.server.models.events import SessionHoldEvent, StreamingErrorEvent
+from macaw.session.cross_segment import CrossSegmentContext
+from macaw.session.ring_buffer import RingBuffer
+from macaw.session.state_machine import SessionStateMachine, SessionTimeouts
+from macaw.session.streaming import StreamingSession
+from macaw.session.wal import SessionWAL
+from macaw.vad.detector import VADEvent, VADEventType
 
 if TYPE_CHECKING:
     from collections.abc import Callable

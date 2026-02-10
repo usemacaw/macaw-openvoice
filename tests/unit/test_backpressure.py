@@ -12,7 +12,7 @@ Todos os testes usam clock injetavel para determinismo.
 
 from __future__ import annotations
 
-from Macaw.session.backpressure import (
+from macaw.session.backpressure import (
     BackpressureController,
     FramesDroppedAction,
     RateLimitAction,

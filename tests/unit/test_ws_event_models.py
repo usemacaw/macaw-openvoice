@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from Macaw._types import VADSensitivity
-from Macaw.server.models.events import (
+from macaw._types import VADSensitivity
+from macaw.server.models.events import (
     InputAudioBufferCommitCommand,
     PreprocessingOverrides,
     SessionCancelCommand,

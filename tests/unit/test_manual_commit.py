@@ -15,12 +15,12 @@ from unittest.mock import AsyncMock, Mock
 
 import numpy as np
 
-from Macaw._types import TranscriptSegment
-from Macaw.server.models.events import (
+from macaw._types import TranscriptSegment
+from macaw.server.models.events import (
     TranscriptFinalEvent,
 )
-from Macaw.session.streaming import StreamingSession
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw.session.streaming import StreamingSession
+from macaw.vad.detector import VADEvent, VADEventType
 
 # Frame size padrao: 1024 samples a 16kHz = 64ms
 _FRAME_SIZE = 1024

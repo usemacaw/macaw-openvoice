@@ -16,22 +16,22 @@ import grpc
 import grpc.aio
 import pytest
 
-from Macaw._types import (
+from macaw._types import (
     BatchResult,
     ResponseFormat,
     SegmentDetail,
     STTArchitecture,
 )
-from Macaw.exceptions import WorkerCrashError
-from Macaw.proto.stt_worker_pb2 import (
+from macaw.exceptions import WorkerCrashError
+from macaw.proto.stt_worker_pb2 import (
     Segment,
     TranscribeFileRequest,
     TranscribeFileResponse,
     Word,
 )
-from Macaw.scheduler.queue import RequestPriority, ScheduledRequest
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.workers.stt.servicer import STTWorkerServicer
+from macaw.scheduler.queue import RequestPriority, ScheduledRequest
+from macaw.server.models.requests import TranscribeRequest
+from macaw.workers.stt.servicer import STTWorkerServicer
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -290,7 +290,7 @@ class TestServicerSemaphore:
 class TestBatchDispatch:
     async def test_dispatch_batch_sends_parallel(self) -> None:
         """_dispatch_batch sends all requests in parallel."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -308,10 +308,10 @@ class TestBatchDispatch:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             batch = [_make_scheduled(f"req_{i}") for i in range(3)]
             # Set up futures for each scheduled request
@@ -332,7 +332,7 @@ class TestBatchDispatch:
 
     async def test_dispatch_batch_skips_cancelled(self) -> None:
         """_dispatch_batch skips requests with cancel_event set."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -350,10 +350,10 @@ class TestBatchDispatch:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             batch = [
                 _make_scheduled("req_1"),
@@ -374,7 +374,7 @@ class TestBatchDispatch:
 
     async def test_dispatch_batch_empty_after_cancel(self) -> None:
         """_dispatch_batch does nothing if all requests cancelled."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -389,7 +389,7 @@ class TestBatchDispatch:
 
     async def test_dispatch_batch_error_isolation(self) -> None:
         """Error in one request of batch does not affect others."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -421,10 +421,10 @@ class TestBatchDispatch:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             batch = [
                 _make_scheduled("req_ok_1"),
@@ -530,7 +530,7 @@ class TestEngineBatchSupport:
 class TestBatchAccumulatorIntegration:
     async def test_accumulator_flush_triggers_parallel_dispatch(self) -> None:
         """BatchAccumulator flush sends requests through _dispatch_batch."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -553,10 +553,10 @@ class TestBatchAccumulatorIntegration:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             await scheduler.start()
             try:
@@ -579,7 +579,7 @@ class TestBatchAccumulatorIntegration:
 
     async def test_realtime_bypasses_batch_accumulator(self) -> None:
         """REALTIME requests go directly to dispatch, not through accumulator."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -601,10 +601,10 @@ class TestBatchAccumulatorIntegration:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             await scheduler.start()
             try:

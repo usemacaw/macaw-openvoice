@@ -24,19 +24,19 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 
-from Macaw._types import SessionState, TranscriptSegment
-from Macaw.server.models.events import (
+from macaw._types import SessionState, TranscriptSegment
+from macaw.server.models.events import (
     StreamingErrorEvent,
     TranscriptFinalEvent,
     VADSpeechEndEvent,
     VADSpeechStartEvent,
 )
-from Macaw.session.cross_segment import CrossSegmentContext
-from Macaw.session.ring_buffer import RingBuffer
-from Macaw.session.state_machine import SessionStateMachine, SessionTimeouts
-from Macaw.session.streaming import StreamingSession
-from Macaw.session.wal import SessionWAL
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw.session.cross_segment import CrossSegmentContext
+from macaw.session.ring_buffer import RingBuffer
+from macaw.session.state_machine import SessionStateMachine, SessionTimeouts
+from macaw.session.streaming import StreamingSession
+from macaw.session.wal import SessionWAL
+from macaw.vad.detector import VADEvent, VADEventType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -663,7 +663,7 @@ async def test_silence_to_hold_timeout_integration() -> None:
     assert session.session_state == SessionState.HOLD
 
     # Verify SessionHoldEvent was emitted
-    from Macaw.server.models.events import SessionHoldEvent
+    from macaw.server.models.events import SessionHoldEvent
 
     hold_events = [e for e in events if isinstance(e, SessionHoldEvent)]
     assert len(hold_events) == 1
@@ -861,7 +861,7 @@ async def test_recovery_with_ring_buffer_and_wal() -> None:
         call_count += 1
         if call_count == crash_on_call:
             # This handle will simulate a crash when receiving events
-            from Macaw.exceptions import WorkerCrashError
+            from macaw.exceptions import WorkerCrashError
 
             return _LightStreamHandle(events=[WorkerCrashError("simulated crash")])
         return _LightStreamHandle(

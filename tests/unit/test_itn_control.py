@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock, MagicMock
 import httpx
 from click.testing import CliRunner
 
-from Macaw._types import BatchResult, SegmentDetail
-from Macaw.config.postprocessing import PostProcessingConfig
-from Macaw.postprocessing.pipeline import PostProcessingPipeline
-from Macaw.postprocessing.stages import TextStage
-from Macaw.server.app import create_app
+from macaw._types import BatchResult, SegmentDetail
+from macaw.config.postprocessing import PostProcessingConfig
+from macaw.postprocessing.pipeline import PostProcessingPipeline
+from macaw.postprocessing.stages import TextStage
+from macaw.server.app import create_app
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -274,7 +274,7 @@ class TestCLINoITNFlag:
         """--no-itn envia itn=false no form data."""
         from unittest.mock import patch
 
-        from Macaw.cli.transcribe import transcribe
+        from macaw.cli.transcribe import transcribe
 
         audio_file = tmp_path / "test.wav"
         audio_file.write_bytes(b"fake-audio-data")
@@ -300,7 +300,7 @@ class TestCLINoITNFlag:
         """Sem --no-itn, campo itn nao e enviado (server usa default True)."""
         from unittest.mock import patch
 
-        from Macaw.cli.transcribe import transcribe
+        from macaw.cli.transcribe import transcribe
 
         audio_file = tmp_path / "test.wav"
         audio_file.write_bytes(b"fake-audio-data")
@@ -326,7 +326,7 @@ class TestCLINoITNFlag:
         """--no-itn no translate envia itn=false no form data."""
         from unittest.mock import patch
 
-        from Macaw.cli.transcribe import translate
+        from macaw.cli.transcribe import translate
 
         audio_file = tmp_path / "test.wav"
         audio_file.write_bytes(b"fake-audio-data")
@@ -352,7 +352,7 @@ class TestCLINoITNFlag:
         """Sem --no-itn no translate, campo itn nao e enviado."""
         from unittest.mock import patch
 
-        from Macaw.cli.transcribe import translate
+        from macaw.cli.transcribe import translate
 
         audio_file = tmp_path / "test.wav"
         audio_file.write_bytes(b"fake-audio-data")

@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from Macaw._types import STTArchitecture
-from Macaw.exceptions import AudioFormatError, ModelLoadError
-from Macaw.workers.stt.faster_whisper import (
+from macaw._types import STTArchitecture
+from macaw.exceptions import AudioFormatError, ModelLoadError
+from macaw.workers.stt.faster_whisper import (
     FasterWhisperBackend,
     _audio_bytes_to_numpy,
 )
@@ -65,11 +65,11 @@ class TestLoad:
     async def test_load_succeeds_with_mock(self) -> None:
         mock_model = MagicMock()
         with patch.dict(
-            "Macaw.workers.stt.faster_whisper.__dict__",
+            "macaw.workers.stt.faster_whisper.__dict__",
             {"WhisperModel": MagicMock(return_value=mock_model)},
         ):
             # Re-import to get the patched version
-            import Macaw.workers.stt.faster_whisper as fw_mod
+            import macaw.workers.stt.faster_whisper as fw_mod
 
             original = fw_mod.WhisperModel
             fw_mod.WhisperModel = MagicMock(return_value=mock_model)  # type: ignore[assignment]
@@ -83,7 +83,7 @@ class TestLoad:
                 fw_mod.WhisperModel = original  # type: ignore[assignment]
 
     async def test_load_failure_raises_model_load_error(self) -> None:
-        import Macaw.workers.stt.faster_whisper as fw_mod
+        import macaw.workers.stt.faster_whisper as fw_mod
 
         original = fw_mod.WhisperModel
         fw_mod.WhisperModel = MagicMock(side_effect=RuntimeError("CUDA not available"))  # type: ignore[assignment]
@@ -95,7 +95,7 @@ class TestLoad:
             fw_mod.WhisperModel = original  # type: ignore[assignment]
 
     async def test_load_without_library_raises_model_load_error(self) -> None:
-        import Macaw.workers.stt.faster_whisper as fw_mod
+        import macaw.workers.stt.faster_whisper as fw_mod
 
         original = fw_mod.WhisperModel
         fw_mod.WhisperModel = None  # type: ignore[assignment]

@@ -2,17 +2,17 @@
 
 import pytest
 
-from Macaw.exceptions import (
+from macaw.exceptions import (
     AudioFormatError,
     AudioTooLargeError,
     ConfigError,
+    MacawError,
     ManifestParseError,
     ManifestValidationError,
     ModelLoadError,
     ModelNotFoundError,
     SessionClosedError,
     SessionNotFoundError,
-    MacawError,
     WorkerCrashError,
     WorkerTimeoutError,
     WorkerUnavailableError,
@@ -20,7 +20,7 @@ from Macaw.exceptions import (
 
 
 class TestHierarchy:
-    def test_all_exceptions_inherit_from_Macaw_error(self) -> None:
+    def test_all_exceptions_inherit_from_macaw_error(self) -> None:
         exceptions = [
             ManifestParseError("f", "r"),
             ManifestValidationError("f", ["e"]),
@@ -67,7 +67,7 @@ class TestExceptionMessages:
 
     def test_manifest_validation_joins_errors(self) -> None:
         exc = ManifestValidationError(
-            "Macaw.yaml",
+            "macaw.yaml",
             ["campo 'name' faltando", "campo 'type' invalido"],
         )
         assert "campo 'name' faltando" in str(exc)

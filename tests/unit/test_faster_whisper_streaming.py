@@ -13,13 +13,13 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from Macaw.exceptions import ModelLoadError
-from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+from macaw.exceptions import ModelLoadError
+from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from Macaw._types import TranscriptSegment
+    from macaw._types import TranscriptSegment
 
 
 def _make_fw_segment(

@@ -23,7 +23,7 @@ class DemoConfig:
     """Configura parametros carregados de variaveis de ambiente."""
 
     models_dir: Path = field(
-        default_factory=lambda: Path(os.getenv("DEMO_MODELS_DIR", "~/.Macaw/models")).expanduser(),
+        default_factory=lambda: Path(os.getenv("DEMO_MODELS_DIR", "~/.macaw/models")).expanduser(),
     )
     host: str = field(default_factory=lambda: os.getenv("DEMO_HOST", "127.0.0.1"))
     port: int = field(default_factory=lambda: int(os.getenv("DEMO_PORT", "9000")))

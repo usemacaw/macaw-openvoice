@@ -6,18 +6,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from Macaw._types import ResponseFormat, SegmentDetail, WordTimestamp
-from Macaw.exceptions import (
+from macaw._types import ResponseFormat, SegmentDetail, WordTimestamp
+from macaw.exceptions import (
     ModelNotFoundError,
     WorkerCrashError,
     WorkerTimeoutError,
     WorkerUnavailableError,
 )
-from Macaw.proto import Segment, TranscribeFileResponse, Word
-from Macaw.scheduler.converters import build_proto_request, proto_response_to_batch_result
-from Macaw.scheduler.scheduler import Scheduler
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.workers.manager import WorkerHandle, WorkerState
+from macaw.proto import Segment, TranscribeFileResponse, Word
+from macaw.scheduler.converters import build_proto_request, proto_response_to_batch_result
+from macaw.scheduler.scheduler import Scheduler
+from macaw.server.models.requests import TranscribeRequest
+from macaw.workers.manager import WorkerHandle, WorkerState
 
 
 def _make_request(
@@ -233,8 +233,10 @@ class TestSchedulerTranscribe:
         request = _make_request()
 
         with (
-            patch("Macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch(
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel
+            ),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             result = await scheduler.transcribe(request)
 
@@ -259,8 +261,10 @@ class TestSchedulerTranscribe:
         request = _make_request()
 
         with (
-            patch("Macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch(
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel
+            ),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
             pytest.raises(Exception, match="gRPC error"),
         ):
             await scheduler.transcribe(request)
@@ -306,8 +310,10 @@ class TestSchedulerTranscribe:
         request = _make_request()
 
         with (
-            patch("Macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch(
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel
+            ),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
             pytest.raises(WorkerTimeoutError),
         ):
             await scheduler.transcribe(request)
@@ -339,8 +345,10 @@ class TestSchedulerTranscribe:
         request = _make_request()
 
         with (
-            patch("Macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch(
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=mock_channel
+            ),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
             pytest.raises(WorkerCrashError),
         ):
             await scheduler.transcribe(request)

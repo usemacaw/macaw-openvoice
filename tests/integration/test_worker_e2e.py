@@ -37,7 +37,7 @@ class TestFasterWhisperBackendIntegration:
     """Testes que usam FasterWhisperBackend com modelo real."""
 
     async def test_load_and_health(self) -> None:
-        from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = FasterWhisperBackend()
         await backend.load("tiny", {"model_size": "tiny", "compute_type": "int8", "device": "cpu"})
@@ -49,7 +49,7 @@ class TestFasterWhisperBackendIntegration:
 
     async def test_transcribe_sine_tone(self) -> None:
         """Sine tone nao contem fala — resultado esperado e texto vazio ou curto."""
-        from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = FasterWhisperBackend()
         await backend.load("tiny", {"model_size": "tiny", "compute_type": "int8", "device": "cpu"})
@@ -66,7 +66,7 @@ class TestFasterWhisperBackendIntegration:
         await backend.unload()
 
     async def test_transcribe_returns_segments(self) -> None:
-        from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = FasterWhisperBackend()
         await backend.load("tiny", {"model_size": "tiny", "compute_type": "int8", "device": "cpu"})
@@ -88,7 +88,7 @@ class TestWorkerGRPCIntegration:
 
     async def test_worker_subprocess_health(self) -> None:
         """Testa spawn de worker, health check, e shutdown."""
-        from Macaw.workers.manager import WorkerManager, WorkerState
+        from macaw.workers.manager import WorkerManager, WorkerState
 
         manager = WorkerManager()
         handle = await manager.spawn_worker(

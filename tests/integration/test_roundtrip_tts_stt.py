@@ -4,8 +4,8 @@ Gera audio via KokoroBackend (TTS), alimenta ao FasterWhisperBackend (STT),
 e compara o texto original com o texto transcrito.
 
 Requer modelos reais instalados:
-  - kokoro-v1 em ~/.Macaw/models/kokoro-v1/
-  - faster-whisper-tiny em ~/.Macaw/models/faster-whisper-tiny/
+  - kokoro-v1 em ~/.macaw/models/kokoro-v1/
+  - faster-whisper-tiny em ~/.macaw/models/faster-whisper-tiny/
 
 Marcado como @pytest.mark.integration — nao roda no CI padrao.
 """
@@ -20,8 +20,8 @@ import numpy as np
 import pytest
 
 # Paths dos modelos
-_KOKORO_MODEL_PATH = os.path.expanduser("~/.Macaw/models/kokoro-v1")
-_FW_MODEL_PATH = os.path.expanduser("~/.Macaw/models/faster-whisper-tiny")
+_KOKORO_MODEL_PATH = os.path.expanduser("~/.macaw/models/kokoro-v1")
+_FW_MODEL_PATH = os.path.expanduser("~/.macaw/models/faster-whisper-tiny")
 
 # Pular se modelos nao instalados
 _HAS_KOKORO_MODEL = os.path.isdir(_KOKORO_MODEL_PATH) and os.path.isfile(
@@ -111,7 +111,7 @@ class TestRoundtripTTSSTT:
     @pytest.fixture(scope="class")
     async def tts_backend(self) -> object:
         """Carrega KokoroBackend com modelo real (uma vez por classe)."""
-        from Macaw.workers.tts.kokoro import KokoroBackend
+        from macaw.workers.tts.kokoro import KokoroBackend
 
         backend = KokoroBackend()
         await backend.load(
@@ -124,7 +124,7 @@ class TestRoundtripTTSSTT:
     @pytest.fixture(scope="class")
     async def stt_backend(self) -> object:
         """Carrega FasterWhisperBackend com modelo real (uma vez por classe)."""
-        from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = FasterWhisperBackend()
         await backend.load(
@@ -136,7 +136,7 @@ class TestRoundtripTTSSTT:
 
     async def _synthesize_text(self, tts_backend: object, text: str) -> bytes:
         """Sintetiza texto e retorna audio PCM 16-bit concatenado."""
-        from Macaw.workers.tts.kokoro import KokoroBackend
+        from macaw.workers.tts.kokoro import KokoroBackend
 
         assert isinstance(tts_backend, KokoroBackend)
         chunks: list[bytes] = []
@@ -152,7 +152,7 @@ class TestRoundtripTTSSTT:
         language: str = "en",
     ) -> str:
         """Transcreve audio PCM 16-bit e retorna texto."""
-        from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         assert isinstance(stt_backend, FasterWhisperBackend)
         result = await stt_backend.transcribe_file(

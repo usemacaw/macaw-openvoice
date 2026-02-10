@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
-from Macaw._types import BatchResult, SegmentDetail
-from Macaw.exceptions import (
+from macaw._types import BatchResult, SegmentDetail
+from macaw.exceptions import (
     AudioFormatError,
     InvalidRequestError,
     ModelNotFoundError,
@@ -15,7 +15,7 @@ from Macaw.exceptions import (
     WorkerTimeoutError,
     WorkerUnavailableError,
 )
-from Macaw.server.app import create_app
+from macaw.server.app import create_app
 
 
 def _make_mock_registry() -> MagicMock:

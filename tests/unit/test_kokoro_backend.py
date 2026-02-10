@@ -12,9 +12,9 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from Macaw._types import VoiceInfo
-from Macaw.exceptions import ModelLoadError, TTSSynthesisError
-from Macaw.workers.tts.kokoro import (
+from macaw._types import VoiceInfo
+from macaw.exceptions import ModelLoadError, TTSSynthesisError
+from macaw.workers.tts.kokoro import (
     KokoroBackend,
     _float32_to_pcm16_bytes,
     _resolve_device,
@@ -83,7 +83,7 @@ class TestLoad:
         mock_kokoro = _make_mock_kokoro_lib()
         model_dir = _make_model_dir(tmp_path)
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
@@ -101,7 +101,7 @@ class TestLoad:
         mock_kokoro = _make_mock_kokoro_lib()
         model_dir = _make_model_dir(tmp_path)
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
@@ -116,7 +116,7 @@ class TestLoad:
         mock_kokoro = _make_mock_kokoro_lib()
         model_dir = _make_model_dir(tmp_path)
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
@@ -131,7 +131,7 @@ class TestLoad:
         mock_kokoro = _make_mock_kokoro_lib()
         model_dir = _make_model_dir(tmp_path)
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
@@ -143,7 +143,7 @@ class TestLoad:
             kokoro_mod.kokoro_lib = original  # type: ignore[assignment]
 
     async def test_load_without_library_raises_model_load_error(self) -> None:
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = None  # type: ignore[assignment]
@@ -163,7 +163,7 @@ class TestLoad:
         (model_dir / "model.pth").write_bytes(b"fake")
         # No config.json
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
@@ -183,7 +183,7 @@ class TestLoad:
         (model_dir / "config.json").write_text("{}")
         # No .pth file
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
@@ -197,7 +197,7 @@ class TestLoad:
     async def test_load_failure_raises_model_load_error(self, tmp_path: object) -> None:
         model_dir = _make_model_dir(tmp_path)
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         mock_kokoro = MagicMock()
@@ -214,7 +214,7 @@ class TestLoad:
         mock_kokoro = _make_mock_kokoro_lib()
         model_dir = _make_model_dir(tmp_path)
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
@@ -231,7 +231,7 @@ class TestLoad:
         mock_kokoro = _make_mock_kokoro_lib()
         model_dir = _make_model_dir(tmp_path)
 
-        import Macaw.workers.tts.kokoro as kokoro_mod
+        import macaw.workers.tts.kokoro as kokoro_mod
 
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]

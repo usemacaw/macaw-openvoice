@@ -55,7 +55,7 @@ const PRIORITY_OPTIONS = [
 ];
 
 function formatDate(timestamp: number) {
-  return new Intl.DateTimeFormat('pt-BR', {
+  return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'short',
     timeStyle: 'medium',
   }).format(new Date(timestamp * 1000));
@@ -147,20 +147,20 @@ function HeroSection({ modelCount }: { modelCount: number }) {
         </div>
 
         <h1 className="gradient-text text-4xl font-bold tracking-tight sm:text-5xl">
-          Runtime Unificado de Voz
+          Voice Runtime
         </h1>
 
         <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-          STT + TTS em um unico binario. API compativel com OpenAI, streaming WebSocket,
-          VAD inteligente, session management e recovery de falhas.
+          STT + TTS in a single server. OpenAI-compatible API, WebSocket streaming,
+          smart VAD, session management, and failure recovery.
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Badge variant="outline" className="px-3 py-1.5 text-sm">
-            {modelCount} modelo{modelCount !== 1 ? 's' : ''} instalado{modelCount !== 1 ? 's' : ''}
+            {modelCount} model{modelCount !== 1 ? 's' : ''} installed
           </Badge>
           <Badge variant="outline" className="px-3 py-1.5 text-sm">
-            OpenAI-Compatible API
+            OpenAI-compatible API
           </Badge>
           <Badge variant="outline" className="px-3 py-1.5 text-sm">
             Full-Duplex STT + TTS
@@ -205,11 +205,11 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
 
   async function onSubmit() {
     if (!selectedFile) {
-      setSubmitState({ isSubmitting: false, error: 'Selecione um arquivo de audio.' });
+      setSubmitState({ isSubmitting: false, error: 'Select an audio file.' });
       return;
     }
     if (!effectiveModel) {
-      setSubmitState({ isSubmitting: false, error: 'Nenhum modelo disponivel.' });
+      setSubmitState({ isSubmitting: false, error: 'No models available.' });
       return;
     }
 
@@ -221,12 +221,12 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
         priority,
         language: language || undefined,
       });
-      setSubmitState({ isSubmitting: false, success: 'Job enviado com sucesso.' });
+      setSubmitState({ isSubmitting: false, success: 'Job submitted successfully.' });
       setSelectedFile(null);
       mutate('jobs');
       mutate('queue');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      const message = error instanceof Error ? error.message : 'Unknown error';
       setSubmitState({ isSubmitting: false, error: message });
     }
   }
@@ -237,7 +237,7 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
       mutate('jobs');
       mutate('queue');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erro ao cancelar';
+      const message = error instanceof Error ? error.message : 'Failed to cancel';
       setSubmitState((prev) => ({ ...prev, error: message }));
     }
   }
@@ -250,10 +250,10 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-xs font-bold text-primary">M</span>
-              Modelos Instalados
+              Installed Models
             </CardTitle>
             <CardDescription>
-              {models?.length ? `${models.length} modelo(s) disponivel(is)` : 'Carregando modelos...'}
+              {models?.length ? `${models.length} model(s) available` : 'Loading models...'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -291,9 +291,9 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
               ))
             ) : (
               <div className="rounded-lg border border-dashed p-4 text-center">
-                <p className="text-sm font-medium">Nenhum modelo instalado</p>
+                <p className="text-sm font-medium">No models installed</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Execute <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">Macaw pull faster-whisper-tiny</code> para comecar.
+                  Run <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">macaw pull faster-whisper-tiny</code> to get started.
                 </p>
               </div>
             )}
@@ -305,13 +305,13 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span className="flex h-6 w-6 items-center justify-center rounded bg-primary/10 text-xs font-bold text-primary">Q</span>
-              Fila do Scheduler
+              Scheduler Queue
             </CardTitle>
-            <CardDescription>Profundidade da fila e prioridades em tempo real.</CardDescription>
+            <CardDescription>Queue depth and real-time priorities.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between rounded-lg bg-muted/50 p-4">
-              <span className="text-sm text-muted-foreground">Requests pendentes</span>
+              <span className="text-sm text-muted-foreground">Pending requests</span>
               <span className="text-3xl font-bold">{queue?.depth ?? '—'}</span>
             </div>
             <div className="space-y-2">
@@ -323,7 +323,7 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">Coletando metricas...</p>
+                <p className="text-sm text-muted-foreground">Collecting metrics...</p>
               )}
             </div>
           </CardContent>
@@ -333,20 +333,20 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
       {/* New Transcription form */}
       <Card>
         <CardHeader>
-          <CardTitle>Nova Transcricao</CardTitle>
-          <CardDescription>Envie um arquivo WAV/MP3 e escolha prioridade.</CardDescription>
+          <CardTitle>New Transcription</CardTitle>
+          <CardDescription>Upload a WAV/MP3 file and choose a priority.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="file">Arquivo de audio</Label>
+              <Label htmlFor="file">Audio file</Label>
               <Input id="file" type="file" accept="audio/*" onChange={onFileChange} />
             </div>
             <div className="space-y-2">
-              <Label>Modelo</Label>
+              <Label>Model</Label>
               <Select value={effectiveModel} onValueChange={setSelectedModel}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um modelo" />
+                  <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent>
                   {models?.filter((m) => m.type === 'stt').map((model) => (
@@ -358,7 +358,7 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Prioridade</Label>
+              <Label>Priority</Label>
               <Select value={priority} onValueChange={setPriority}>
                 <SelectTrigger>
                   <SelectValue />
@@ -373,10 +373,10 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="language">Idioma (opcional)</Label>
+              <Label htmlFor="language">Language (optional)</Label>
               <Input
                 id="language"
-                placeholder="pt"
+                placeholder="en"
                 value={language}
                 onChange={(event) => setLanguage(event.target.value)}
               />
@@ -389,7 +389,7 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
             <p className="text-sm text-emerald-600">{submitState.success}</p>
           )}
           <Button onClick={onSubmit} disabled={submitState.isSubmitting || !selectedFile}>
-            {submitState.isSubmitting ? 'Enviando...' : 'Enviar transcricao'}
+            {submitState.isSubmitting ? 'Sending...' : 'Send transcription'}
           </Button>
         </CardContent>
       </Card>
@@ -397,8 +397,8 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
       {/* Jobs table */}
       <Card>
         <CardHeader>
-          <CardTitle>Jobs Recentes</CardTitle>
-          <CardDescription>Acompanhe status e resultados das transcricoes.</CardDescription>
+          <CardTitle>Recent Jobs</CardTitle>
+          <CardDescription>Track status and transcription results.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -408,9 +408,9 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
                 <TableHead>Modelo</TableHead>
                 <TableHead>Prioridade</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Atualizado</TableHead>
-                <TableHead>Resultado</TableHead>
-                <TableHead className="text-right">Acoes</TableHead>
+                <TableHead>Updated</TableHead>
+                <TableHead>Result</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -427,12 +427,12 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
                       {formatDate(job.updated_at)}
                     </TableCell>
                     <TableCell className="max-w-xs truncate text-sm text-muted-foreground">
-                      {job.result?.text ?? job.error ?? 'Aguardando...'}
+                      {job.result?.text ?? job.error ?? 'Waiting...'}
                     </TableCell>
                     <TableCell className="text-right">
                       {job.status === 'queued' && (
                         <Button variant="ghost" size="sm" onClick={() => onCancel(job.request_id)}>
-                          Cancelar
+                          Cancel
                         </Button>
                       )}
                     </TableCell>
@@ -441,8 +441,8 @@ function DashboardTab({ models, queue, jobs, defaultModel }: DashboardTabProps) 
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="py-10 text-center">
-                    <p className="text-sm font-medium text-muted-foreground">Nenhum job ainda</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Faca upload de um arquivo acima para comecar.</p>
+                    <p className="text-sm font-medium text-muted-foreground">No jobs yet</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Upload a file above to get started.</p>
                   </TableCell>
                 </TableRow>
               )}
@@ -470,7 +470,7 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
   const sttModels = useMemo(() => models?.filter((m) => m.type === 'stt') ?? [], [models]);
   const ttsModels = useMemo(() => models?.filter((m) => m.type === 'tts') ?? [], [models]);
   const [selectedModel, setSelectedModel] = useState('');
-  const [language, setLanguage] = useState('pt');
+  const [language, setLanguage] = useState('en');
   const [isRecording, setIsRecording] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [vadActive, setVadActive] = useState(false);
@@ -575,7 +575,7 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
 
   async function startRecording() {
     if (!effectiveModel) {
-      setError('Selecione um modelo STT.');
+      setError('Select an STT model.');
       return;
     }
 
@@ -694,7 +694,7 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
         setIsRecording(true);
       };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao acessar microfone';
+      const message = err instanceof Error ? err.message : 'Failed to access microphone';
       setError(message);
       stopRecording();
     }
@@ -733,16 +733,16 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
             )}
           </CardTitle>
           <CardDescription>
-            Transcricao em tempo real via WebSocket com VAD, partial transcripts{ttsModels.length > 0 ? ' e TTS full-duplex' : ''}.
+            Real-time transcription via WebSocket with VAD, partial transcripts{ttsModels.length > 0 ? ' and full-duplex TTS' : ''}.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label>Modelo STT</Label>
+              <Label>STT model</Label>
               <Select value={effectiveModel} onValueChange={setSelectedModel}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione modelo" />
+                  <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent>
                   {sttModels.map((model) => (
@@ -754,10 +754,10 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="stt-lang">Idioma</Label>
+              <Label htmlFor="stt-lang">Language</Label>
               <Input
                 id="stt-lang"
-                placeholder="pt"
+                placeholder="en"
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
               />
@@ -771,12 +771,12 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
                 {isRecording ? (
                   <>
                     <StopIcon className="h-4 w-4" />
-                    Parar gravacao
+                    Stop recording
                   </>
                 ) : (
                   <>
                     <MicIcon className="h-4 w-4" />
-                    Iniciar gravacao
+                    Start recording
                   </>
                 )}
               </Button>
@@ -788,7 +788,7 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
             <div className="flex items-center gap-2">
               <div className={`h-2.5 w-2.5 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
               <span className="text-xs text-muted-foreground">
-                {isConnected ? 'Conectado' : 'Desconectado'}
+                {isConnected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -799,18 +799,18 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
                 )}
               </div>
               <span className="text-xs text-muted-foreground">
-                {vadActive ? 'Fala detectada' : 'Silencio'}
+                {vadActive ? 'Speech detected' : 'Silence'}
               </span>
             </div>
             {sttMuted && (
               <Badge variant="warning" className="gap-1 text-xs">
                 <VolumeOffIcon className="h-3 w-3" />
-                STT mutado — TTS ativo
+                STT muted — TTS active
               </Badge>
             )}
             {sessionHold && (
               <Badge variant="warning" className="text-xs">
-                Sessao em hold
+                Session on hold
               </Badge>
             )}
             {rateLimitDelay !== null && (
@@ -820,7 +820,7 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
             )}
             {framesDropped !== null && (
               <Badge variant="destructive" className="text-xs">
-                Frames descartados: {framesDropped}ms
+                Frames dropped: {framesDropped}ms
               </Badge>
             )}
             {isRecording && !sttMuted && (
@@ -844,7 +844,7 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
                 <p className="text-sm text-destructive">{error}</p>
                 {errorRecoverable !== undefined && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {errorRecoverable ? 'Erro recuperavel — a sessao continuara.' : 'Erro irrecuperavel.'}
+                    {errorRecoverable ? 'Recoverable error — the session will continue.' : 'Unrecoverable error.'}
                   </p>
                 )}
               </div>
@@ -856,10 +856,10 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
       {/* Transcript output */}
       <Card>
         <CardHeader>
-          <CardTitle>Transcricao</CardTitle>
+          <CardTitle>Transcription</CardTitle>
           <CardDescription>
-            {transcripts.filter((t) => !t.isBot).length} segmento{transcripts.filter((t) => !t.isBot).length !== 1 ? 's' : ''} confirmado{transcripts.filter((t) => !t.isBot).length !== 1 ? 's' : ''}
-            {transcripts.some((t) => t.isBot) && ` · ${transcripts.filter((t) => t.isBot).length} resposta${transcripts.filter((t) => t.isBot).length !== 1 ? 's' : ''} TTS`}
+            {transcripts.filter((t) => !t.isBot).length} confirmed segment{transcripts.filter((t) => !t.isBot).length !== 1 ? 's' : ''}
+            {transcripts.some((t) => t.isBot) && ` · ${transcripts.filter((t) => t.isBot).length} TTS response${transcripts.filter((t) => t.isBot).length !== 1 ? 's' : ''}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -867,8 +867,8 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
             {transcripts.length === 0 && !currentPartial && (
               <p className="text-center text-sm text-muted-foreground">
                 {isRecording
-                  ? 'Aguardando fala...'
-                  : 'Clique em "Iniciar gravacao" para comecar.'}
+                  ? 'Waiting for speech...'
+                  : 'Click "Start recording" to begin.'}
               </p>
             )}
 
@@ -921,18 +921,18 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
                       />
                     ))}
                   </div>
-                  Falando...
+                  Speaking...
                 </Badge>
               )}
             </CardTitle>
             <CardDescription>
-              Envie texto para o bot falar via WebSocket (tts.speak). O STT e mutado automaticamente durante a sintese.
+              Send text for the bot to speak via WebSocket (tts.speak). STT is automatically muted during synthesis.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
               <Input
-                placeholder={isConnected ? 'Digite o texto para o bot falar...' : 'Conecte o streaming primeiro'}
+                placeholder={isConnected ? 'Type the text for the bot to speak...' : 'Connect streaming first'}
                 value={ttsText}
                 onChange={(e) => setTtsText(e.target.value)}
                 onKeyDown={(e) => {
@@ -949,7 +949,7 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
                 className="gap-2 shrink-0"
               >
                 <SendIcon className="h-4 w-4" />
-                Falar
+                Speak
               </Button>
               {ttsSpeaking && (
                 <Button
@@ -958,13 +958,13 @@ function StreamingSTTTab({ models }: { models: DemoModel[] | undefined }) {
                   size="sm"
                   className="shrink-0"
                 >
-                  Cancelar
+                  Cancel
                 </Button>
               )}
             </div>
             {!isConnected && (
               <p className="text-xs text-muted-foreground">
-                Inicie a gravacao acima para habilitar o TTS full-duplex na mesma conexao WebSocket.
+                Start recording above to enable full-duplex TTS on the same WebSocket connection.
               </p>
             )}
           </CardContent>
@@ -1002,11 +1002,11 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
 
   async function onSynthesize() {
     if (!text.trim()) {
-      setError('Digite um texto para sintetizar.');
+      setError('Enter text to synthesize.');
       return;
     }
     if (!effectiveModel) {
-      setError('Nenhum modelo TTS disponivel.');
+      setError('No TTS model available.');
       return;
     }
 
@@ -1040,7 +1040,7 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
         audioRef.current?.play();
       }, 50);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro na sintese';
+      const message = err instanceof Error ? err.message : 'Synthesis error';
       setError(message);
     } finally {
       setIsSynthesizing(false);
@@ -1056,16 +1056,16 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
             Text-to-Speech
           </CardTitle>
           <CardDescription>
-            Sintetize voz a partir de texto via POST /v1/audio/speech (OpenAI-compatible).
+            Synthesize speech from text via POST /v1/audio/speech (OpenAI-compatible).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="tts-text">Texto</Label>
+            <Label htmlFor="tts-text">Text</Label>
             <textarea
               id="tts-text"
               className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              placeholder="Digite o texto que deseja sintetizar..."
+              placeholder="Type the text you want to synthesize..."
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
@@ -1073,10 +1073,10 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
-              <Label>Modelo TTS</Label>
+              <Label>TTS model</Label>
               <Select value={effectiveModel} onValueChange={setSelectedModel}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione modelo" />
+                  <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent>
                   {ttsModels.map((model) => (
@@ -1086,14 +1086,14 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
                   ))}
                   {ttsModels.length === 0 && (
                     <SelectItem value="_none" disabled>
-                      Nenhum modelo TTS instalado
+                      No TTS model installed
                     </SelectItem>
                   )}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="tts-voice">Voz</Label>
+              <Label htmlFor="tts-voice">Voice</Label>
               <Input
                 id="tts-voice"
                 placeholder="default"
@@ -1102,7 +1102,7 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
               />
             </div>
             <div className="space-y-2">
-              <Label>Velocidade: {speed.toFixed(1)}x</Label>
+              <Label>Speed: {speed.toFixed(1)}x</Label>
               <Slider
                 min={0.5}
                 max={2.0}
@@ -1115,9 +1115,9 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
 
           {ttsModels.length === 0 && (
             <div className="rounded-lg border border-dashed p-4 text-center">
-              <p className="text-sm font-medium">Nenhum modelo TTS instalado</p>
+              <p className="text-sm font-medium">No TTS model installed</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Execute <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">Macaw pull kokoro-v1</code> para habilitar TTS.
+                Run <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">macaw pull kokoro-v1</code> to enable TTS.
               </p>
             </div>
           )}
@@ -1136,7 +1136,7 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
               className="gap-2"
             >
               <VolumeIcon className="h-4 w-4" />
-              {isSynthesizing ? 'Sintetizando...' : 'Sintetizar voz'}
+              {isSynthesizing ? 'Synthesizing...' : 'Synthesize speech'}
             </Button>
 
             {ttfbMs !== null && (
@@ -1152,8 +1152,8 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
       {audioUrl && (
         <Card>
           <CardHeader>
-            <CardTitle>Resultado</CardTitle>
-            <CardDescription>Audio sintetizado — clique play para ouvir.</CardDescription>
+            <CardTitle>Result</CardTitle>
+            <CardDescription>Synthesized audio — click play to listen.</CardDescription>
           </CardHeader>
           <CardContent>
             <audio
@@ -1175,12 +1175,12 @@ function TTSPlaybackTab({ models }: { models: DemoModel[] | undefined }) {
               <p className="text-muted-foreground">POST /v1/audio/speech</p>
             </div>
             <div>
-              <p className="font-semibold">Formato</p>
-              <p className="text-muted-foreground">WAV (PCM 16-bit) ou raw PCM</p>
+              <p className="font-semibold">Format</p>
+              <p className="text-muted-foreground">WAV (PCM 16-bit) or raw PCM</p>
             </div>
             <div>
               <p className="font-semibold">Streaming (WebSocket)</p>
-              <p className="text-muted-foreground">tts.speak / tts.cancel com mute-on-speak</p>
+              <p className="text-muted-foreground">tts.speak / tts.cancel with mute-on-speak</p>
             </div>
           </div>
         </CardContent>
@@ -1248,11 +1248,11 @@ export default function Page() {
         {/* Footer */}
         <footer className="border-t pt-6 text-center text-xs text-muted-foreground">
           <p>
-            Macaw OpenVoice — Runtime unificado de voz (STT + TTS).
-            Todas as 3 fases do PRD entregues (M1-M9). 1600+ testes.
+            Macaw OpenVoice — Voice runtime (STT + TTS).
+            All 3 PRD phases delivered (M1-M9). 1600+ tests.
           </p>
           <p className="mt-1">
-            API compativel com OpenAI · gRPC worker isolation · Full-duplex WebSocket · Mute-on-speak
+            OpenAI-compatible API · gRPC worker isolation · Full-duplex WebSocket · Mute-on-speak
           </p>
         </footer>
       </section>

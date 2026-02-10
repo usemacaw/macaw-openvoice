@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from Macaw._types import TranscriptSegment, WordTimestamp
-from Macaw.workers.stt.converters import transcript_segment_to_proto_event
+from macaw._types import TranscriptSegment, WordTimestamp
+from macaw.workers.stt.converters import transcript_segment_to_proto_event
 
 
 class TestTranscriptSegmentToProtoEvent:

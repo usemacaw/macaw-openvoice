@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from Macaw._types import TTSSpeechResult, VoiceInfo
-from Macaw.exceptions import MacawError, TTSError, TTSSynthesisError
-from Macaw.workers.tts.interface import TTSBackend
+from macaw._types import TTSSpeechResult, VoiceInfo
+from macaw.exceptions import MacawError, TTSError, TTSSynthesisError
+from macaw.workers.tts.interface import TTSBackend
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -84,7 +84,7 @@ class TestTTSSpeechResult:
 
 
 class TestTTSExceptions:
-    def test_tts_error_is_Macaw_error(self) -> None:
+    def test_tts_error_is_macaw_error(self) -> None:
         assert issubclass(TTSError, MacawError)
 
     def test_tts_synthesis_error_is_tts_error(self) -> None:
@@ -97,7 +97,7 @@ class TestTTSExceptions:
         assert "kokoro-v1" in str(err)
         assert "out of memory" in str(err)
 
-    def test_tts_error_catchable_as_Macaw_error(self) -> None:
+    def test_tts_error_catchable_as_macaw_error(self) -> None:
         with pytest.raises(MacawError):
             raise TTSSynthesisError("model", "reason")
 

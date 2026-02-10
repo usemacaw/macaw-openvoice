@@ -26,10 +26,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pytest
 
-from Macaw._types import TranscriptSegment
-from Macaw.server.models.events import StreamingErrorEvent
-from Macaw.session.streaming import StreamingSession
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw._types import TranscriptSegment
+from macaw.server.models.events import StreamingErrorEvent
+from macaw.session.streaming import StreamingSession
+from macaw.vad.detector import VADEvent, VADEventType
 
 if TYPE_CHECKING:
     from collections.abc import Callable

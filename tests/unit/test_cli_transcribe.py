@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 from click.testing import CliRunner
 
-from Macaw.cli import cli
+from macaw.cli import cli
 
 
 class TestTranscribeCommand:
@@ -158,7 +158,7 @@ class TestTranscribeCommand:
         assert result.exit_code != 0
         assert "--stream" in result.output
 
-    @patch("Macaw.cli.transcribe._stream_microphone")
+    @patch("macaw.cli.transcribe._stream_microphone")
     def test_transcribe_stream_calls_stream_microphone(
         self,
         mock_stream: MagicMock,
@@ -174,7 +174,7 @@ class TestTranscribeCommand:
         assert call_kwargs["model"] == "faster-whisper-tiny"
         assert call_kwargs["itn"] is True
 
-    @patch("Macaw.cli.transcribe._stream_microphone")
+    @patch("macaw.cli.transcribe._stream_microphone")
     def test_transcribe_stream_passes_hot_words(
         self,
         mock_stream: MagicMock,
@@ -195,7 +195,7 @@ class TestTranscribeCommand:
         call_kwargs = mock_stream.call_args.kwargs
         assert call_kwargs["hot_words"] == "PIX,TED"
 
-    @patch("Macaw.cli.transcribe._stream_microphone")
+    @patch("macaw.cli.transcribe._stream_microphone")
     def test_transcribe_stream_passes_no_itn(
         self,
         mock_stream: MagicMock,
@@ -215,7 +215,7 @@ class TestTranscribeCommand:
         call_kwargs = mock_stream.call_args.kwargs
         assert call_kwargs["itn"] is False
 
-    @patch("Macaw.cli.transcribe._stream_microphone")
+    @patch("macaw.cli.transcribe._stream_microphone")
     def test_transcribe_stream_passes_language(
         self,
         mock_stream: MagicMock,

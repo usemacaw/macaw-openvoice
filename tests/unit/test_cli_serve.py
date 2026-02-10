@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from click.testing import CliRunner
 
-from Macaw.cli import cli
+from macaw.cli import cli
 
 
 class TestServeCommand:

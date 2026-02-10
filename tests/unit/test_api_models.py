@@ -6,9 +6,9 @@ import uuid
 
 import pytest
 
-from Macaw._types import ResponseFormat
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.server.models.responses import (
+from macaw._types import ResponseFormat
+from macaw.server.models.requests import TranscribeRequest
+from macaw.server.models.responses import (
     ErrorDetail,
     ErrorResponse,
     SegmentResponse,

@@ -13,10 +13,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from Macaw._types import ResponseFormat
-from Macaw.scheduler.batching import BatchAccumulator
-from Macaw.scheduler.queue import RequestPriority, ScheduledRequest
-from Macaw.server.models.requests import TranscribeRequest
+from macaw._types import ResponseFormat
+from macaw.scheduler.batching import BatchAccumulator
+from macaw.scheduler.queue import RequestPriority, ScheduledRequest
+from macaw.server.models.requests import TranscribeRequest
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -341,7 +341,7 @@ class TestModelValidation:
 class TestSchedulerIntegration:
     async def test_realtime_bypasses_accumulator(self) -> None:
         """REALTIME requests are dispatched directly, not accumulated."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -361,7 +361,7 @@ class TestSchedulerIntegration:
 
     async def test_batch_goes_through_accumulator(self) -> None:
         """BATCH requests go through the BatchAccumulator."""
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()
@@ -389,7 +389,7 @@ class TestSchedulerIntegration:
         """Scheduler.stop() flushes any pending batch requests."""
         from unittest.mock import patch
 
-        from Macaw.scheduler.scheduler import Scheduler
+        from macaw.scheduler.scheduler import Scheduler
 
         mock_manager = MagicMock()
         mock_registry = MagicMock()

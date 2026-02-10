@@ -11,12 +11,12 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from Macaw._types import ResponseFormat
-from Macaw.proto.stt_worker_pb2 import Segment, TranscribeFileResponse, Word
-from Macaw.scheduler.cancel import CancellationManager
-from Macaw.scheduler.scheduler import Scheduler
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.workers.manager import WorkerHandle, WorkerState
+from macaw._types import ResponseFormat
+from macaw.proto.stt_worker_pb2 import Segment, TranscribeFileResponse, Word
+from macaw.scheduler.cancel import CancellationManager
+from macaw.scheduler.scheduler import Scheduler
+from macaw.server.models.requests import TranscribeRequest
+from macaw.workers.manager import WorkerHandle, WorkerState
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -212,8 +212,8 @@ class TestSchedulerCancel:
         mock_stub.TranscribeFile.return_value = _make_proto_response()
 
         with (
-            patch("Macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=AsyncMock()),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=AsyncMock()),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             await scheduler.start()
             try:
@@ -253,8 +253,8 @@ class TestSchedulerCancel:
         mock_stub.TranscribeFile.return_value = _make_proto_response()
 
         with (
-            patch("Macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=AsyncMock()),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=AsyncMock()),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             await scheduler.start()
             try:
@@ -276,8 +276,8 @@ class TestSchedulerCancel:
         mock_stub.TranscribeFile.return_value = _make_proto_response()
 
         with (
-            patch("Macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=AsyncMock()),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.grpc.aio.insecure_channel", return_value=AsyncMock()),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
         ):
             # Submit and cancel BEFORE starting dispatch loop
             await scheduler.submit(_make_request("req_skip"))
@@ -325,7 +325,7 @@ class TestCancelEndpoint:
         """POST /v1/audio/transcriptions/{request_id}/cancel returns JSON."""
         from httpx import ASGITransport, AsyncClient
 
-        from Macaw.server.app import create_app
+        from macaw.server.app import create_app
 
         worker = _make_worker()
         scheduler, _, _ = _make_scheduler(worker)
@@ -346,7 +346,7 @@ class TestCancelEndpoint:
         """Cancel endpoint cancels a queued request."""
         from httpx import ASGITransport, AsyncClient
 
-        from Macaw.server.app import create_app
+        from macaw.server.app import create_app
 
         worker = _make_worker()
         scheduler, _, _ = _make_scheduler(worker)

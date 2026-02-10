@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import uuid
 
-from Macaw.server.models.events import (
+from macaw.server.models.events import (
     ClientCommand,
     ServerEvent,
     SessionConfig,
@@ -25,7 +25,7 @@ from Macaw.server.models.events import (
     TTSSpeakingEndEvent,
     TTSSpeakingStartEvent,
 )
-from Macaw.server.ws_protocol import (
+from macaw.server.ws_protocol import (
     CommandResult,
     ErrorResult,
     dispatch_message,

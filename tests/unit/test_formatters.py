@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi.responses import PlainTextResponse
 
-from Macaw._types import BatchResult, ResponseFormat, SegmentDetail, WordTimestamp
-from Macaw.server.formatters import format_response
+from macaw._types import BatchResult, ResponseFormat, SegmentDetail, WordTimestamp
+from macaw.server.formatters import format_response
 
 
 def _make_result() -> BatchResult:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from Macaw.preprocessing.gain_normalize import GainNormalizeStage
+from macaw.preprocessing.gain_normalize import GainNormalizeStage
 
 
 def peak_dbfs(audio: np.ndarray) -> float:

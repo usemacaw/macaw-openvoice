@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from Macaw._types import SessionState
-from Macaw.exceptions import InvalidTransitionError
-from Macaw.session.state_machine import SessionStateMachine, SessionTimeouts
+from macaw._types import SessionState
+from macaw.exceptions import InvalidTransitionError
+from macaw.session.state_machine import SessionStateMachine, SessionTimeouts
 
 # ---------------------------------------------------------------------------
 # Helpers

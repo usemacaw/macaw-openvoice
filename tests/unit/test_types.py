@@ -2,7 +2,7 @@
 
 import pytest
 
-from Macaw._types import (
+from macaw._types import (
     BatchResult,
     EngineCapabilities,
     ModelType,

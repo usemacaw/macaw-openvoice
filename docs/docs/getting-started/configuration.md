@@ -2,7 +2,7 @@
 title: Configuration
 ---
 
-Macaw OpenVoice loads model manifests from `Macaw.yaml` files and uses a runtime config for pipeline settings.
+Macaw OpenVoice loads model manifests from `macaw.yaml` files and uses a runtime config for pipeline settings.
 
 ## Models
 

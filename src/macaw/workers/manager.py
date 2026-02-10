@@ -1,0 +1,439 @@
+"""Worker Manager — manages the lifecycle of STT/TTS workers as subprocesses.
+
+Responsibilities:
+- Spawn workers as gRPC subprocesses
+- Health probing with exponential backoff
+- Process monitoring (crash detection)
+- Auto-restart with rate limiting
+- Graceful shutdown
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import subprocess
+import sys
+import time
+from dataclasses import dataclass, field
+from enum import Enum
+
+from macaw.logging import get_logger
+
+logger = get_logger("worker.manager")
+
+# Constants
+MAX_CRASHES_IN_WINDOW = 3
+CRASH_WINDOW_SECONDS = 60.0
+HEALTH_PROBE_INITIAL_DELAY = 0.5
+HEALTH_PROBE_MAX_DELAY = 5.0
+HEALTH_PROBE_TIMEOUT = 30.0
+STOP_GRACE_PERIOD = 5.0
+MONITOR_INTERVAL = 1.0
+
+
+class WorkerState(Enum):
+    """Worker state in the lifecycle."""
+
+    STARTING = "starting"
+    READY = "ready"
+    BUSY = "busy"
+    STOPPING = "stopping"
+    STOPPED = "stopped"
+    CRASHED = "crashed"
+
+
+@dataclass
+class WorkerHandle:
+    """Handle for a running worker."""
+
+    worker_id: str
+    port: int
+    model_name: str
+    engine: str
+    process: subprocess.Popen[bytes] | None = None
+    state: WorkerState = WorkerState.STARTING
+    crash_count: int = 0
+    crash_timestamps: list[float] = field(default_factory=list)
+    last_started_at: float = field(default_factory=time.monotonic)
+    model_path: str = ""
+    engine_config: dict[str, object] = field(default_factory=dict)
+    worker_type: str = "stt"
+
+
+class WorkerManager:
+    """Manage lifecycle of gRPC workers as subprocesses.
+
+    Each worker is a separate process running the STT gRPC servicer.
+    The manager handles spawn, health checks, crash detection, and restart.
+    """
+
+    def __init__(self) -> None:
+        self._workers: dict[str, WorkerHandle] = {}
+        self._tasks: dict[str, list[asyncio.Task[None]]] = {}
+
+    async def spawn_worker(
+        self,
+        model_name: str,
+        port: int,
+        engine: str,
+        model_path: str,
+        engine_config: dict[str, object],
+        worker_type: str = "stt",
+    ) -> WorkerHandle:
+        """Start a new worker as a subprocess.
+
+        Args:
+            model_name: Model name (for identification).
+            port: gRPC port for the worker to listen on.
+            engine: Engine name (e.g., "faster-whisper", "kokoro").
+            model_path: Path to model files.
+            engine_config: Engine configuration.
+            worker_type: Worker type ("stt" or "tts").
+
+        Returns:
+            WorkerHandle with worker information.
+        """
+        worker_id = f"{engine}-{port}"
+
+        logger.info(
+            "spawning_worker",
+            worker_id=worker_id,
+            port=port,
+            engine=engine,
+            worker_type=worker_type,
+        )
+
+        process = _spawn_worker_process(
+            port, engine, model_path, engine_config, worker_type=worker_type
+        )
+
+        handle = WorkerHandle(
+            worker_id=worker_id,
+            port=port,
+            model_name=model_name,
+            engine=engine,
+            process=process,
+            state=WorkerState.STARTING,
+            model_path=model_path,
+            engine_config=engine_config,
+            worker_type=worker_type,
+        )
+
+        self._workers[worker_id] = handle
+        self._start_background_tasks(worker_id)
+
+        return handle
+
+    def _start_background_tasks(self, worker_id: str) -> None:
+        """Start health probe and monitoring tasks for a worker."""
+        health_task = asyncio.create_task(self._health_probe(worker_id))
+        monitor_task = asyncio.create_task(self._monitor_worker(worker_id))
+        self._tasks[worker_id] = [health_task, monitor_task]
+
+    async def _cancel_background_tasks(self, worker_id: str) -> None:
+        """Cancel and await completion of background tasks for a worker."""
+        tasks = self._tasks.pop(worker_id, [])
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def stop_worker(self, worker_id: str) -> None:
+        """Stop a worker gracefully (SIGTERM, wait, SIGKILL if needed).
+
+        Args:
+            worker_id: Worker ID.
+        """
+        handle = self._workers.get(worker_id)
+        if handle is None:
+            return
+
+        handle.state = WorkerState.STOPPING
+        logger.info("stopping_worker", worker_id=worker_id)
+
+        await self._cancel_background_tasks(worker_id)
+
+        process = handle.process
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(None, process.wait),
+                    timeout=STOP_GRACE_PERIOD,
+                )
+            except TimeoutError:
+                logger.warning("worker_force_kill", worker_id=worker_id)
+                process.kill()
+                await asyncio.get_running_loop().run_in_executor(None, process.wait)
+
+        handle.state = WorkerState.STOPPED
+        logger.info("worker_stopped", worker_id=worker_id)
+
+    async def stop_all(self) -> None:
+        """Stop all workers in parallel."""
+        worker_ids = list(self._workers.keys())
+        if worker_ids:
+            await asyncio.gather(*(self.stop_worker(wid) for wid in worker_ids))
+
+    def get_worker(self, worker_id: str) -> WorkerHandle | None:
+        """Return worker handle by ID."""
+        return self._workers.get(worker_id)
+
+    def get_ready_worker(self, model_name: str) -> WorkerHandle | None:
+        """Return the first READY worker for a given model."""
+        for handle in self._workers.values():
+            if handle.model_name == model_name and handle.state == WorkerState.READY:
+                return handle
+        return None
+
+    async def _health_probe(self, worker_id: str) -> None:
+        """Check worker health with exponential backoff after spawn.
+
+        Transitions from STARTING -> READY when health returns ok.
+        """
+        handle = self._workers.get(worker_id)
+        if handle is None:
+            return
+
+        delay = HEALTH_PROBE_INITIAL_DELAY
+        start = time.monotonic()
+
+        while handle.state == WorkerState.STARTING:
+            elapsed = time.monotonic() - start
+            if elapsed > HEALTH_PROBE_TIMEOUT:
+                logger.error("health_probe_timeout", worker_id=worker_id)
+                handle.state = WorkerState.CRASHED
+                return
+
+            try:
+                await asyncio.sleep(delay)
+                result = await _check_worker_health(
+                    handle.port, timeout=2.0, worker_type=handle.worker_type
+                )
+                if result.get("status") == "ok":
+                    handle.state = WorkerState.READY
+                    logger.info("worker_ready", worker_id=worker_id, elapsed_s=round(elapsed, 2))
+                    return
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                pass
+
+            delay = min(delay * 2, HEALTH_PROBE_MAX_DELAY)
+
+    async def _monitor_worker(self, worker_id: str) -> None:
+        """Monitor the worker process and detect crashes."""
+        handle = self._workers.get(worker_id)
+        if handle is None:
+            return
+
+        try:
+            while handle.state not in (WorkerState.STOPPING, WorkerState.STOPPED):
+                await asyncio.sleep(MONITOR_INTERVAL)
+
+                process = handle.process
+                if process is None:
+                    continue
+
+                exit_code = process.poll()
+                if exit_code is not None and handle.state not in (
+                    WorkerState.STOPPING,
+                    WorkerState.STOPPED,
+                ):
+                    stderr_output = ""
+                    if process.stderr is not None:
+                        with contextlib.suppress(Exception):
+                            stderr_output = process.stderr.read().decode(errors="replace")[-2000:]
+                    logger.error(
+                        "worker_crashed",
+                        worker_id=worker_id,
+                        exit_code=exit_code,
+                        stderr=stderr_output or "(empty)",
+                    )
+                    handle.state = WorkerState.CRASHED
+                    await self._attempt_restart(worker_id)
+                    return
+        except asyncio.CancelledError:
+            return
+
+    async def _attempt_restart(self, worker_id: str) -> None:
+        """Attempt to restart a worker with rate limiting.
+
+        Do not restart if MAX_CRASHES_IN_WINDOW is exceeded within CRASH_WINDOW_SECONDS.
+        """
+        handle = self._workers.get(worker_id)
+        if handle is None:
+            return
+
+        now = time.monotonic()
+        handle.crash_count += 1
+        handle.crash_timestamps.append(now)
+
+        # Clear timestamps outside the window
+        handle.crash_timestamps = [
+            ts for ts in handle.crash_timestamps if now - ts < CRASH_WINDOW_SECONDS
+        ]
+
+        if len(handle.crash_timestamps) >= MAX_CRASHES_IN_WINDOW:
+            logger.error(
+                "worker_max_crashes_exceeded",
+                worker_id=worker_id,
+                crashes=handle.crash_count,
+                window_seconds=CRASH_WINDOW_SECONDS,
+            )
+            handle.state = WorkerState.CRASHED
+            return
+
+        # Backoff based on the number of recent crashes
+        backoff = HEALTH_PROBE_INITIAL_DELAY * (2 ** len(handle.crash_timestamps))
+        logger.info(
+            "worker_restarting",
+            worker_id=worker_id,
+            backoff_s=backoff,
+            crash_count=handle.crash_count,
+        )
+
+        await asyncio.sleep(backoff)
+
+        process = _spawn_worker_process(
+            handle.port,
+            handle.engine,
+            handle.model_path,
+            handle.engine_config,
+            worker_type=handle.worker_type,
+        )
+
+        handle.process = process
+        handle.state = WorkerState.STARTING
+        handle.last_started_at = time.monotonic()
+
+        # Do not call _cancel_background_tasks here — we are executing INSIDE
+        # _monitor_worker, which is one of the tasks in the dict. Cancelling itself
+        # would cause CancelledError and _start_background_tasks would never run.
+        # Old tasks have already finished (health probe completed, monitor is
+        # about to return after this method). Just replace in the dict.
+        self._tasks.pop(worker_id, None)
+        self._start_background_tasks(worker_id)
+
+
+def _build_worker_cmd(
+    port: int,
+    engine: str,
+    model_path: str,
+    engine_config: dict[str, object],
+    worker_type: str = "stt",
+) -> list[str]:
+    """Build CLI command to start a worker as a subprocess.
+
+    Args:
+        port: gRPC port for the worker to listen on.
+        engine: Engine name (e.g., "faster-whisper", "kokoro").
+        model_path: Path to model files.
+        engine_config: Engine configuration.
+        worker_type: Worker type ("stt" or "tts").
+
+    Returns:
+        List of arguments for subprocess.Popen.
+    """
+    module = "macaw.workers.tts" if worker_type == "tts" else "macaw.workers.stt"
+    cmd = [
+        sys.executable,
+        "-m",
+        module,
+        "--port",
+        str(port),
+        "--engine",
+        engine,
+        "--model-path",
+        model_path,
+    ]
+
+    if worker_type == "tts":
+        config_to_flag: dict[str, str] = {
+            "device": "--device",
+            "model_name": "--model-name",
+        }
+    else:
+        config_to_flag = {
+            "compute_type": "--compute-type",
+            "device": "--device",
+            "model_size": "--model-size",
+            "beam_size": "--beam-size",
+        }
+
+    for config_key, cli_flag in config_to_flag.items():
+        if config_key in engine_config:
+            cmd.extend([cli_flag, str(engine_config[config_key])])
+
+    return cmd
+
+
+def _spawn_worker_process(
+    port: int,
+    engine: str,
+    model_path: str,
+    engine_config: dict[str, object],
+    worker_type: str = "stt",
+) -> subprocess.Popen[bytes]:
+    """Create worker subprocess.
+
+    Args:
+        port: gRPC port for the worker to listen on.
+        engine: Engine name.
+        model_path: Path to model files.
+        engine_config: Engine configuration.
+        worker_type: Worker type ("stt" or "tts").
+
+    Returns:
+        Popen handle for the created process.
+    """
+    cmd = _build_worker_cmd(port, engine, model_path, engine_config, worker_type=worker_type)
+    return subprocess.Popen(
+        cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+
+async def _check_worker_health(
+    port: int, timeout: float = 2.0, worker_type: str = "stt"
+) -> dict[str, str]:
+    """Check worker health via gRPC Health RPC.
+
+    Args:
+        port: Worker gRPC port.
+        timeout: Timeout in seconds.
+        worker_type: Worker type ("stt" or "tts").
+
+    Returns:
+        Dict with worker status.
+    """
+    import grpc.aio
+
+    channel = grpc.aio.insecure_channel(f"localhost:{port}")
+    try:
+        if worker_type == "tts":
+            from macaw.proto import TTSHealthRequest, TTSWorkerStub
+
+            tts_stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
+            response = await asyncio.wait_for(
+                tts_stub.Health(TTSHealthRequest()),
+                timeout=timeout,
+            )
+        else:
+            from macaw.proto import HealthRequest
+            from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
+
+            stt_stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
+            response = await asyncio.wait_for(
+                stt_stub.Health(HealthRequest()),
+                timeout=timeout,
+            )
+        return {
+            "status": response.status,
+            "model_name": response.model_name,
+            "engine": response.engine,
+        }
+    finally:
+        await channel.close()

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import yaml
 
-from Macaw.registry.catalog import CatalogEntry
-from Macaw.registry.downloader import ModelDownloader
+from macaw.registry.catalog import CatalogEntry
+from macaw.registry.downloader import ModelDownloader
 
 
 @pytest.fixture
@@ -73,7 +73,7 @@ class TestIsInstalled:
     def test_installed_with_manifest(self, models_dir: Path) -> None:
         model_dir = models_dir / "faster-whisper-tiny"
         model_dir.mkdir()
-        (model_dir / "Macaw.yaml").write_text("name: faster-whisper-tiny")
+        (model_dir / "macaw.yaml").write_text("name: faster-whisper-tiny")
         downloader = ModelDownloader(models_dir)
         assert downloader.is_installed("faster-whisper-tiny") is True
 
@@ -98,7 +98,7 @@ class TestDownload:
     def test_download_creates_model_directory(
         self, models_dir: Path, sample_entry: CatalogEntry
     ) -> None:
-        with patch("Macaw.registry.downloader.ModelDownloader.download") as mock_download:
+        with patch("macaw.registry.downloader.ModelDownloader.download") as mock_download:
             mock_download.return_value = models_dir / "faster-whisper-tiny"
             downloader = ModelDownloader(models_dir)
             result = downloader.download(sample_entry)
@@ -109,7 +109,7 @@ class TestDownload:
     ) -> None:
         model_dir = models_dir / "faster-whisper-tiny"
         model_dir.mkdir()
-        (model_dir / "Macaw.yaml").write_text("name: faster-whisper-tiny")
+        (model_dir / "macaw.yaml").write_text("name: faster-whisper-tiny")
         downloader = ModelDownloader(models_dir)
         with pytest.raises(FileExistsError, match="ja esta instalado"):
             downloader.download(sample_entry)
@@ -120,7 +120,7 @@ class TestDownload:
         """Download falha se catalogo nao tem manifesto."""
         mock_snapshot = MagicMock(return_value=str(models_dir / "no-manifest"))
         with patch(
-            "Macaw.registry.downloader.snapshot_download",
+            "macaw.registry.downloader.snapshot_download",
             mock_snapshot,
             create=True,
         ):
@@ -152,7 +152,7 @@ class TestWriteManifest:
         downloader = ModelDownloader(models_dir)
         downloader._write_manifest(model_dir, sample_entry)
 
-        manifest_path = model_dir / "Macaw.yaml"
+        manifest_path = model_dir / "macaw.yaml"
         assert manifest_path.exists()
 
         content = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
@@ -168,7 +168,7 @@ class TestWriteManifest:
         downloader = ModelDownloader(models_dir)
         downloader._write_manifest(model_dir, sample_entry)
 
-        manifest_path = model_dir / "Macaw.yaml"
+        manifest_path = model_dir / "macaw.yaml"
         content = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
         assert "capabilities" in content
         assert content["capabilities"]["streaming"] is True
@@ -189,7 +189,7 @@ class TestRemove:
     def test_remove_existing_model(self, models_dir: Path) -> None:
         model_dir = models_dir / "test-model"
         model_dir.mkdir()
-        (model_dir / "Macaw.yaml").write_text("name: test-model")
+        (model_dir / "macaw.yaml").write_text("name: test-model")
         (model_dir / "model.bin").write_bytes(b"\x00" * 100)
 
         downloader = ModelDownloader(models_dir)
@@ -206,7 +206,7 @@ class TestRemove:
         sub_dir = model_dir / "subdir"
         sub_dir.mkdir()
         (sub_dir / "file.txt").write_text("content")
-        (model_dir / "Macaw.yaml").write_text("name: test-model")
+        (model_dir / "macaw.yaml").write_text("name: test-model")
 
         downloader = ModelDownloader(models_dir)
         downloader.remove("test-model")
@@ -216,7 +216,7 @@ class TestRemove:
 class TestModelsDir:
     def test_default_models_dir(self) -> None:
         downloader = ModelDownloader()
-        assert downloader.models_dir == Path.home() / ".Macaw" / "models"
+        assert downloader.models_dir == Path.home() / ".macaw" / "models"
 
     def test_custom_models_dir(self, tmp_path: Path) -> None:
         downloader = ModelDownloader(tmp_path / "custom")

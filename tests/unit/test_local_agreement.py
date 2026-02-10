@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import pytest
 
-from Macaw.session.local_agreement import AgreementResult, LocalAgreementPolicy
+from macaw.session.local_agreement import AgreementResult, LocalAgreementPolicy
 
 # ---------------------------------------------------------------------------
 # Testes basicos de agreement

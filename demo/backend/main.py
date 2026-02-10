@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uvicorn
 
-from Macaw.logging import configure_logging
+from macaw.logging import configure_logging
 
 from .config import DemoConfig
 

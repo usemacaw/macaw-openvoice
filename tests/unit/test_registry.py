@@ -9,8 +9,8 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from Macaw.exceptions import ModelNotFoundError
-from Macaw.registry.registry import ModelRegistry
+from macaw.exceptions import ModelNotFoundError
+from macaw.registry.registry import ModelRegistry
 
 VALID_STT_MANIFEST = """\
 name: faster-whisper-tiny
@@ -47,7 +47,7 @@ this_is: not_a_valid_manifest
 def _create_model_dir(base: Path, dir_name: str, manifest_yaml: str) -> Path:
     model_dir = base / dir_name
     model_dir.mkdir()
-    (model_dir / "Macaw.yaml").write_text(manifest_yaml)
+    (model_dir / "macaw.yaml").write_text(manifest_yaml)
     return model_dir
 
 

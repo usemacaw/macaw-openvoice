@@ -13,11 +13,11 @@ import wave
 import numpy as np
 import pytest
 
-from Macaw.config.preprocessing import PreprocessingConfig
-from Macaw.exceptions import AudioFormatError
-from Macaw.preprocessing.audio_io import decode_audio, encode_pcm16
-from Macaw.preprocessing.pipeline import AudioPreprocessingPipeline
-from Macaw.preprocessing.stages import AudioStage
+from macaw.config.preprocessing import PreprocessingConfig
+from macaw.exceptions import AudioFormatError
+from macaw.preprocessing.audio_io import decode_audio, encode_pcm16
+from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
+from macaw.preprocessing.stages import AudioStage
 
 # --- Helpers ---
 

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 from starlette.testclient import TestClient
 
-from Macaw.exceptions import ModelNotFoundError
-from Macaw.server.app import create_app
+from macaw.exceptions import ModelNotFoundError
+from macaw.server.app import create_app
 
 
 def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:

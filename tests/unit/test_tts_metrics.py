@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from Macaw.scheduler.tts_metrics import (
+from macaw.scheduler.tts_metrics import (
     HAS_TTS_METRICS,
     tts_active_sessions,
     tts_requests_total,
@@ -81,7 +81,7 @@ class TestTTSMetricsNoPrometheus:
         import ast
         import inspect
 
-        import Macaw.scheduler.tts_metrics as mod
+        import macaw.scheduler.tts_metrics as mod
 
         source = inspect.getsource(mod)
         tree = ast.parse(source)
@@ -118,6 +118,7 @@ class TestTTSMetricsInstrumentation:
         """TTFB metric is observed when first chunk arrives."""
         import asyncio
 
+        from macaw.server.routes.realtime import _tts_speak_task
         from tests.unit.test_full_duplex import (
             _make_mock_registry,
             _make_mock_session,
@@ -126,7 +127,6 @@ class TestTTSMetricsInstrumentation:
             _make_mock_worker_manager,
             _make_send_event,
         )
-        from Macaw.server.routes.realtime import _tts_speak_task
 
         ws = _make_mock_websocket()
         session = _make_mock_session()
@@ -150,9 +150,9 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
-            patch("Macaw.server.routes.realtime.tts_ttfb_seconds") as mock_ttfb,
-            patch("Macaw.server.routes.realtime.HAS_TTS_METRICS", True),
+            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.tts_ttfb_seconds") as mock_ttfb,
+            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -160,7 +160,7 @@ class TestTTSMetricsInstrumentation:
             mock_stub.Synthesize.return_value = stream
 
             with patch(
-                "Macaw.server.routes.realtime.TTSWorkerStub",
+                "macaw.server.routes.realtime.TTSWorkerStub",
                 return_value=mock_stub,
             ):
                 await _tts_speak_task(
@@ -183,6 +183,7 @@ class TestTTSMetricsInstrumentation:
         """Synthesis duration metric is observed at the end."""
         import asyncio
 
+        from macaw.server.routes.realtime import _tts_speak_task
         from tests.unit.test_full_duplex import (
             _make_mock_registry,
             _make_mock_session,
@@ -191,7 +192,6 @@ class TestTTSMetricsInstrumentation:
             _make_mock_worker_manager,
             _make_send_event,
         )
-        from Macaw.server.routes.realtime import _tts_speak_task
 
         ws = _make_mock_websocket()
         session = _make_mock_session()
@@ -215,11 +215,11 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
             patch(
-                "Macaw.server.routes.realtime.tts_synthesis_duration_seconds",
+                "macaw.server.routes.realtime.tts_synthesis_duration_seconds",
             ) as mock_dur,
-            patch("Macaw.server.routes.realtime.HAS_TTS_METRICS", True),
+            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -227,7 +227,7 @@ class TestTTSMetricsInstrumentation:
             mock_stub.Synthesize.return_value = stream
 
             with patch(
-                "Macaw.server.routes.realtime.TTSWorkerStub",
+                "macaw.server.routes.realtime.TTSWorkerStub",
                 return_value=mock_stub,
             ):
                 await _tts_speak_task(
@@ -248,6 +248,7 @@ class TestTTSMetricsInstrumentation:
         """requests_total counter incremented with status=ok on success."""
         import asyncio
 
+        from macaw.server.routes.realtime import _tts_speak_task
         from tests.unit.test_full_duplex import (
             _make_mock_registry,
             _make_mock_session,
@@ -256,7 +257,6 @@ class TestTTSMetricsInstrumentation:
             _make_mock_worker_manager,
             _make_send_event,
         )
-        from Macaw.server.routes.realtime import _tts_speak_task
 
         ws = _make_mock_websocket()
         session = _make_mock_session()
@@ -280,9 +280,9 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
-            patch("Macaw.server.routes.realtime.tts_requests_total") as mock_counter,
-            patch("Macaw.server.routes.realtime.HAS_TTS_METRICS", True),
+            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
+            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -290,7 +290,7 @@ class TestTTSMetricsInstrumentation:
             mock_stub.Synthesize.return_value = stream
 
             with patch(
-                "Macaw.server.routes.realtime.TTSWorkerStub",
+                "macaw.server.routes.realtime.TTSWorkerStub",
                 return_value=mock_stub,
             ):
                 await _tts_speak_task(
@@ -312,12 +312,12 @@ class TestTTSMetricsInstrumentation:
         """requests_total counter incremented with status=error on failure."""
         import asyncio
 
+        from macaw.server.routes.realtime import _tts_speak_task
         from tests.unit.test_full_duplex import (
             _make_mock_session,
             _make_mock_websocket,
             _make_send_event,
         )
-        from Macaw.server.routes.realtime import _tts_speak_task
 
         ws = _make_mock_websocket()
         session = _make_mock_session()
@@ -330,8 +330,8 @@ class TestTTSMetricsInstrumentation:
         ws.app.state.worker_manager = None
 
         with (
-            patch("Macaw.server.routes.realtime.tts_requests_total") as mock_counter,
-            patch("Macaw.server.routes.realtime.HAS_TTS_METRICS", True),
+            patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
+            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             await _tts_speak_task(
                 websocket=ws,
@@ -352,6 +352,7 @@ class TestTTSMetricsInstrumentation:
         """active_sessions gauge is incremented on first chunk and decremented at end."""
         import asyncio
 
+        from macaw.server.routes.realtime import _tts_speak_task
         from tests.unit.test_full_duplex import (
             _make_mock_registry,
             _make_mock_session,
@@ -360,7 +361,6 @@ class TestTTSMetricsInstrumentation:
             _make_mock_worker_manager,
             _make_send_event,
         )
-        from Macaw.server.routes.realtime import _tts_speak_task
 
         ws = _make_mock_websocket()
         session = _make_mock_session()
@@ -384,9 +384,9 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
-            patch("Macaw.server.routes.realtime.tts_active_sessions") as mock_gauge,
-            patch("Macaw.server.routes.realtime.HAS_TTS_METRICS", True),
+            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.tts_active_sessions") as mock_gauge,
+            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -394,7 +394,7 @@ class TestTTSMetricsInstrumentation:
             mock_stub.Synthesize.return_value = stream
 
             with patch(
-                "Macaw.server.routes.realtime.TTSWorkerStub",
+                "macaw.server.routes.realtime.TTSWorkerStub",
                 return_value=mock_stub,
             ):
                 await _tts_speak_task(
@@ -416,6 +416,7 @@ class TestTTSMetricsInstrumentation:
         """requests_total counter incremented with status=cancelled on cancel."""
         import asyncio
 
+        from macaw.server.routes.realtime import _tts_speak_task
         from tests.unit.test_full_duplex import (
             _make_mock_registry,
             _make_mock_session,
@@ -424,7 +425,6 @@ class TestTTSMetricsInstrumentation:
             _make_mock_worker_manager,
             _make_send_event,
         )
-        from Macaw.server.routes.realtime import _tts_speak_task
 
         ws = _make_mock_websocket()
         session = _make_mock_session()
@@ -449,9 +449,9 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
-            patch("Macaw.server.routes.realtime.tts_requests_total") as mock_counter,
-            patch("Macaw.server.routes.realtime.HAS_TTS_METRICS", True),
+            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
+            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -459,7 +459,7 @@ class TestTTSMetricsInstrumentation:
             mock_stub.Synthesize.return_value = stream
 
             with patch(
-                "Macaw.server.routes.realtime.TTSWorkerStub",
+                "macaw.server.routes.realtime.TTSWorkerStub",
                 return_value=mock_stub,
             ):
                 await _tts_speak_task(

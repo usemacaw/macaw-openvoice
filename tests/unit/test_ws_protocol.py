@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from Macaw.server.ws_protocol import (
+from macaw.server.ws_protocol import (
     AudioFrameResult,
     CommandResult,
     ErrorResult,

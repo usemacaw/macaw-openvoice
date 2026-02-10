@@ -18,12 +18,12 @@ from unittest.mock import AsyncMock, Mock
 import numpy as np
 import pytest
 
-from Macaw._types import TranscriptSegment
-from Macaw.server.models.events import TranscriptFinalEvent
-from Macaw.session.ring_buffer import RingBuffer
-from Macaw.session.streaming import StreamingSession
-from Macaw.session.wal import SessionWAL, WALCheckpoint
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw._types import TranscriptSegment
+from macaw.server.models.events import TranscriptFinalEvent
+from macaw.session.ring_buffer import RingBuffer
+from macaw.session.streaming import StreamingSession
+from macaw.session.wal import SessionWAL, WALCheckpoint
+from macaw.vad.detector import VADEvent, VADEventType
 
 # ---------------------------------------------------------------------------
 # Helpers

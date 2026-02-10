@@ -15,9 +15,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from Macaw._types import ModelType, TTSSpeechResult
-from Macaw.server.app import create_app
-from Macaw.server.models.speech import SpeechRequest
+from macaw._types import ModelType, TTSSpeechResult
+from macaw.server.app import create_app
+from macaw.server.models.speech import SpeechRequest
 
 # ─── Helpers ───
 
@@ -105,7 +105,7 @@ class TestSpeechRequest:
 
 class TestTTSConverters:
     def test_build_tts_proto_request(self) -> None:
-        from Macaw.scheduler.tts_converters import build_tts_proto_request
+        from macaw.scheduler.tts_converters import build_tts_proto_request
 
         proto = build_tts_proto_request(
             request_id="req-123",
@@ -121,7 +121,7 @@ class TestTTSConverters:
         assert proto.speed == 1.0
 
     def test_build_tts_proto_request_custom_speed(self) -> None:
-        from Macaw.scheduler.tts_converters import build_tts_proto_request
+        from macaw.scheduler.tts_converters import build_tts_proto_request
 
         proto = build_tts_proto_request(
             request_id="req-456",
@@ -135,7 +135,7 @@ class TestTTSConverters:
         assert proto.sample_rate == 22050
 
     def test_tts_proto_chunks_to_result_single_chunk(self) -> None:
-        from Macaw.scheduler.tts_converters import tts_proto_chunks_to_result
+        from macaw.scheduler.tts_converters import tts_proto_chunks_to_result
 
         audio = b"\x00\x01" * 50
         result = tts_proto_chunks_to_result(
@@ -150,7 +150,7 @@ class TestTTSConverters:
         assert result.duration == 0.5
 
     def test_tts_proto_chunks_to_result_multiple_chunks(self) -> None:
-        from Macaw.scheduler.tts_converters import tts_proto_chunks_to_result
+        from macaw.scheduler.tts_converters import tts_proto_chunks_to_result
 
         chunk1 = b"\x00\x01" * 50
         chunk2 = b"\x02\x03" * 50
@@ -164,7 +164,7 @@ class TestTTSConverters:
         assert result.duration == 1.0
 
     def test_tts_proto_chunks_to_result_empty(self) -> None:
-        from Macaw.scheduler.tts_converters import tts_proto_chunks_to_result
+        from macaw.scheduler.tts_converters import tts_proto_chunks_to_result
 
         result = tts_proto_chunks_to_result(
             [],
@@ -181,7 +181,7 @@ class TestTTSConverters:
 
 class TestPcmToWav:
     def test_wav_header_structure(self) -> None:
-        from Macaw.server.routes.speech import _pcm_to_wav
+        from macaw.server.routes.speech import _pcm_to_wav
 
         pcm = b"\x00\x01" * 100  # 200 bytes of PCM data
         wav = _pcm_to_wav(pcm, sample_rate=24000)
@@ -216,7 +216,7 @@ class TestPcmToWav:
         assert wav[44:] == pcm
 
     def test_wav_total_size(self) -> None:
-        from Macaw.server.routes.speech import _pcm_to_wav
+        from macaw.server.routes.speech import _pcm_to_wav
 
         pcm = b"\x00" * 480  # 480 bytes
         wav = _pcm_to_wav(pcm, sample_rate=16000)
@@ -224,7 +224,7 @@ class TestPcmToWav:
         assert len(wav) == 44 + 480
 
     def test_wav_empty_pcm(self) -> None:
-        from Macaw.server.routes.speech import _pcm_to_wav
+        from macaw.server.routes.speech import _pcm_to_wav
 
         wav = _pcm_to_wav(b"", sample_rate=24000)
         assert len(wav) == 44  # header only
@@ -245,7 +245,7 @@ class TestSpeechRoute:
         app = create_app(registry=registry, worker_manager=manager)
 
         with patch(
-            "Macaw.server.routes.speech._synthesize_via_grpc",
+            "macaw.server.routes.speech._synthesize_via_grpc",
             new_callable=AsyncMock,
             return_value=tts_result,
         ):
@@ -272,7 +272,7 @@ class TestSpeechRoute:
         app = create_app(registry=registry, worker_manager=manager)
 
         with patch(
-            "Macaw.server.routes.speech._synthesize_via_grpc",
+            "macaw.server.routes.speech._synthesize_via_grpc",
             new_callable=AsyncMock,
             return_value=tts_result,
         ):
@@ -340,7 +340,7 @@ class TestSpeechRoute:
         assert "response_format" in response.json()["error"]["message"]
 
     async def test_speech_model_not_found_returns_404(self) -> None:
-        from Macaw.exceptions import ModelNotFoundError
+        from macaw.exceptions import ModelNotFoundError
 
         registry = MagicMock()
         registry.get_manifest.side_effect = ModelNotFoundError("unknown-model")
@@ -410,7 +410,7 @@ class TestSpeechRoute:
         app = create_app(registry=registry, worker_manager=manager)
 
         with patch(
-            "Macaw.server.routes.speech._synthesize_via_grpc",
+            "macaw.server.routes.speech._synthesize_via_grpc",
             new_callable=AsyncMock,
             return_value=tts_result,
         ) as mock_grpc:
@@ -439,7 +439,7 @@ class TestSpeechRoute:
         app = create_app(registry=registry, worker_manager=manager)
 
         with patch(
-            "Macaw.server.routes.speech._synthesize_via_grpc",
+            "macaw.server.routes.speech._synthesize_via_grpc",
             new_callable=AsyncMock,
             return_value=tts_result,
         ) as mock_grpc:
@@ -517,7 +517,7 @@ class TestSpeechRoute:
 
 class TestGetWorkerManagerDependency:
     def test_returns_manager_from_state(self) -> None:
-        from Macaw.server.dependencies import get_worker_manager
+        from macaw.server.dependencies import get_worker_manager
 
         mock_request = MagicMock()
         mock_manager = MagicMock()
@@ -527,7 +527,7 @@ class TestGetWorkerManagerDependency:
         assert result is mock_manager
 
     def test_raises_if_not_configured(self) -> None:
-        from Macaw.server.dependencies import get_worker_manager
+        from macaw.server.dependencies import get_worker_manager
 
         mock_request = MagicMock()
         mock_request.app.state.worker_manager = None

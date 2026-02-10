@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from Macaw._types import BatchResult, SegmentDetail, WordTimestamp
+from macaw._types import BatchResult, SegmentDetail, WordTimestamp
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 AUDIO_DIR = FIXTURES_DIR / "audio"

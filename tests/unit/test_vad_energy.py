@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from Macaw._types import VADSensitivity
-from Macaw.vad.energy import EnergyPreFilter
+from macaw._types import VADSensitivity
+from macaw.vad.energy import EnergyPreFilter
 
 
 def _make_sine(

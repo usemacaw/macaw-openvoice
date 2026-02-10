@@ -12,9 +12,9 @@ import grpc
 import grpc.aio
 import pytest
 
-from Macaw.exceptions import WorkerCrashError, WorkerTimeoutError
-from Macaw.proto.stt_worker_pb2 import AudioFrame, TranscriptEvent, Word
-from Macaw.scheduler.streaming import (
+from macaw.exceptions import WorkerCrashError, WorkerTimeoutError
+from macaw.proto.stt_worker_pb2 import AudioFrame, TranscriptEvent, Word
+from macaw.scheduler.streaming import (
     StreamHandle,
     StreamingGRPCClient,
     _proto_event_to_transcript_segment,
@@ -23,7 +23,7 @@ from Macaw.scheduler.streaming import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
 
-    from Macaw._types import TranscriptSegment
+    from macaw._types import TranscriptSegment
 
 
 # ---------------------------------------------------------------------------
@@ -444,7 +444,7 @@ class TestStreamingGRPCClient:
         """connect() deve criar canal gRPC e stub."""
         client = StreamingGRPCClient("localhost:50051")
 
-        with patch("Macaw.scheduler.streaming.grpc.aio.insecure_channel") as mock_channel_fn:
+        with patch("macaw.scheduler.streaming.grpc.aio.insecure_channel") as mock_channel_fn:
             mock_channel = MagicMock()
             mock_channel_fn.return_value = mock_channel
 

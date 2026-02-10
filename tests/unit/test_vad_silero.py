@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from Macaw._types import VADSensitivity
-from Macaw.vad.silero import SileroVADClassifier
+from macaw._types import VADSensitivity
+from macaw.vad.silero import SileroVADClassifier
 
 
 def _make_mock_model(return_prob: float) -> MagicMock:

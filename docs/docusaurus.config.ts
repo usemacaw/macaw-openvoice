@@ -6,7 +6,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Macaw OpenVoice',
-  tagline: 'Unified voice runtime (STT + TTS) with OpenAI-compatible API',
+  tagline: 'Voice runtime (STT + TTS) with OpenAI-compatible API',
   favicon: 'img/favicon.ico',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -15,15 +15,15 @@ const config: Config = {
   },
 
   // Set the production url of your site here
-  url: 'https://useMacaw.github.io',
+  url: 'https://macawvoice.github.io',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/Macaw-openvoice/',
+  baseUrl: '/macaw-openvoice/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'useMacaw',
-  projectName: 'Macaw-openvoice',
+  organizationName: 'macaw-voice',
+  projectName: 'macaw-openvoice',
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
@@ -42,7 +42,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/useMacaw/Macaw-openvoice/edit/main/website/',
+          editUrl: 'https://github.com/macaw-voice/macaw-openvoice/edit/main/website/',
         },
         blog: false,
         theme: {
@@ -93,7 +93,7 @@ const config: Config = {
           label: 'Architecture',
         },
         {
-          href: 'https://github.com/useMacaw/Macaw-openvoice',
+          href: 'https://github.com/macaw-voice/macaw-openvoice',
           label: 'GitHub',
           position: 'right',
         },
@@ -141,11 +141,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/useMacaw/Macaw-openvoice',
+              href: 'https://github.com/macaw-voice/macaw-openvoice',
             },
             {
               label: 'Issues',
-              href: 'https://github.com/useMacaw/Macaw-openvoice/issues',
+              href: 'https://github.com/macaw-voice/macaw-openvoice/issues',
             },
           ],
         },

@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
-from Macaw._types import BatchResult, SegmentDetail, WordTimestamp
-from Macaw.server.app import create_app
+from macaw._types import BatchResult, SegmentDetail, WordTimestamp
+from macaw.server.app import create_app
 
 
 def _make_batch_result() -> BatchResult:
@@ -238,7 +238,7 @@ class TestTranslateE2E:
 
 class TestErrorScenarios:
     async def test_model_not_found_returns_404(self) -> None:
-        from Macaw.exceptions import ModelNotFoundError
+        from macaw.exceptions import ModelNotFoundError
 
         scheduler = MagicMock()
         scheduler.transcribe = AsyncMock(side_effect=ModelNotFoundError("inexistente"))
@@ -256,7 +256,7 @@ class TestErrorScenarios:
         assert response.json()["error"]["code"] == "model_not_found"
 
     async def test_audio_format_error_returns_400(self) -> None:
-        from Macaw.exceptions import AudioFormatError
+        from macaw.exceptions import AudioFormatError
 
         scheduler = MagicMock()
         scheduler.transcribe = AsyncMock(side_effect=AudioFormatError("formato invalido"))
@@ -289,7 +289,7 @@ class TestErrorScenarios:
         assert response.json()["error"]["code"] == "file_too_large"
 
     async def test_worker_unavailable_returns_503(self) -> None:
-        from Macaw.exceptions import WorkerUnavailableError
+        from macaw.exceptions import WorkerUnavailableError
 
         scheduler = MagicMock()
         scheduler.transcribe = AsyncMock(side_effect=WorkerUnavailableError("faster-whisper-tiny"))

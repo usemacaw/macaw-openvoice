@@ -9,11 +9,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from Macaw.exceptions import AudioFormatError
-from Macaw.preprocessing.dc_remove import DCRemoveStage
-from Macaw.preprocessing.gain_normalize import GainNormalizeStage
-from Macaw.preprocessing.resample import ResampleStage
-from Macaw.preprocessing.streaming import StreamingPreprocessor
+from macaw.exceptions import AudioFormatError
+from macaw.preprocessing.dc_remove import DCRemoveStage
+from macaw.preprocessing.gain_normalize import GainNormalizeStage
+from macaw.preprocessing.resample import ResampleStage
+from macaw.preprocessing.streaming import StreamingPreprocessor
 
 
 def _make_pcm16_frame(freq_hz: float, duration_ms: float, sample_rate: int) -> bytes:

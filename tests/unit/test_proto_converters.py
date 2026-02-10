@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from Macaw._types import BatchResult, SegmentDetail, WordTimestamp
-from Macaw.proto.stt_worker_pb2 import TranscribeFileRequest
-from Macaw.workers.stt.converters import (
+from macaw._types import BatchResult, SegmentDetail, WordTimestamp
+from macaw.proto.stt_worker_pb2 import TranscribeFileRequest
+from macaw.workers.stt.converters import (
     batch_result_to_proto_response,
     health_dict_to_proto_response,
     proto_request_to_transcribe_params,

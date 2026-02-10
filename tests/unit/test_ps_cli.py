@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 from click.testing import CliRunner
 
-from Macaw.cli.main import cli
+from macaw.cli.main import cli
 
 
 class TestPsCommand:

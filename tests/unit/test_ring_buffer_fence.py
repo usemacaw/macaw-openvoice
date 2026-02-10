@@ -19,12 +19,12 @@ from unittest.mock import AsyncMock, Mock
 import numpy as np
 import pytest
 
-from Macaw._types import TranscriptSegment
-from Macaw.exceptions import BufferOverrunError
-from Macaw.server.models.events import TranscriptFinalEvent
-from Macaw.session.ring_buffer import _FORCE_COMMIT_THRESHOLD, RingBuffer
-from Macaw.session.streaming import StreamingSession
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw._types import TranscriptSegment
+from macaw.exceptions import BufferOverrunError
+from macaw.server.models.events import TranscriptFinalEvent
+from macaw.session.ring_buffer import _FORCE_COMMIT_THRESHOLD, RingBuffer
+from macaw.session.streaming import StreamingSession
+from macaw.vad.detector import VADEvent, VADEventType
 
 # ---------------------------------------------------------------------------
 # Helpers (compartilhados com test_streaming_session.py)

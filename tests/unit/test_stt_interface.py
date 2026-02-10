@@ -8,13 +8,13 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from Macaw._types import (
+from macaw._types import (
     BatchResult,
     EngineCapabilities,
     STTArchitecture,
     TranscriptSegment,
 )
-from Macaw.workers.stt.interface import STTBackend
+from macaw.workers.stt.interface import STTBackend
 
 
 class IncompleteBackend(STTBackend):  # type: ignore[abstract]

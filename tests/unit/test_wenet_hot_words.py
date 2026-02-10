@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-from Macaw.session.streaming import StreamingSession
-from Macaw.workers.stt.wenet import WeNetBackend
+from macaw.session.streaming import StreamingSession
+from macaw.workers.stt.wenet import WeNetBackend
 
 
 class TestWeNetHotWordsCapabilities:

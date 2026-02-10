@@ -11,9 +11,9 @@ import time
 
 import pytest
 
-from Macaw._types import ResponseFormat
-from Macaw.scheduler.queue import RequestPriority, ScheduledRequest, SchedulerQueue
-from Macaw.server.models.requests import TranscribeRequest
+from macaw._types import ResponseFormat
+from macaw.scheduler.queue import RequestPriority, ScheduledRequest, SchedulerQueue
+from macaw.server.models.requests import TranscribeRequest
 
 
 def _make_request(request_id: str = "req_1", model: str = "test-model") -> TranscribeRequest:
@@ -269,7 +269,7 @@ class TestSchedulerQueueFutureResolution:
         scheduled = await queue.dequeue()
 
         # Simulate scheduler resolving the future with a result
-        from Macaw._types import BatchResult
+        from macaw._types import BatchResult
 
         result = BatchResult(
             text="hello",

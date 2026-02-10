@@ -12,6 +12,10 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from macaw.server.routes.realtime import (
+    _cancel_active_tts,
+    _tts_speak_task,
+)
 from tests.unit.test_full_duplex import (
     _make_mock_grpc_stream,
     _make_mock_registry,
@@ -20,10 +24,6 @@ from tests.unit.test_full_duplex import (
     _make_mock_worker,
     _make_mock_worker_manager,
     _make_send_event,
-)
-from Macaw.server.routes.realtime import (
-    _cancel_active_tts,
-    _tts_speak_task,
 )
 
 # ---------------------------------------------------------------------------
@@ -66,7 +66,7 @@ async def _run_tts_speak(
     if stream is None:
         stream = _make_mock_grpc_stream()
 
-    with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+    with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
         mock_channel = AsyncMock()
         mock_ch.return_value = mock_channel
         mock_stub = MagicMock()
@@ -77,7 +77,7 @@ async def _run_tts_speak(
             mock_stub.Synthesize.return_value = stream
 
         with patch(
-            "Macaw.server.routes.realtime.TTSWorkerStub",
+            "macaw.server.routes.realtime.TTSWorkerStub",
             return_value=mock_stub,
         ):
             await _tts_speak_task(

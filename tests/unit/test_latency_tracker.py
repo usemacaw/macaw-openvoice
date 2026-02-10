@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from Macaw.scheduler.latency import LatencySummary, LatencyTracker
+from macaw.scheduler.latency import LatencySummary, LatencyTracker
 
 # ---------------------------------------------------------------------------
 # Construction tests
@@ -220,11 +220,11 @@ class TestCleanup:
         tracker = LatencyTracker(ttl_s=1.0)
 
         # Fake old enqueue time
-        with patch("Macaw.scheduler.latency.time.monotonic", return_value=100.0):
+        with patch("macaw.scheduler.latency.time.monotonic", return_value=100.0):
             tracker.start("req_old")
 
         # Now at time 200 (100s later, way past 1s TTL)
-        with patch("Macaw.scheduler.latency.time.monotonic", return_value=200.0):
+        with patch("macaw.scheduler.latency.time.monotonic", return_value=200.0):
             removed = tracker.cleanup()
 
         assert removed == 1
@@ -243,12 +243,12 @@ class TestCleanup:
         """cleanup() removes unconsumed summaries older than TTL."""
         tracker = LatencyTracker(ttl_s=1.0)
 
-        with patch("Macaw.scheduler.latency.time.monotonic", return_value=100.0):
+        with patch("macaw.scheduler.latency.time.monotonic", return_value=100.0):
             tracker.start("req_old")
             tracker.complete("req_old")
 
         # Summary exists but is expired
-        with patch("Macaw.scheduler.latency.time.monotonic", return_value=200.0):
+        with patch("macaw.scheduler.latency.time.monotonic", return_value=200.0):
             removed = tracker.cleanup()
 
         assert removed == 1  # 1 summary removed
@@ -258,12 +258,12 @@ class TestCleanup:
         """cleanup() returns total count of entries + summaries removed."""
         tracker = LatencyTracker(ttl_s=1.0)
 
-        with patch("Macaw.scheduler.latency.time.monotonic", return_value=100.0):
+        with patch("macaw.scheduler.latency.time.monotonic", return_value=100.0):
             tracker.start("req_1")
             tracker.start("req_2")
             tracker.complete("req_2")
 
-        with patch("Macaw.scheduler.latency.time.monotonic", return_value=200.0):
+        with patch("macaw.scheduler.latency.time.monotonic", return_value=200.0):
             removed = tracker.cleanup()
 
         # 1 active entry (req_1) + 1 summary (req_2)

@@ -11,12 +11,12 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from Macaw._types import ResponseFormat
-from Macaw.proto import Segment, TranscribeFileResponse, Word
-from Macaw.scheduler.queue import RequestPriority
-from Macaw.scheduler.scheduler import Scheduler
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.workers.manager import WorkerHandle, WorkerState
+from macaw._types import ResponseFormat
+from macaw.proto import Segment, TranscribeFileResponse, Word
+from macaw.scheduler.queue import RequestPriority
+from macaw.scheduler.scheduler import Scheduler
+from macaw.server.models.requests import TranscribeRequest
+from macaw.workers.manager import WorkerHandle, WorkerState
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -94,18 +94,18 @@ def _patch_metrics_and_grpc(mock_stub: AsyncMock) -> tuple[Any, ...]:
     Returns the patches as a tuple to be used with ``with`` statement.
     """
     return (
-        patch("Macaw.scheduler.scheduler.scheduler_queue_depth"),
-        patch("Macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
-        patch("Macaw.scheduler.scheduler.scheduler_requests_total"),
-        patch("Macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
-        patch("Macaw.scheduler.scheduler.scheduler_batch_size"),
-        patch("Macaw.scheduler.scheduler.scheduler_aging_promotions_total"),
+        patch("macaw.scheduler.scheduler.scheduler_queue_depth"),
+        patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds"),
+        patch("macaw.scheduler.scheduler.scheduler_requests_total"),
+        patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds"),
+        patch("macaw.scheduler.scheduler.scheduler_batch_size"),
+        patch("macaw.scheduler.scheduler.scheduler_aging_promotions_total"),
         patch(
-            "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+            "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
             return_value=AsyncMock(),
         ),
         patch(
-            "Macaw.scheduler.scheduler.STTWorkerStub",
+            "macaw.scheduler.scheduler.STTWorkerStub",
             return_value=mock_stub,
         ),
     )

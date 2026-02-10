@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from Macaw.preprocessing.dc_remove import DCRemoveStage
+from macaw.preprocessing.dc_remove import DCRemoveStage
 
 
 def _make_sine(

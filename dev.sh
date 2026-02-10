@@ -4,20 +4,20 @@ set -euo pipefail
 VENV=".venv"
 PYTHON="$VENV/bin/python"
 
-# ── Verificacao de venv ──────────────────────────────────────────
+# ── Venv check ──────────────────────────────────────────────────
 if [ ! -f "$PYTHON" ]; then
-    echo "Venv nao encontrado em $VENV/"
-    echo "Execute primeiro:  ./setup.sh"
+    echo "Venv not found at $VENV/"
+    echo "Run first:  ./setup.sh"
     exit 1
 fi
 
-# Detecta se usa uv ou pip (venv criado com uv nao inclui pip)
+# Detect whether to use uv or pip (venv created with uv does not include pip)
 if command -v uv &>/dev/null; then
     PIP="uv pip"
 elif "$PYTHON" -m pip --version &>/dev/null; then
     PIP="$PYTHON -m pip"
 else
-    echo "Nem uv nem pip encontrados. Instale uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo "Neither uv nor pip found. Install uv: curl -LsSf https://astral.sh/uv/install.sh | sh"
     exit 1
 fi
 
@@ -26,28 +26,28 @@ PY_VERSION=$("$PYTHON" --version 2>&1)
 usage() {
     echo "Macaw OpenVoice — Dev Helper ($PY_VERSION)"
     echo ""
-    echo "Uso: ./dev.sh <comando> [args...]"
+    echo "Usage: ./dev.sh <command> [args...]"
     echo ""
-    echo "Comandos:"
-    echo "  install [extras]    Instala o projeto em modo editavel"
+    echo "Commands:"
+    echo "  install [extras]    Install the project in editable mode"
     echo "                      ./dev.sh install          → pip install -e ."
     echo "                      ./dev.sh install all      → pip install -e '.[all]'"
     echo "                      ./dev.sh install dev,grpc → pip install -e '.[dev,grpc]'"
-    echo "  pip <args>          Executa pip (via uv) no venv"
+    echo "  pip <args>          Run pip (via uv) in the venv"
     echo "                      ./dev.sh pip list"
     echo "                      ./dev.sh pip install numpy"
-    echo "  test [args]         Roda pytest (unit tests)"
+    echo "  test [args]         Run pytest (unit tests)"
     echo "                      ./dev.sh test"
     echo "                      ./dev.sh test tests/unit/test_types.py -v"
-    echo "  lint                Roda ruff check + format check"
-    echo "  format              Formata codigo com ruff"
-    echo "  typecheck           Roda mypy"
-    echo "  check               Roda lint + typecheck + test (CI completo)"
-    echo "  proto               Gera stubs protobuf"
-    echo "  python <args>       Executa python do venv"
-    echo "                      ./dev.sh python -c 'import Macaw; print(Macaw.__version__)'"
-    echo "  shell               Abre shell com venv ativado"
-    echo "  info                Mostra informacoes do ambiente"
+    echo "  lint                Run ruff check + format check"
+    echo "  format              Format code with ruff"
+    echo "  typecheck           Run mypy"
+    echo "  check               Run lint + typecheck + test (full CI)"
+    echo "  proto               Generate protobuf stubs"
+    echo "  python <args>       Run python from the venv"
+    echo "                      ./dev.sh python -c 'import macaw; print(macaw.__version__)'"
+    echo "  shell               Open shell with venv activated"
+    echo "  info                Show environment information"
     echo ""
 }
 
@@ -102,7 +102,7 @@ cmd_proto() {
     if [ -f "scripts/generate_proto.sh" ]; then
         bash scripts/generate_proto.sh
     else
-        echo "Script scripts/generate_proto.sh nao encontrado."
+        echo "Script scripts/generate_proto.sh not found."
         exit 1
     fi
 }
@@ -112,14 +112,14 @@ cmd_python() {
 }
 
 cmd_shell() {
-    echo "Ativando venv ($PY_VERSION)..."
-    echo "Use 'exit' para sair."
+    echo "Activating venv ($PY_VERSION)..."
+    echo "Use 'exit' to leave."
     # shellcheck disable=SC1091
-    exec bash --init-file <(echo "source $VENV/bin/activate && echo 'Venv ativado: $PY_VERSION'")
+    exec bash --init-file <(echo "source $VENV/bin/activate && echo 'Venv activated: $PY_VERSION'")
 }
 
 cmd_info() {
-    echo "Macaw OpenVoice — Ambiente de Desenvolvimento"
+    echo "Macaw OpenVoice — Development Environment"
     echo ""
     echo "Python:    $("$PYTHON" --version 2>&1)"
     echo "Path:      $(realpath "$PYTHON")"
@@ -127,8 +127,8 @@ cmd_info() {
     echo "Venv:      $(realpath "$VENV")"
     echo "Project:   $(pwd)"
     echo ""
-    echo "Pacotes instalados (Macaw*):"
-    $PIP list --python "$PYTHON" 2>/dev/null | grep -i Macaw || echo "  (nenhum)"
+    echo "Installed packages (Macaw*):"
+    $PIP list --python "$PYTHON" 2>/dev/null | grep -i Macaw || echo "  (none)"
 }
 
 # ── Dispatch ─────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ case "$COMMAND" in
     info)       cmd_info ;;
     help|-h|--help) usage ;;
     *)
-        echo "Comando desconhecido: $COMMAND"
+        echo "Unknown command: $COMMAND"
         echo ""
         usage
         exit 1

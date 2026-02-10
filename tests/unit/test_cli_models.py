@@ -9,11 +9,11 @@ from click.testing import CliRunner
 if TYPE_CHECKING:
     from pathlib import Path
 
-from Macaw.cli import cli
+from macaw.cli import cli
 
 
 def _create_model_dir(base: Path, name: str, engine: str = "faster-whisper") -> None:
-    """Cria diretorio de modelo com Macaw.yaml valido."""
+    """Cria diretorio de modelo com macaw.yaml valido."""
     model_dir = base / name
     model_dir.mkdir()
     manifest = f"""
@@ -36,7 +36,7 @@ engine_config:
   compute_type: float16
   device: auto
 """
-    (model_dir / "Macaw.yaml").write_text(manifest)
+    (model_dir / "macaw.yaml").write_text(manifest)
 
 
 class TestListCommand:

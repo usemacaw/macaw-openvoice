@@ -21,7 +21,7 @@ import httpx
 import numpy as np
 import pytest
 
-from Macaw._types import (
+from macaw._types import (
     BatchResult,
     ResponseFormat,
     SegmentDetail,
@@ -29,8 +29,8 @@ from Macaw._types import (
     TranscriptSegment,
     WordTimestamp,
 )
-from Macaw.server.app import create_app
-from Macaw.server.formatters import format_response
+from macaw.server.app import create_app
+from macaw.server.formatters import format_response
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -136,7 +136,7 @@ def _make_streaming_session(
     hot_words: list[str] | None = None,
 ) -> tuple:
     """Cria StreamingSession com mocks e retorna (session, on_event)."""
-    from Macaw.session.streaming import StreamingSession
+    from macaw.session.streaming import StreamingSession
 
     preprocessor = MagicMock()
     preprocessor.process_frame.return_value = np.zeros(320, dtype=np.float32)

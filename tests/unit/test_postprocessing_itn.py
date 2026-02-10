@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from Macaw.postprocessing.itn import ITNStage
+from macaw.postprocessing.itn import ITNStage
 
 
 class TestITNProcessWithMockNemo:

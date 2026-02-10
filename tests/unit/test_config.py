@@ -1,12 +1,12 @@
 """Testes das configuracoes de pipeline."""
 
-from Macaw.config.postprocessing import (
+from macaw.config.postprocessing import (
     EntityFormattingConfig,
     HotWordCorrectionConfig,
     ITNConfig,
     PostProcessingConfig,
 )
-from Macaw.config.preprocessing import PreprocessingConfig
+from macaw.config.preprocessing import PreprocessingConfig
 
 
 class TestPreprocessingConfig:

@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import httpx
 
-import Macaw
-from Macaw.server.app import create_app
+import macaw
+from macaw.server.app import create_app
 
 
 async def test_create_app_returns_fastapi_instance() -> None:
@@ -27,7 +27,7 @@ async def test_health_endpoint_returns_ok() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["version"] == Macaw.__version__
+    assert body["version"] == macaw.__version__
 
 
 async def test_health_endpoint_includes_models_loaded_when_registry_present() -> None:

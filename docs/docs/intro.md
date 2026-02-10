@@ -3,7 +3,7 @@ title: Introduction
 sidebar_position: 1
 ---
 
-Macaw OpenVoice is a unified runtime for voice pipelines. It orchestrates STT and TTS engines behind an OpenAI-compatible API, with streaming, VAD, preprocessing, and session management built in.
+Macaw OpenVoice is aruntime for voice pipelines. It orchestrates STT and TTS engines behind an OpenAI-compatible API, with streaming, VAD, preprocessing, and session management built in.
 
 ## Why Macaw
 

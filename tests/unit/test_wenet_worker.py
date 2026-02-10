@@ -15,11 +15,11 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
-from Macaw._types import (
+from macaw._types import (
     STTArchitecture,
 )
-from Macaw.workers.stt.main import _create_backend
-from Macaw.workers.stt.wenet import WeNetBackend
+from macaw.workers.stt.main import _create_backend
+from macaw.workers.stt.wenet import WeNetBackend
 
 
 class TestWeNetWorkerFactory:
@@ -31,7 +31,7 @@ class TestWeNetWorkerFactory:
         assert backend.architecture == STTArchitecture.CTC
 
     def test_create_faster_whisper_backend(self) -> None:
-        from Macaw.workers.stt.faster_whisper import FasterWhisperBackend
+        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = _create_backend("faster-whisper")
         assert isinstance(backend, FasterWhisperBackend)
@@ -49,7 +49,7 @@ class TestWeNetServicerBatch:
 
     async def test_transcribe_file_via_servicer(self) -> None:
         """Servicer delega TranscribeFile ao WeNetBackend."""
-        from Macaw.workers.stt.servicer import STTWorkerServicer
+        from macaw.workers.stt.servicer import STTWorkerServicer
 
         backend = WeNetBackend()
         mock_model = MagicMock()
@@ -63,7 +63,7 @@ class TestWeNetServicerBatch:
         )
 
         # Simular request gRPC
-        from Macaw.proto.stt_worker_pb2 import TranscribeFileRequest
+        from macaw.proto.stt_worker_pb2 import TranscribeFileRequest
 
         audio = (np.zeros(16000, dtype=np.int16)).tobytes()
         request = TranscribeFileRequest(
@@ -82,7 +82,7 @@ class TestWeNetServicerBatch:
 
     async def test_transcribe_file_with_hot_words(self) -> None:
         """Servicer passa hot_words ao WeNetBackend."""
-        from Macaw.workers.stt.servicer import STTWorkerServicer
+        from macaw.workers.stt.servicer import STTWorkerServicer
 
         backend = WeNetBackend()
         mock_model = MagicMock()
@@ -95,7 +95,7 @@ class TestWeNetServicerBatch:
             engine="wenet",
         )
 
-        from Macaw.proto.stt_worker_pb2 import TranscribeFileRequest
+        from macaw.proto.stt_worker_pb2 import TranscribeFileRequest
 
         audio = (np.zeros(16000, dtype=np.int16)).tobytes()
         request = TranscribeFileRequest(
@@ -117,7 +117,7 @@ class TestWeNetServicerStreaming:
 
     async def test_transcribe_stream_via_servicer(self) -> None:
         """Servicer delega TranscribeStream ao WeNetBackend."""
-        from Macaw.workers.stt.servicer import STTWorkerServicer
+        from macaw.workers.stt.servicer import STTWorkerServicer
 
         backend = WeNetBackend()
         mock_model = MagicMock()
@@ -134,7 +134,7 @@ class TestWeNetServicerStreaming:
             engine="wenet",
         )
 
-        from Macaw.proto.stt_worker_pb2 import AudioFrame
+        from macaw.proto.stt_worker_pb2 import AudioFrame
 
         # First frame: audio data (>160ms = 2560 samples at 16kHz)
         chunk = (np.zeros(4000, dtype=np.int16)).tobytes()  # 0.25s > 160ms minimum
@@ -166,8 +166,8 @@ class TestWeNetServicerHealth:
     """STTWorkerServicer com WeNetBackend — Health check."""
 
     async def test_health_check(self) -> None:
-        from Macaw.proto.stt_worker_pb2 import HealthRequest
-        from Macaw.workers.stt.servicer import STTWorkerServicer
+        from macaw.proto.stt_worker_pb2 import HealthRequest
+        from macaw.workers.stt.servicer import STTWorkerServicer
 
         backend = WeNetBackend()
         # Sem modelo carregado
@@ -186,8 +186,8 @@ class TestWeNetServicerHealth:
         assert response.engine == "wenet"
 
     async def test_health_check_loaded(self) -> None:
-        from Macaw.proto.stt_worker_pb2 import HealthRequest
-        from Macaw.workers.stt.servicer import STTWorkerServicer
+        from macaw.proto.stt_worker_pb2 import HealthRequest
+        from macaw.workers.stt.servicer import STTWorkerServicer
 
         backend = WeNetBackend()
         backend._model = MagicMock()  # type: ignore[assignment]
@@ -209,7 +209,7 @@ class TestWeNetParseArgs:
     """Worker CLI aceita --engine wenet."""
 
     def test_parse_args_wenet(self) -> None:
-        from Macaw.workers.stt.main import parse_args
+        from macaw.workers.stt.main import parse_args
 
         args = parse_args(
             [
@@ -229,7 +229,7 @@ class TestWeNetParseArgs:
         assert args.model_size == "wenet-ctc"
 
     def test_parse_args_default_engine(self) -> None:
-        from Macaw.workers.stt.main import parse_args
+        from macaw.workers.stt.main import parse_args
 
         args = parse_args(["--model-path", "/models/fw"])
         assert args.engine == "faster-whisper"

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from Macaw.preprocessing.resample import ResampleStage
+from macaw.preprocessing.resample import ResampleStage
 
 
 def _make_sine(

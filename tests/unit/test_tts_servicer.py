@@ -8,23 +8,23 @@ from unittest.mock import AsyncMock, MagicMock
 import grpc
 import pytest
 
-from Macaw.proto.tts_worker_pb2 import (
+from macaw.proto.tts_worker_pb2 import (
     HealthRequest,
     HealthResponse,
     SynthesizeChunk,
     SynthesizeRequest,
 )
-from Macaw.workers.tts.converters import (
+from macaw.workers.tts.converters import (
     audio_chunk_to_proto,
     health_dict_to_proto_response,
     proto_request_to_synthesize_params,
 )
-from Macaw.workers.tts.servicer import TTSWorkerServicer
+from macaw.workers.tts.servicer import TTSWorkerServicer
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from Macaw._types import VoiceInfo
+    from macaw._types import VoiceInfo
 
 
 class MockTTSBackend:
@@ -508,15 +508,15 @@ class TestProtoRoundtrip:
 class TestCreateBackend:
     def test_unknown_engine_raises_value_error(self) -> None:
         """Engine desconhecida levanta ValueError."""
-        from Macaw.workers.tts.main import _create_backend
+        from macaw.workers.tts.main import _create_backend
 
         with pytest.raises(ValueError, match="Engine TTS nao suportada: nonexistent"):
             _create_backend("nonexistent")
 
     def test_kokoro_returns_backend_instance(self) -> None:
         """Kokoro engine retorna instancia de KokoroBackend."""
-        from Macaw.workers.tts.kokoro import KokoroBackend
-        from Macaw.workers.tts.main import _create_backend
+        from macaw.workers.tts.kokoro import KokoroBackend
+        from macaw.workers.tts.main import _create_backend
 
         backend = _create_backend("kokoro")
         assert isinstance(backend, KokoroBackend)
@@ -530,7 +530,7 @@ class TestCreateBackend:
 class TestParseArgs:
     def test_default_values(self) -> None:
         """Argumentos default sao corretos."""
-        from Macaw.workers.tts.main import parse_args
+        from macaw.workers.tts.main import parse_args
 
         args = parse_args(["--model-path", "/models/kokoro"])
         assert args.port == 50052
@@ -541,7 +541,7 @@ class TestParseArgs:
 
     def test_custom_values(self) -> None:
         """Argumentos customizados sao parseados corretamente."""
-        from Macaw.workers.tts.main import parse_args
+        from macaw.workers.tts.main import parse_args
 
         args = parse_args(
             [

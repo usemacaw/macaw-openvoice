@@ -14,9 +14,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import grpc
 import grpc.aio
 
-from Macaw._types import ModelType
-from Macaw.exceptions import ModelNotFoundError
-from Macaw.server.app import create_app
+from macaw._types import ModelType
+from macaw.exceptions import ModelNotFoundError
+from macaw.server.app import create_app
 
 if TYPE_CHECKING:
     import contextlib
@@ -118,11 +118,11 @@ def _patch_grpc(chunks: list[MagicMock]) -> tuple[_CtxManager, _CtxManager]:
     mock_stub.Synthesize.return_value = _FakeStream(chunks)
 
     p_channel = patch(
-        "Macaw.server.routes.speech.grpc.aio.insecure_channel",
+        "macaw.server.routes.speech.grpc.aio.insecure_channel",
         return_value=mock_channel,
     )
     p_stub = patch(
-        "Macaw.server.routes.speech.TTSWorkerStub",
+        "macaw.server.routes.speech.TTSWorkerStub",
         return_value=mock_stub,
     )
     return p_channel, p_stub
@@ -135,11 +135,11 @@ def _patch_grpc_error(rpc_error: grpc.aio.AioRpcError) -> tuple[_CtxManager, _Ct
     mock_stub.Synthesize.side_effect = rpc_error
 
     p_channel = patch(
-        "Macaw.server.routes.speech.grpc.aio.insecure_channel",
+        "macaw.server.routes.speech.grpc.aio.insecure_channel",
         return_value=mock_channel,
     )
     p_stub = patch(
-        "Macaw.server.routes.speech.TTSWorkerStub",
+        "macaw.server.routes.speech.TTSWorkerStub",
         return_value=mock_stub,
     )
     return p_channel, p_stub

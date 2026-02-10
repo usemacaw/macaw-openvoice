@@ -1,12 +1,12 @@
-"""Testes do parsing e validacao de manifestos Macaw.yaml."""
+"""Testes do parsing e validacao de manifestos macaw.yaml."""
 
 from pathlib import Path
 
 import pytest
 
-from Macaw._types import ModelType, STTArchitecture
-from Macaw.config.manifest import ModelManifest
-from Macaw.exceptions import ManifestParseError, ManifestValidationError
+from macaw._types import ModelType, STTArchitecture
+from macaw.config.manifest import ModelManifest
+from macaw.exceptions import ManifestParseError, ManifestValidationError
 
 
 class TestManifestFromYamlPath:
@@ -52,7 +52,7 @@ class TestManifestFromYamlPath:
 
     def test_nonexistent_file_raises_parse_error(self) -> None:
         with pytest.raises(ManifestParseError, match="Arquivo nao encontrado"):
-            ModelManifest.from_yaml_path("/nonexistent/path/Macaw.yaml")
+            ModelManifest.from_yaml_path("/nonexistent/path/macaw.yaml")
 
 
 class TestManifestFromYamlString:

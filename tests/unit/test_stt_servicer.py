@@ -8,24 +8,24 @@ from unittest.mock import AsyncMock, MagicMock
 import grpc
 import pytest
 
-from Macaw._types import (
+from macaw._types import (
     BatchResult,
     EngineCapabilities,
     SegmentDetail,
     STTArchitecture,
     WordTimestamp,
 )
-from Macaw.proto.stt_worker_pb2 import (
+from macaw.proto.stt_worker_pb2 import (
     HealthRequest,
     TranscribeFileRequest,
 )
-from Macaw.workers.stt.interface import STTBackend
-from Macaw.workers.stt.servicer import STTWorkerServicer
+from macaw.workers.stt.interface import STTBackend
+from macaw.workers.stt.servicer import STTWorkerServicer
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from Macaw._types import TranscriptSegment
+    from macaw._types import TranscriptSegment
 
 
 class MockBackend(STTBackend):
@@ -229,7 +229,7 @@ class TestCancel:
             engine="faster-whisper",
         )
         ctx = _make_context()
-        from Macaw.proto.stt_worker_pb2 import CancelRequest
+        from macaw.proto.stt_worker_pb2 import CancelRequest
 
         response = await servicer.Cancel(CancelRequest(request_id="req-1"), ctx)
         assert response.acknowledged is True

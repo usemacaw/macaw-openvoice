@@ -10,10 +10,10 @@ if TYPE_CHECKING:
 
 from click.testing import CliRunner
 
-from Macaw.cli.main import cli
+from macaw.cli.main import cli
 
 
-@patch("Macaw.registry.downloader.ModelDownloader")
+@patch("macaw.registry.downloader.ModelDownloader")
 class TestRemoveCommand:
     def test_remove_success_with_confirm(
         self, mock_downloader_cls: MagicMock, tmp_path: Path

@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "Macaw-openvoice"
+name = "macaw-openvoice"
 version = "0.1.0"
-description = "Unified voice runtime (STT + TTS) with OpenAI-compatible API"
+description = "Voice runtime (STT + TTS) with OpenAI-compatible API"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11"
@@ -49,7 +49,7 @@ dependencies = [
 ]
 
 [project.scripts]
-Macaw = "Macaw.cli:cli"
+macaw = "macaw.cli:cli"
 
 [project.optional-dependencies]
 server = [
@@ -98,24 +98,24 @@ dev = [
     "openai>=1.0",
 ]
 all = [
-    "Macaw-openvoice[server,grpc,faster-whisper,wenet,itn,dev]",
+    "macaw-openvoice[server,grpc,faster-whisper,wenet,itn,dev]",
 ]
 
 [project.urls]
-Homepage = "https://github.com/useMacaw/Macaw-openvoice"
-Documentation = "https://useMacaw.github.io/Macaw-openvoice"
-Repository = "https://github.com/useMacaw/Macaw-openvoice"
-"Bug Tracker" = "https://github.com/useMacaw/Macaw-openvoice/issues"
-Changelog = "https://github.com/useMacaw/Macaw-openvoice/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/macaw-voice/macaw-openvoice"
+Documentation = "https://macawvoice.github.io/Macaw-openvoice"
+Repository = "https://github.com/macaw-voice/macaw-openvoice"
+"Bug Tracker" = "https://github.com/macaw-voice/macaw-openvoice/issues"
+Changelog = "https://github.com/macaw-voice/macaw-openvoice/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/Macaw"]
+packages = ["src/macaw"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 99
 src = ["src"]
-extend-exclude = ["src/Macaw/proto/stt_worker_pb2*", "src/Macaw/proto/tts_worker_pb2*"]
+extend-exclude = ["src/macaw/proto/stt_worker_pb2*", "src/macaw/proto/tts_worker_pb2*"]
 
 [tool.ruff.lint]
 select = [
@@ -131,11 +131,11 @@ select = [
     "RUF",    # ruff-specific rules
 ]
 ignore = [
-    "E501",   # Gerenciado pelo formatter
+    "E501",   # Managed by formatter
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["Macaw"]
+known-first-party = ["macaw"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -149,7 +149,7 @@ no_implicit_reexport = true
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = "Macaw.proto.*"
+module = "macaw.proto.*"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
@@ -214,19 +214,19 @@ module = [
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "Macaw.server.routes.*"
+module = "macaw.server.routes.*"
 disable_error_code = ["untyped-decorator"]
 
 [[tool.mypy.overrides]]
-module = "Macaw.server.error_handlers"
+module = "macaw.server.error_handlers"
 disable_error_code = ["arg-type"]
 
 [[tool.mypy.overrides]]
-module = "Macaw.vad.silero"
+module = "macaw.vad.silero"
 disable_error_code = ["no-untyped-call"]
 
 [[tool.mypy.overrides]]
-module = "Macaw.cli.transcribe"
+module = "macaw.cli.transcribe"
 disable_error_code = ["attr-defined"]
 
 [tool.pytest.ini_options]
@@ -240,6 +240,6 @@ filterwarnings = [
     "ignore::ResourceWarning",
 ]
 markers = [
-    "integration: testes que requerem modelo instalado",
-    "slow: testes que demoram mais de 10s",
+    "integration: tests that require installed model",
+    "slow: tests that take more than 10s",
 ]

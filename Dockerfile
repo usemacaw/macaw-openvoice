@@ -26,7 +26,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app/src /app/src
 
 # Models volume mount point
-VOLUME /root/.Macaw/models
+VOLUME /root/.macaw/models
 
 EXPOSE 8000
 

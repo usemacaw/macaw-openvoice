@@ -10,11 +10,11 @@ if TYPE_CHECKING:
 
 from click.testing import CliRunner
 
-from Macaw.cli.main import cli
+from macaw.cli.main import cli
 
 
-@patch("Macaw.registry.downloader.ModelDownloader")
-@patch("Macaw.registry.catalog.ModelCatalog")
+@patch("macaw.registry.downloader.ModelDownloader")
+@patch("macaw.registry.catalog.ModelCatalog")
 class TestPullCommand:
     def test_pull_success(
         self, mock_catalog_cls: MagicMock, mock_downloader_cls: MagicMock, tmp_path: Path

@@ -5,48 +5,48 @@ RUFF := .venv/bin/ruff
 
 ## Linting & Formatting
 
-format: ## Formata codigo com ruff
+format: ## Format code with ruff
 	$(RUFF) format src/ tests/
 
-lint: ## Roda ruff check (lint)
+lint: ## Run ruff check (lint)
 	$(RUFF) check src/ tests/
 
-typecheck: ## Roda mypy (type checking)
+typecheck: ## Run mypy (type checking)
 	$(PYTHON) -m mypy src/
 
-check: format lint typecheck ## Formata + lint + typecheck (tudo)
+check: format lint typecheck ## Format + lint + typecheck (all)
 
-## Testes
+## Tests
 
-test: ## Roda todos os testes
+test: ## Run all tests
 	$(PYTHON) -m pytest tests/ -q
 
-test-unit: ## Roda apenas testes unitarios
+test-unit: ## Run unit tests only
 	$(PYTHON) -m pytest tests/unit/ -q
 
-test-integration: ## Roda apenas testes de integracao
+test-integration: ## Run integration tests only
 	$(PYTHON) -m pytest tests/integration/ -q
 
-test-fast: ## Roda testes sem os marcados como slow
+test-fast: ## Run tests excluding those marked as slow
 	$(PYTHON) -m pytest tests/ -q -m "not slow"
 
-## CI (simula pipeline local)
+## CI (simulate local pipeline)
 
-ci: format lint typecheck test ## Pipeline completa: format + lint + typecheck + testes
+ci: format lint typecheck test ## Full pipeline: format + lint + typecheck + tests
 
-## Utilidades
+## Utilities
 
-clean: ## Remove artefatos de build e cache
+clean: ## Remove build artifacts and cache
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .mypy_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .ruff_cache -exec rm -rf {} + 2>/dev/null || true
 	rm -rf dist/ build/ *.egg-info
 
-proto: ## Gera stubs protobuf
+proto: ## Generate protobuf stubs
 	bash scripts/generate_proto.sh
 
-help: ## Mostra esta ajuda
+help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
 .DEFAULT_GOAL := help

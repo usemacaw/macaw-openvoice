@@ -18,7 +18,7 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from Macaw.server.routes.realtime import (
+from macaw.server.routes.realtime import (
     _cancel_active_tts,
     _tts_speak_task,
 )
@@ -62,7 +62,7 @@ def _make_mock_websocket() -> MagicMock:
 
 def _make_mock_registry(has_tts: bool = True, model_name: str = "kokoro-v1") -> MagicMock:
     """Cria mock de ModelRegistry."""
-    from Macaw._types import ModelType
+    from macaw._types import ModelType
 
     registry = MagicMock()
 
@@ -73,7 +73,7 @@ def _make_mock_registry(has_tts: bool = True, model_name: str = "kokoro-v1") -> 
         registry.get_manifest.return_value = manifest
         registry.list_models.return_value = [manifest]
     else:
-        from Macaw.exceptions import ModelNotFoundError
+        from macaw.exceptions import ModelNotFoundError
 
         registry.get_manifest.side_effect = ModelNotFoundError(model_name)
         registry.list_models.return_value = []
@@ -159,13 +159,13 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -198,13 +198,13 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -238,13 +238,13 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -277,13 +277,13 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -315,13 +315,13 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -388,13 +388,13 @@ class TestTTSSpeakTaskCancel:
 
         stream = _CancelStream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -433,13 +433,13 @@ class TestTTSSpeakTaskCancel:
 
         stream = _make_mock_grpc_stream([chunk])
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -534,13 +534,13 @@ class TestTTSSpeakTaskErrors:
         # Use a RuntimeError caught by generic except, since mocking
         # grpc.aio.AioRpcError is complex due to exception class patching.
         # The generic except block also calls unmute and emits error.
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.side_effect = RuntimeError("gRPC connection refused")
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -602,13 +602,13 @@ class TestTTSSpeakTaskSessionNone:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -646,13 +646,13 @@ class TestTTSSpeakTaskAutoDiscover:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -697,13 +697,13 @@ class TestTTSSpeakTaskEmptyChunks:
 
         stream = _make_mock_grpc_stream([empty_chunk, real_chunk])
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -738,13 +738,13 @@ class TestTTSSpeakTaskGenericError:
 
         # Patch only the channel creation (not grpc.aio itself) to avoid
         # breaking the except grpc.aio.AioRpcError clause.
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.side_effect = RuntimeError("Unexpected!")
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",
@@ -873,7 +873,7 @@ class TestSequentialSpeaks:
 class TestModelTTSTracking:
     async def test_explicit_model_tts_not_found(self) -> None:
         """Explicit model_tts that doesn't exist emits error."""
-        from Macaw.exceptions import ModelNotFoundError
+        from macaw.exceptions import ModelNotFoundError
 
         ws = _make_mock_websocket()
         session = _make_mock_session()
@@ -923,13 +923,13 @@ class TestTTSSpeakTaskChannelClose:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("Macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
-            with patch("Macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
+            with patch("macaw.server.routes.realtime.TTSWorkerStub", return_value=mock_stub):
                 await _tts_speak_task(
                     websocket=ws,
                     session_id="sess_test",

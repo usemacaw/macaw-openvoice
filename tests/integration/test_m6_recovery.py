@@ -23,13 +23,13 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 import pytest
 
-from Macaw._types import SessionState, TranscriptSegment
-from Macaw.exceptions import WorkerCrashError
-from Macaw.server.models.events import StreamingErrorEvent, TranscriptFinalEvent
-from Macaw.session.ring_buffer import RingBuffer
-from Macaw.session.streaming import StreamingSession
-from Macaw.session.wal import SessionWAL
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw._types import SessionState, TranscriptSegment
+from macaw.exceptions import WorkerCrashError
+from macaw.server.models.events import StreamingErrorEvent, TranscriptFinalEvent
+from macaw.session.ring_buffer import RingBuffer
+from macaw.session.streaming import StreamingSession
+from macaw.session.wal import SessionWAL
+from macaw.vad.detector import VADEvent, VADEventType
 
 pytestmark = [pytest.mark.integration]
 

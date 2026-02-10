@@ -1,7 +1,7 @@
 #!/bin/sh
 # Redirect to the main install script.
 # Quick install:
-#   curl -fsSL https://raw.githubusercontent.com/useMacaw/Macaw-openvoice/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/macaw-voice/Macaw-openvoice/main/install.sh | sh
 
 set -eu
 
@@ -12,4 +12,4 @@ if [ -f "$SCRIPT_DIR/scripts/install.sh" ]; then
 fi
 
 # Otherwise, download and run the script from GitHub
-curl -fsSL https://raw.githubusercontent.com/useMacaw/Macaw-openvoice/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/macaw-voice/macaw-openvoice/main/scripts/install.sh | sh

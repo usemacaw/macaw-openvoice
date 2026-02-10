@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 
-from Macaw.session.streaming import StreamingSession
+from macaw.session.streaming import StreamingSession
 
 
 def _make_session(**kwargs: object) -> StreamingSession:
@@ -138,8 +138,8 @@ class TestMutedFrameDiscard:
 
 
 class TestMuteMetric:
-    @patch("Macaw.session.streaming.HAS_METRICS", True)
-    @patch("Macaw.session.streaming.stt_muted_frames_total")
+    @patch("macaw.session.streaming.HAS_METRICS", True)
+    @patch("macaw.session.streaming.stt_muted_frames_total")
     async def test_muted_frame_increments_metric(self, mock_counter: MagicMock) -> None:
         """Each muted frame increments stt_muted_frames_total."""
         session = _make_session()

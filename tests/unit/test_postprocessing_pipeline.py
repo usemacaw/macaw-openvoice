@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from Macaw._types import BatchResult, SegmentDetail
-from Macaw.config.postprocessing import PostProcessingConfig
-from Macaw.postprocessing.pipeline import PostProcessingPipeline
-from Macaw.postprocessing.stages import TextStage
+from macaw._types import BatchResult, SegmentDetail
+from macaw.config.postprocessing import PostProcessingConfig
+from macaw.postprocessing.pipeline import PostProcessingPipeline
+from macaw.postprocessing.stages import TextStage
 
 
 class UppercaseStage(TextStage):

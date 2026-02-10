@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package macaw.tts;
+
+service TTSWorker {
+  // Speech synthesis (server-streaming: text in, audio chunks out)
+  rpc Synthesize (SynthesizeRequest) returns (stream SynthesizeChunk);
+
+  // Health check (unary)
+  rpc Health (HealthRequest) returns (HealthResponse);
+}
+
+// --- Synthesize messages ---
+
+message SynthesizeRequest {
+  string request_id = 1;
+  string text = 2;               // Text to synthesize
+  string voice = 3;              // Voice identifier
+  int32 sample_rate = 4;         // Output audio sample rate
+  float speed = 5;               // Synthesis speed (0.25-4.0)
+}
+
+message SynthesizeChunk {
+  bytes audio_data = 1;          // 16-bit PCM audio chunk
+  bool is_last = 2;              // Signals last chunk of the stream
+  float duration = 3;            // Accumulated audio duration in seconds
+}
+
+// --- Health ---
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;             // "ok", "loading", "error"
+  string model_name = 2;
+  string engine = 3;
+  map<string, string> metadata = 4;
+}

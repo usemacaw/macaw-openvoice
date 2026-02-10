@@ -185,7 +185,7 @@ function Invoke-Install {
     try {
         $nvsmi = Get-Command nvidia-smi -ErrorAction Stop
         Write-Step "NVIDIA GPU detected. Installing GPU-accelerated STT engine..."
-        & uv pip install --python $pythonExe "Macaw-openvoice[faster-whisper]"
+        & uv pip install --python $pythonExe "macaw-openvoice[faster-whisper]"
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  WARNING: Failed to install faster-whisper GPU extras. You can install manually later." -ForegroundColor Yellow
         }
@@ -199,9 +199,9 @@ function Invoke-Install {
     Write-Host "  API will be available at http://127.0.0.1:8000"
     Write-Host ""
     Write-Host "  Quick start:"
-    Write-Host "    Macaw serve"
-    Write-Host "    Macaw pull faster-whisper-large-v3"
-    Write-Host "    Macaw transcribe audio.wav"
+    Write-Host "    macaw serve"
+    Write-Host "    macaw pull faster-whisper-large-v3"
+    Write-Host "    macaw transcribe audio.wav"
     Write-Host ""
     Write-Host "  NOTE: You may need to restart your terminal for PATH changes to take effect."
 }

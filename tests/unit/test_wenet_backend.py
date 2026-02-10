@@ -12,9 +12,9 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from Macaw._types import STTArchitecture
-from Macaw.exceptions import AudioFormatError, ModelLoadError
-from Macaw.workers.stt.wenet import (
+from macaw._types import STTArchitecture
+from macaw.exceptions import AudioFormatError, ModelLoadError
+from macaw.workers.stt.wenet import (
     WeNetBackend,
     _audio_bytes_to_numpy,
     _build_segments,
@@ -70,7 +70,7 @@ class TestCapabilities:
 class TestLoad:
     async def test_load_succeeds_with_mock(self) -> None:
         mock_model = MagicMock()
-        import Macaw.workers.stt.wenet as wenet_mod
+        import macaw.workers.stt.wenet as wenet_mod
 
         original = wenet_mod.wenet_lib
         mock_wenet = MagicMock()
@@ -85,7 +85,7 @@ class TestLoad:
             wenet_mod.wenet_lib = original  # type: ignore[assignment]
 
     async def test_load_failure_raises_model_load_error(self) -> None:
-        import Macaw.workers.stt.wenet as wenet_mod
+        import macaw.workers.stt.wenet as wenet_mod
 
         original = wenet_mod.wenet_lib
         mock_wenet = MagicMock()
@@ -99,7 +99,7 @@ class TestLoad:
             wenet_mod.wenet_lib = original  # type: ignore[assignment]
 
     async def test_load_without_library_raises_model_load_error(self) -> None:
-        import Macaw.workers.stt.wenet as wenet_mod
+        import macaw.workers.stt.wenet as wenet_mod
 
         original = wenet_mod.wenet_lib
         wenet_mod.wenet_lib = None  # type: ignore[assignment]
@@ -111,7 +111,7 @@ class TestLoad:
             wenet_mod.wenet_lib = original  # type: ignore[assignment]
 
     async def test_load_stores_model_path(self) -> None:
-        import Macaw.workers.stt.wenet as wenet_mod
+        import macaw.workers.stt.wenet as wenet_mod
 
         original = wenet_mod.wenet_lib
         mock_wenet = MagicMock()

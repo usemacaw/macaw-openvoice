@@ -15,7 +15,7 @@ function HomepageHeader() {
         <div className={styles.heroCopy}>
           <p className={styles.heroEyebrow}>Macaw OpenVoice</p>
           <Heading as="h1" className={styles.heroTitle}>
-            Unified runtime for streaming speech.
+            Runtime for streaming speech.
           </Heading>
           <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
           <div className={styles.heroActions}>
@@ -50,7 +50,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title={`${siteConfig.title}`}
-      description="Unified voice runtime (STT + TTS) with OpenAI-compatible API">
+      description="Voice runtime (STT + TTS) with OpenAI-compatible API">
       <HomepageHeader />
       <main>
         <section className={styles.section}>
@@ -72,7 +72,7 @@ export default function Home(): ReactNode {
               Architecture snapshot
             </Heading>
             <p className={styles.sectionSubtitle}>
-              STT and TTS share a unified server with isolated gRPC workers per engine.
+              STT and TTS share a single server with isolated gRPC workers per engine.
             </p>
             <pre className={styles.archDiagram}>
               <code>{`Clients -> API Server -> Scheduler -> gRPC Workers

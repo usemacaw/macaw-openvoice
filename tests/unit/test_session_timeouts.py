@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from Macaw._types import SessionState
-from Macaw.session.state_machine import (
+from macaw._types import SessionState
+from macaw.session.state_machine import (
     _MIN_TIMEOUT_S,
     SessionStateMachine,
     SessionTimeouts,

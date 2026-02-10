@@ -22,9 +22,9 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from Macaw._types import TranscriptSegment, VADSensitivity
-from Macaw.exceptions import WorkerCrashError
-from Macaw.server.models.events import (
+from macaw._types import TranscriptSegment, VADSensitivity
+from macaw.exceptions import WorkerCrashError
+from macaw.server.models.events import (
     InputAudioBufferCommitCommand,
     PreprocessingOverrides,
     SessionCancelCommand,
@@ -41,20 +41,20 @@ from Macaw.server.models.events import (
     VADSpeechStartEvent,
     WordEvent,
 )
-from Macaw.server.ws_protocol import (
+from macaw.server.ws_protocol import (
     AudioFrameResult,
     CommandResult,
     ErrorResult,
     dispatch_message,
 )
-from Macaw.session.backpressure import (
+from macaw.session.backpressure import (
     BackpressureController,
     FramesDroppedAction,
     RateLimitAction,
 )
-from Macaw.session.streaming import StreamingSession
-from Macaw.vad.detector import VADDetector, VADEvent, VADEventType
-from Macaw.vad.energy import EnergyPreFilter
+from macaw.session.streaming import StreamingSession
+from macaw.vad.detector import VADDetector, VADEvent, VADEventType
+from macaw.vad.energy import EnergyPreFilter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -980,7 +980,7 @@ class TestStreamHandleEdgeCases:
 
     async def test_cancel_on_already_closed_handle(self) -> None:
         """cancel() em handle ja fechado e idempotente."""
-        from Macaw.scheduler.streaming import StreamHandle
+        from macaw.scheduler.streaming import StreamHandle
 
         mock_call = AsyncMock(
             spec_set=["write", "done_writing", "cancel", "__aiter__", "__anext__"],
@@ -1003,7 +1003,7 @@ class TestStreamHandleEdgeCases:
 
     async def test_send_frame_empty_pcm_data(self) -> None:
         """send_frame com bytes vazios e valido."""
-        from Macaw.scheduler.streaming import StreamHandle
+        from macaw.scheduler.streaming import StreamHandle
 
         mock_call = AsyncMock(
             spec_set=["write", "done_writing", "cancel", "__aiter__", "__anext__"],
@@ -1022,7 +1022,7 @@ class TestStreamHandleEdgeCases:
 
     async def test_send_frame_after_close_raises_worker_crash(self) -> None:
         """send_frame em handle fechado levanta WorkerCrashError."""
-        from Macaw.scheduler.streaming import StreamHandle
+        from macaw.scheduler.streaming import StreamHandle
 
         mock_call = AsyncMock(
             spec_set=["write", "done_writing", "cancel", "__aiter__", "__anext__"],
@@ -1048,8 +1048,8 @@ class TestStreamingPreprocessorEdgeCases:
 
     def test_single_sample_frame(self) -> None:
         """Frame com 1 sample (2 bytes) e processado sem crash."""
-        from Macaw.preprocessing.resample import ResampleStage
-        from Macaw.preprocessing.streaming import StreamingPreprocessor
+        from macaw.preprocessing.resample import ResampleStage
+        from macaw.preprocessing.streaming import StreamingPreprocessor
 
         stages = [ResampleStage(target_sample_rate=16000)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
@@ -1063,8 +1063,8 @@ class TestStreamingPreprocessorEdgeCases:
 
     def test_consecutive_frames_maintain_state(self) -> None:
         """Multiplos frames consecutivos sao processados sem leak de estado."""
-        from Macaw.preprocessing.dc_remove import DCRemoveStage
-        from Macaw.preprocessing.streaming import StreamingPreprocessor
+        from macaw.preprocessing.dc_remove import DCRemoveStage
+        from macaw.preprocessing.streaming import StreamingPreprocessor
 
         stages = [DCRemoveStage(cutoff_hz=20)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
@@ -1089,7 +1089,7 @@ class TestSileroClassifierEdgeCases:
 
     def test_probability_just_above_threshold(self) -> None:
         """Probabilidade 0.5001 (just above 0.5) e classificada como fala."""
-        from Macaw.vad.silero import SileroVADClassifier
+        from macaw.vad.silero import SileroVADClassifier
 
         classifier = SileroVADClassifier(sensitivity=VADSensitivity.NORMAL)
         mock_model = MagicMock()
@@ -1104,7 +1104,7 @@ class TestSileroClassifierEdgeCases:
 
     def test_probability_just_below_threshold(self) -> None:
         """Probabilidade 0.4999 (just below 0.5) nao e classificada como fala."""
-        from Macaw.vad.silero import SileroVADClassifier
+        from macaw.vad.silero import SileroVADClassifier
 
         classifier = SileroVADClassifier(sensitivity=VADSensitivity.NORMAL)
         mock_model = MagicMock()
@@ -1128,8 +1128,8 @@ class TestStreamingConvertersEdgeCases:
 
     def test_proto_event_with_empty_text(self) -> None:
         """Evento proto com texto vazio e convertido corretamente."""
-        from Macaw.proto.stt_worker_pb2 import TranscriptEvent
-        from Macaw.scheduler.streaming import _proto_event_to_transcript_segment
+        from macaw.proto.stt_worker_pb2 import TranscriptEvent
+        from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
         event = TranscriptEvent(
             event_type="final",
@@ -1143,8 +1143,8 @@ class TestStreamingConvertersEdgeCases:
 
     def test_proto_event_unknown_type_treated_as_partial(self) -> None:
         """Evento proto com event_type desconhecido e tratado como partial (is_final=False)."""
-        from Macaw.proto.stt_worker_pb2 import TranscriptEvent
-        from Macaw.scheduler.streaming import _proto_event_to_transcript_segment
+        from macaw.proto.stt_worker_pb2 import TranscriptEvent
+        from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
         event = TranscriptEvent(
             event_type="unknown",
@@ -1157,8 +1157,8 @@ class TestStreamingConvertersEdgeCases:
 
     def test_proto_event_with_many_words(self) -> None:
         """Evento proto com muitas words e convertido corretamente."""
-        from Macaw.proto.stt_worker_pb2 import TranscriptEvent, Word
-        from Macaw.scheduler.streaming import _proto_event_to_transcript_segment
+        from macaw.proto.stt_worker_pb2 import TranscriptEvent, Word
+        from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
         words = [
             Word(word=f"word_{i}", start=i * 0.1, end=(i + 1) * 0.1, probability=0.9)
@@ -1179,8 +1179,8 @@ class TestStreamingConvertersEdgeCases:
 
     def test_proto_event_with_zero_probability_becomes_none(self) -> None:
         """Probabilidade 0.0 em word e convertida para None."""
-        from Macaw.proto.stt_worker_pb2 import TranscriptEvent, Word
-        from Macaw.scheduler.streaming import _proto_event_to_transcript_segment
+        from macaw.proto.stt_worker_pb2 import TranscriptEvent, Word
+        from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
         event = TranscriptEvent(
             event_type="final",
@@ -1195,8 +1195,8 @@ class TestStreamingConvertersEdgeCases:
 
     def test_proto_event_with_zero_start_ms_preserved(self) -> None:
         """start_ms=0 e preservado como 0 (valor valido: inicio do audio)."""
-        from Macaw.proto.stt_worker_pb2 import TranscriptEvent
-        from Macaw.scheduler.streaming import _proto_event_to_transcript_segment
+        from macaw.proto.stt_worker_pb2 import TranscriptEvent
+        from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
         event = TranscriptEvent(
             event_type="final",
@@ -1212,8 +1212,8 @@ class TestStreamingConvertersEdgeCases:
 
     def test_proto_event_partial_type_is_not_final(self) -> None:
         """event_type='partial' gera is_final=False."""
-        from Macaw.proto.stt_worker_pb2 import TranscriptEvent
-        from Macaw.scheduler.streaming import _proto_event_to_transcript_segment
+        from macaw.proto.stt_worker_pb2 import TranscriptEvent
+        from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
         event = TranscriptEvent(
             event_type="partial",
@@ -1226,8 +1226,8 @@ class TestStreamingConvertersEdgeCases:
 
     def test_proto_event_no_words_is_none(self) -> None:
         """Evento proto sem words resulta em words=None."""
-        from Macaw.proto.stt_worker_pb2 import TranscriptEvent
-        from Macaw.scheduler.streaming import _proto_event_to_transcript_segment
+        from macaw.proto.stt_worker_pb2 import TranscriptEvent
+        from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
         event = TranscriptEvent(
             event_type="final",

@@ -13,8 +13,8 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from Macaw._types import VADSensitivity
-from Macaw.vad.detector import VADDetector, VADEvent, VADEventType
+from macaw._types import VADSensitivity
+from macaw.vad.detector import VADDetector, VADEvent, VADEventType
 
 # Frame size padrao: 1024 samples a 16kHz = 64ms
 _FRAME_SIZE = 1024

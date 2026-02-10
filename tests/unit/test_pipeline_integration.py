@@ -7,14 +7,14 @@ from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 
-from Macaw._types import BatchResult, SegmentDetail
-from Macaw.config.postprocessing import PostProcessingConfig
-from Macaw.config.preprocessing import PreprocessingConfig
-from Macaw.postprocessing.pipeline import PostProcessingPipeline
-from Macaw.postprocessing.stages import TextStage
-from Macaw.preprocessing.pipeline import AudioPreprocessingPipeline
-from Macaw.preprocessing.stages import AudioStage
-from Macaw.server.app import create_app
+from macaw._types import BatchResult, SegmentDetail
+from macaw.config.postprocessing import PostProcessingConfig
+from macaw.config.preprocessing import PreprocessingConfig
+from macaw.postprocessing.pipeline import PostProcessingPipeline
+from macaw.postprocessing.stages import TextStage
+from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
+from macaw.preprocessing.stages import AudioStage
+from macaw.server.app import create_app
 
 AUDIO_FIXTURE = Path(__file__).parent.parent / "fixtures" / "audio" / "sample_44khz.wav"
 

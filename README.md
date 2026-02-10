@@ -1,21 +1,36 @@
 <p align="center">
-  <h1 align="center">Macaw OpenVoice</h1>
-  <p align="center">
-    <strong>Unified voice runtime (STT + TTS) with OpenAI-compatible API</strong>
-  </p>
-  <p align="center">
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+"></a>
-    <a href="https://github.com/useMacaw/Macaw-openvoice/actions"><img src="https://img.shields.io/github/actions/workflow/status/useMacaw/Macaw-openvoice/ci.yml?branch=main&label=tests" alt="Tests"></a>
-    <a href="https://pypi.org/project/Macaw-openvoice/"><img src="https://img.shields.io/pypi/v/Macaw-openvoice" alt="PyPI"></a>
-  </p>
+  <img src="docs/static/img/logo-256.png" alt="Macaw OpenVoice" width="128" />
+</p>
+
+<h1 align="center">Macaw OpenVoice</h1>
+
+<p align="center">
+  <strong>Unified voice runtime (STT + TTS) with OpenAI-compatible API</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/useMacaw/macaw-openvoice/releases"><img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat-square" alt="Version 1.0.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-blue?style=flat-square" alt="License"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square" alt="Python 3.11+"></a>
+  <a href="https://github.com/useMacaw/macaw-openvoice/actions"><img src="https://img.shields.io/badge/tests-1686_passed-brightgreen?style=flat-square" alt="Tests"></a>
+  <a href="https://pypi.org/project/macaw-openvoice/"><img src="https://img.shields.io/badge/pypi-macaw--openvoice-orange?style=flat-square" alt="PyPI"></a>
+</p>
+
+<p align="center">
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#features">Features</a> &middot;
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="#api-compatibility">API Docs</a> &middot;
+  <a href="#demo">Demo</a> &middot;
+  <a href="https://macaw-voice.github.io/macaw-openvoice">Full Documentation</a>
 </p>
 
 ---
 
-Macaw OpenVoice is a **voice runtime built from scratch** in Python. It orchestrates inference engines (Faster-Whisper, WeNet, Silero VAD, Kokoro) within a single binary that serves both STT and TTS through an OpenAI-compatible API and an Ollama-inspired CLI.
+Macaw OpenVoice is a **voice runtime built from scratch** in Python. It orchestrates inference engines (Faster-Whisper, WeNet, Silero VAD, Kokoro) within a single process and serves both STT and TTS through an OpenAI-compatible API and an Ollama-inspired CLI.
 
 Macaw is **not** a fork, wrapper, or extension of existing projects. It is the **runtime layer** that sits between inference engines and production: session management, preprocessing, post-processing, scheduling, observability, and a unified CLI.
+
 
 ## Features
 
@@ -29,31 +44,52 @@ Macaw is **not** a fork, wrapper, or extension of existing projects. It is the *
 - **Post-processing** — Inverse Text Normalization via NeMo ("dois mil" to "2000")
 - **Mute-on-speak** — STT pauses during TTS to prevent feedback loops
 - **Hot words** — domain-specific keyword boosting per session
-- **CLI** — `Macaw serve`, `Macaw transcribe`, `Macaw translate`, `Macaw list` (Ollama-style UX)
+- **CLI** — `macaw serve`, `macaw transcribe`, `macaw translate`, `macaw list` (Ollama-style UX)
 - **Observability** — Prometheus metrics for TTFB, session duration, VAD events, TTS latency
 
 ## Quick Start
 
 ```bash
 # Install
-pip install Macaw-openvoice[server,grpc,faster-whisper]
+pip install macaw-openvoice[server,grpc,faster-whisper]
+
+# Pull a model
+macaw pull faster-whisper-tiny
 
 # Start the runtime
-Macaw serve
+macaw serve
+```
 
-# Transcribe a file
+```
+$ macaw serve
+  ╔══════════════════════════════════════════════╗
+  ║         Macaw OpenVoice v1.0.0              ║
+  ╚══════════════════════════════════════════════╝
+
+INFO     Scanning models in ~/.macaw/models
+INFO     Found 2 model(s): faster-whisper-tiny (STT), kokoro-v1 (TTS)
+INFO     Spawning STT worker   faster-whisper-tiny  port=50051  engine=faster-whisper
+INFO     Spawning TTS worker   kokoro-v1            port=50052  engine=kokoro
+INFO     Scheduler started     aging=30.0s  batch_ms=75.0  batch_max=8
+INFO     Uvicorn running on http://127.0.0.1:8000
+```
+
+### Transcribe a file
+
+```bash
+# Via REST API
 curl -X POST http://localhost:8000/v1/audio/transcriptions \
   -F file=@audio.wav \
-  -F model=faster-whisper-large-v3
+  -F model=faster-whisper-tiny
 
-# Or via CLI
-Macaw transcribe audio.wav --model faster-whisper-large-v3
+# Via CLI
+macaw transcribe audio.wav --model faster-whisper-tiny
 ```
 
 ### Streaming via WebSocket
 
 ```bash
-wscat -c "ws://localhost:8000/v1/realtime?model=faster-whisper-large-v3"
+wscat -c "ws://localhost:8000/v1/realtime?model=faster-whisper-tiny"
 # Send binary audio frames, receive JSON transcript events
 ```
 
@@ -86,7 +122,7 @@ curl -X POST http://localhost:8000/v1/audio/speech \
   |  dynamic batching, latency tracking                 |
   +----------------------------------------------------+
   |              Model Registry                         |
-  |  Declarative manifest (Macaw.yaml), lifecycle        |
+  |  Declarative manifest (macaw.yaml), lifecycle        |
   +----------+-------------------+---------------------+
              |                   |
     +--------+--------+  +------+-------+
@@ -112,15 +148,21 @@ curl -X POST http://localhost:8000/v1/audio/speech \
   +------------------------------------------------+
 ```
 
+## Demo
+<p align="center">
+  <img src="docs/static/img/screen.png" alt="Macaw OpenVoice Demo" width="720" />
+</p>
+
+
 ## Supported Models
 
 | Engine | Type | Architecture | Partials | Hot Words | Status |
 |--------|------|-------------|----------|-----------|--------|
 | [Faster-Whisper](https://github.com/SYSTRAN/faster-whisper) | STT | encoder-decoder | LocalAgreement | via initial_prompt | Supported |
 | [WeNet](https://github.com/wenet-e2e/wenet) | STT | CTC | native | native keyword boosting | Supported |
-| [Kokoro](https://github.com/hexgrad/kokoro) | TTS | — | — | — | Supported |
+| [Kokoro](https://github.com/hexgrad/kokoro) | TTS | neural | — | — | Supported |
 
-Adding a new engine requires ~400-700 lines of code and zero changes to the runtime core. See the [Adding an Engine](https://useMacaw.github.io/Macaw-openvoice/docs/guides/adding-engine) guide.
+Adding a new engine requires ~400-700 lines of code and zero changes to the runtime core. See the [Adding an Engine](https://macaw-voice.github.io/macaw-openvoice/docs/guides/adding-engine) guide.
 
 ## API Compatibility
 
@@ -133,7 +175,7 @@ client = OpenAI(base_url="http://localhost:8000/v1", api_key="not-needed")
 
 # Transcription
 result = client.audio.transcriptions.create(
-    model="faster-whisper-large-v3",
+    model="faster-whisper-tiny",
     file=open("audio.wav", "rb"),
 )
 print(result.text)
@@ -173,14 +215,25 @@ Server -> Client:
 ## CLI
 
 ```bash
-Macaw serve                                   # Start API server
-Macaw transcribe audio.wav                    # Transcribe file
-Macaw transcribe audio.wav --format srt       # Generate subtitles
-Macaw transcribe --stream                     # Stream from microphone
-Macaw translate audio.wav                     # Translate to English
-Macaw list                                    # List installed models
-Macaw inspect faster-whisper-large-v3         # Model details
+macaw serve                                   # Start API server
+macaw transcribe audio.wav                    # Transcribe file
+macaw transcribe audio.wav --format srt       # Generate subtitles
+macaw transcribe --stream                     # Stream from microphone
+macaw translate audio.wav                     # Translate to English
+macaw list                                    # List installed models
+macaw pull faster-whisper-tiny                # Download a model
+macaw inspect faster-whisper-tiny             # Model details
 ```
+
+## Demo
+
+An interactive demo with a React/Next.js frontend is included:
+
+```bash
+./demo/start.sh
+```
+
+This starts the FastAPI backend (port 9000) and the Next.js frontend (port 3000) together. The demo includes a dashboard for batch transcriptions, real-time streaming STT with VAD visualization, and a TTS playground. See [demo/README.md](demo/README.md) for details.
 
 ## Development
 
@@ -192,20 +245,20 @@ uv sync --all-extras
 # Development workflow
 make check       # format + lint + typecheck
 make test-unit   # unit tests (preferred during development)
-make test        # all tests (1600+)
+make test        # all tests (1686 passing)
 make ci          # full pipeline: format + lint + typecheck + test
 ```
 
 ## Documentation
 
-Full documentation is available at **[useMacaw.github.io/Macaw-openvoice](https://useMacaw.github.io/Macaw-openvoice)**.
+Full documentation is available at **[macaw-voice.github.io/macaw-openvoice](https://macaw-voice.github.io/macaw-openvoice)**.
 
-- [Getting Started](https://useMacaw.github.io/Macaw-openvoice/docs/getting-started/installation)
-- [Streaming Guide](https://useMacaw.github.io/Macaw-openvoice/docs/guides/streaming-stt)
-- [Full-Duplex Guide](https://useMacaw.github.io/Macaw-openvoice/docs/guides/full-duplex)
-- [Adding an Engine](https://useMacaw.github.io/Macaw-openvoice/docs/guides/adding-engine)
-- [API Reference](https://useMacaw.github.io/Macaw-openvoice/docs/api-reference/rest-api)
-- [Architecture](https://useMacaw.github.io/Macaw-openvoice/docs/architecture/overview)
+- [Getting Started](https://macaw-voice.github.io/macaw-openvoice/docs/getting-started/installation)
+- [Streaming Guide](https://macaw-voice.github.io/macaw-openvoice/docs/guides/streaming-stt)
+- [Full-Duplex Guide](https://macaw-voice.github.io/macaw-openvoice/docs/guides/full-duplex)
+- [Adding an Engine](https://macaw-voice.github.io/macaw-openvoice/docs/guides/adding-engine)
+- [API Reference](https://macaw-voice.github.io/macaw-openvoice/docs/api-reference/rest-api)
+- [Architecture](https://macaw-voice.github.io/macaw-openvoice/docs/architecture/overview)
 
 ## Contributing
 

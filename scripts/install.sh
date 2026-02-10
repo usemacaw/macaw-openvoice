@@ -1,15 +1,15 @@
 #!/bin/sh
 # This script installs Macaw OpenVoice on Linux and macOS.
-# It uses uv (Astral) to install Python 3.12 and the Macaw-openvoice package.
+# It uses uv (Astral) to install Python 3.12 and the macaw-openvoice package.
 #
 # Quick install:
-#   curl -fsSL https://raw.githubusercontent.com/useMacaw/Macaw-openvoice/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/macaw-voice/macaw-openvoice/main/install.sh | sh
 #
 # Environment variables:
-#   Macaw_VERSION       Pin to a specific version (default: latest)
-#   Macaw_INSTALL_DIR   Custom install directory (default: /opt/Macaw)
-#   Macaw_EXTRAS        Pip extras to install (default: server,grpc)
-#   Macaw_NO_SERVICE    Skip systemd service setup (set to any value)
+#   MACAW_VERSION       Pin to a specific version (default: latest)
+#   MACAW_INSTALL_DIR   Custom install directory (default: /opt/macaw)
+#   MACAW_EXTRAS        Pip extras to install (default: server,grpc)
+#   MACAW_NO_SERVICE    Skip systemd service setup (set to any value)
 
 set -eu
 
@@ -37,9 +37,9 @@ case "$ARCH" in
 esac
 
 # Configuration
-Macaw_INSTALL_DIR="${Macaw_INSTALL_DIR:-/opt/Macaw}"
-Macaw_EXTRAS="${Macaw_EXTRAS:-server,grpc}"
-Macaw_VERSION="${Macaw_VERSION:-}"
+MACAW_INSTALL_DIR="${MACAW_INSTALL_DIR:-/opt/macaw}"
+MACAW_EXTRAS="${MACAW_EXTRAS:-server,grpc}"
+MACAW_VERSION="${MACAW_VERSION:-}"
 PYTHON_VERSION="3.12"
 
 ###########################################
@@ -73,40 +73,40 @@ if [ "$OS" = "Darwin" ]; then
     status "uv version: $(uv --version)"
 
     # Create install directory
-    Macaw_INSTALL_DIR="${Macaw_INSTALL_DIR:-$HOME/.Macaw}"
-    mkdir -p "$Macaw_INSTALL_DIR"
+    MACAW_INSTALL_DIR="${MACAW_INSTALL_DIR:-$HOME/.macaw}"
+    mkdir -p "$MACAW_INSTALL_DIR"
 
     # Create venv with Python 3.12
-    status "Creating Python $PYTHON_VERSION environment in $Macaw_INSTALL_DIR..."
-    uv venv --python "$PYTHON_VERSION" "$Macaw_INSTALL_DIR/.venv"
+    status "Creating Python $PYTHON_VERSION environment in $MACAW_INSTALL_DIR..."
+    uv venv --python "$PYTHON_VERSION" "$MACAW_INSTALL_DIR/.venv"
 
-    # Install Macaw-openvoice
-    Macaw_PKG="Macaw-openvoice[$Macaw_EXTRAS]"
-    if [ -n "$Macaw_VERSION" ]; then
-        Macaw_PKG="Macaw-openvoice[$Macaw_EXTRAS]==$Macaw_VERSION"
+    # Install macaw-openvoice
+    MACAW_PKG="macaw-openvoice[$MACAW_EXTRAS]"
+    if [ -n "$MACAW_VERSION" ]; then
+        MACAW_PKG="macaw-openvoice[$MACAW_EXTRAS]==$MACAW_VERSION"
     fi
-    status "Installing $Macaw_PKG..."
-    uv pip install --python "$Macaw_INSTALL_DIR/.venv/bin/python" "$Macaw_PKG"
+    status "Installing $MACAW_PKG..."
+    uv pip install --python "$MACAW_INSTALL_DIR/.venv/bin/python" "$MACAW_PKG"
 
     # Symlink to /usr/local/bin
-    status "Adding 'Macaw' command to PATH..."
+    status "Adding 'macaw' command to PATH..."
     mkdir -p "/usr/local/bin" 2>/dev/null || sudo mkdir -p "/usr/local/bin"
-    ln -sf "$Macaw_INSTALL_DIR/.venv/bin/Macaw" "/usr/local/bin/Macaw" 2>/dev/null || \
-        sudo ln -sf "$Macaw_INSTALL_DIR/.venv/bin/Macaw" "/usr/local/bin/Macaw"
+    ln -sf "$MACAW_INSTALL_DIR/.venv/bin/macaw" "/usr/local/bin/macaw" 2>/dev/null || \
+        sudo ln -sf "$MACAW_INSTALL_DIR/.venv/bin/macaw" "/usr/local/bin/macaw"
 
     # GPU detection
     if system_profiler SPDisplaysDataType 2>/dev/null | grep -qi "nvidia\|cuda"; then
         status "NVIDIA GPU detected. To install GPU acceleration:"
-        echo "  uv pip install --python $Macaw_INSTALL_DIR/.venv/bin/python 'Macaw-openvoice[faster-whisper]'"
+        echo "  uv pip install --python $MACAW_INSTALL_DIR/.venv/bin/python 'macaw-openvoice[faster-whisper]'"
     fi
 
-    success "Install complete. Run 'Macaw serve' to start the API server."
+    success "Install complete. Run 'macaw serve' to start the API server."
     echo "  API will be available at http://127.0.0.1:8000"
     echo ""
     echo "  Quick start:"
-    echo "    Macaw serve &"
-    echo "    Macaw pull faster-whisper-large-v3"
-    echo "    Macaw transcribe audio.wav"
+    echo "    macaw serve &"
+    echo "    macaw pull faster-whisper-large-v3"
+    echo "    macaw transcribe audio.wav"
     exit 0
 fi
 
@@ -158,95 +158,95 @@ fi
 status "uv version: $(uv --version)"
 
 # Create install directory
-status "Creating install directory at $Macaw_INSTALL_DIR..."
-$SUDO mkdir -p "$Macaw_INSTALL_DIR"
-$SUDO chown "$(id -u):$(id -g)" "$Macaw_INSTALL_DIR"
+status "Creating install directory at $MACAW_INSTALL_DIR..."
+$SUDO mkdir -p "$MACAW_INSTALL_DIR"
+$SUDO chown "$(id -u):$(id -g)" "$MACAW_INSTALL_DIR"
 
 # Create venv with Python 3.12
 status "Creating Python $PYTHON_VERSION environment..."
-uv venv --python "$PYTHON_VERSION" "$Macaw_INSTALL_DIR/.venv"
+uv venv --python "$PYTHON_VERSION" "$MACAW_INSTALL_DIR/.venv"
 
-# Install Macaw-openvoice
-Macaw_PKG="Macaw-openvoice[$Macaw_EXTRAS]"
-if [ -n "$Macaw_VERSION" ]; then
-    Macaw_PKG="Macaw-openvoice[$Macaw_EXTRAS]==$Macaw_VERSION"
+# Install macaw-openvoice
+MACAW_PKG="macaw-openvoice[$MACAW_EXTRAS]"
+if [ -n "$MACAW_VERSION" ]; then
+    MACAW_PKG="macaw-openvoice[$MACAW_EXTRAS]==$MACAW_VERSION"
 fi
-status "Installing $Macaw_PKG..."
-uv pip install --python "$Macaw_INSTALL_DIR/.venv/bin/python" "$Macaw_PKG"
+status "Installing $MACAW_PKG..."
+uv pip install --python "$MACAW_INSTALL_DIR/.venv/bin/python" "$MACAW_PKG"
 
 # Symlink to PATH
 for BINDIR in /usr/local/bin /usr/bin /bin; do
     echo "$PATH" | grep -q "$BINDIR" && break || continue
 done
 
-status "Adding 'Macaw' command to PATH in $BINDIR..."
-$SUDO ln -sf "$Macaw_INSTALL_DIR/.venv/bin/Macaw" "$BINDIR/Macaw"
+status "Adding 'macaw' command to PATH in $BINDIR..."
+$SUDO ln -sf "$MACAW_INSTALL_DIR/.venv/bin/macaw" "$BINDIR/macaw"
 
 install_success() {
     success "Install complete."
     echo "  The Macaw OpenVoice API is available at http://127.0.0.1:8000"
     echo ""
     echo "  Quick start:"
-    echo "    Macaw serve &"
-    echo "    Macaw pull faster-whisper-large-v3"
-    echo "    Macaw transcribe audio.wav"
+    echo "    macaw serve &"
+    echo "    macaw pull faster-whisper-large-v3"
+    echo "    macaw transcribe audio.wav"
 }
 
 # Configure systemd service (optional)
 configure_systemd() {
-    if [ -n "${Macaw_NO_SERVICE:-}" ]; then
-        status "Skipping systemd service setup (Macaw_NO_SERVICE is set)."
+    if [ -n "${MACAW_NO_SERVICE:-}" ]; then
+        status "Skipping systemd service setup (MACAW_NO_SERVICE is set)."
         return
     fi
 
-    if ! id Macaw >/dev/null 2>&1; then
-        status "Creating Macaw user..."
-        $SUDO useradd -r -s /bin/false -U -m -d /var/lib/Macaw Macaw
+    if ! id macaw >/dev/null 2>&1; then
+        status "Creating macaw user..."
+        $SUDO useradd -r -s /bin/false -U -m -d /var/lib/macaw macaw
     fi
     if getent group render >/dev/null 2>&1; then
-        status "Adding Macaw user to render group..."
-        $SUDO usermod -a -G render Macaw
+        status "Adding macaw user to render group..."
+        $SUDO usermod -a -G render macaw
     fi
     if getent group video >/dev/null 2>&1; then
-        status "Adding Macaw user to video group..."
-        $SUDO usermod -a -G video Macaw
+        status "Adding macaw user to video group..."
+        $SUDO usermod -a -G video macaw
     fi
 
-    status "Adding current user to Macaw group..."
-    $SUDO usermod -a -G Macaw "$(whoami)"
+    status "Adding current user to macaw group..."
+    $SUDO usermod -a -G macaw "$(whoami)"
 
-    status "Creating Macaw systemd service..."
-    cat <<EOF | $SUDO tee /etc/systemd/system/Macaw.service >/dev/null
+    status "Creating macaw systemd service..."
+    cat <<EOF | $SUDO tee /etc/systemd/system/macaw.service >/dev/null
 [Unit]
 Description=Macaw OpenVoice Service
 After=network-online.target
 
 [Service]
-ExecStart=$Macaw_INSTALL_DIR/.venv/bin/Macaw serve --host 0.0.0.0 --port 8000
-User=Macaw
-Group=Macaw
+ExecStart=$MACAW_INSTALL_DIR/.venv/bin/macaw serve --host 0.0.0.0 --port 8000
+User=macaw
+Group=macaw
 Restart=always
 RestartSec=3
-Environment="PATH=$Macaw_INSTALL_DIR/.venv/bin:$PATH"
-Environment="Macaw_MODELS_DIR=/var/lib/Macaw/models"
-WorkingDirectory=/var/lib/Macaw
+Environment="PATH=$MACAW_INSTALL_DIR/.venv/bin:$PATH"
+Environment="MACAW_MODELS_DIR=/var/lib/macaw/models"
+WorkingDirectory=/var/lib/macaw
 
 [Install]
 WantedBy=default.target
 EOF
 
     # Create models directory
-    $SUDO mkdir -p /var/lib/Macaw/models
-    $SUDO chown -R Macaw:Macaw /var/lib/Macaw
+    $SUDO mkdir -p /var/lib/macaw/models
+    $SUDO chown -R macaw:macaw /var/lib/macaw
 
     SYSTEMCTL_RUNNING="$(systemctl is-system-running || true)"
     case $SYSTEMCTL_RUNNING in
         running|degraded)
-            status "Enabling and starting Macaw service..."
+            status "Enabling and starting macaw service..."
             $SUDO systemctl daemon-reload
-            $SUDO systemctl enable Macaw
+            $SUDO systemctl enable macaw
 
-            start_service() { $SUDO systemctl restart Macaw; }
+            start_service() { $SUDO systemctl restart macaw; }
             trap start_service EXIT
             ;;
         *)
@@ -280,16 +280,16 @@ check_gpu() {
 if check_gpu nvidia-smi; then
     status "NVIDIA GPU detected with drivers installed."
     status "Installing GPU-accelerated STT engine..."
-    uv pip install --python "$Macaw_INSTALL_DIR/.venv/bin/python" "Macaw-openvoice[faster-whisper]" || \
+    uv pip install --python "$MACAW_INSTALL_DIR/.venv/bin/python" "macaw-openvoice[faster-whisper]" || \
         warning "Failed to install faster-whisper GPU extras. You can install manually later."
 elif (check_gpu lspci nvidia 2>/dev/null || check_gpu lshw nvidia 2>/dev/null); then
     warning "NVIDIA GPU detected but nvidia-smi not found. Install NVIDIA drivers first."
     echo "  After installing drivers, run:"
-    echo "    uv pip install --python $Macaw_INSTALL_DIR/.venv/bin/python 'Macaw-openvoice[faster-whisper]'"
+    echo "    uv pip install --python $MACAW_INSTALL_DIR/.venv/bin/python 'macaw-openvoice[faster-whisper]'"
 elif [ "$IS_WSL2" = true ] && available nvidia-smi; then
     status "NVIDIA GPU detected via WSL2 passthrough."
     status "Installing GPU-accelerated STT engine..."
-    uv pip install --python "$Macaw_INSTALL_DIR/.venv/bin/python" "Macaw-openvoice[faster-whisper]" || \
+    uv pip install --python "$MACAW_INSTALL_DIR/.venv/bin/python" "macaw-openvoice[faster-whisper]" || \
         warning "Failed to install faster-whisper GPU extras. You can install manually later."
 else
     status "No NVIDIA GPU detected. Macaw will run in CPU-only mode."

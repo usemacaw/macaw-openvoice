@@ -62,9 +62,9 @@ make proto
 - `from __future__ import annotations` is required in **all** source files
 - Use `TYPE_CHECKING` blocks for imports used only in type hints (ruff TCH rules)
 - Dataclasses use `frozen=True, slots=True` for immutable value objects
-- Domain-specific exceptions in `src/Macaw/exceptions.py` — never raise bare `Exception`
+- Domain-specific exceptions in `src/macaw/exceptions.py` — never raise bare `Exception`
 - Async-first: all public interfaces are `async`
-- Imports are absolute from `Macaw.` (e.g., `from Macaw.registry import Registry`)
+- Imports are absolute from `macaw.` (e.g., `from macaw.registry import Registry`)
 
 ### Naming
 
@@ -87,7 +87,7 @@ make proto
 
 ```
 tests/
-  unit/           # Mirrors src/Macaw/ structure
+  unit/           # Mirrors src/macaw/ structure
   integration/    # Tests requiring external resources
   fixtures/       # Shared test fixtures (audio, manifests)
   conftest.py     # Shared fixtures
@@ -164,7 +164,7 @@ Both must match exactly — the CI verifies this.
 version = "0.2.0"
 ```
 
-`src/Macaw/__init__.py`:
+`src/macaw/__init__.py`:
 ```python
 __version__ = "0.2.0"
 ```
@@ -190,7 +190,7 @@ The CI verifies that `CHANGELOG.md` contains an entry matching `[0.2.0]`.
 **4. Commit the version bump**
 
 ```bash
-git add pyproject.toml src/Macaw/__init__.py CHANGELOG.md
+git add pyproject.toml src/macaw/__init__.py CHANGELOG.md
 git commit -m "release: v0.2.0"
 ```
 
@@ -226,8 +226,8 @@ After completion, verify:
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| "Tag vX.Y.Z nao corresponde a pyproject.toml" | Version mismatch between tag, `pyproject.toml`, or `__init__.py` | Delete the tag (`git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`), fix versions, re-tag |
-| "CHANGELOG.md nao contem entrada para versao" | Missing `## [X.Y.Z]` section in CHANGELOG | Same: delete tag, add CHANGELOG entry, re-tag |
+| "Tag vX.Y.Z does not match pyproject.toml" | Version mismatch between tag, `pyproject.toml`, or `__init__.py` | Delete the tag (`git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z`), fix versions, re-tag |
+| "CHANGELOG.md does not contain entry for version" | Missing `## [X.Y.Z]` section in CHANGELOG | Same: delete tag, add CHANGELOG entry, re-tag |
 | PyPI publish fails | Trusted publisher not configured | Follow [setup guide](https://docs.pypi.org/trusted-publishers/adding-a-publisher/) |
 | Docker push fails | GHCR permissions | Ensure repo has `packages: write` permission (set in workflow) |
 

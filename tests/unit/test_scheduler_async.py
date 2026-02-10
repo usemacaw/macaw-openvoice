@@ -13,17 +13,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from Macaw._types import ResponseFormat
-from Macaw.exceptions import (
+from macaw._types import ResponseFormat
+from macaw.exceptions import (
     ModelNotFoundError,
     WorkerCrashError,
     WorkerTimeoutError,
 )
-from Macaw.proto import Segment, TranscribeFileResponse, Word
-from Macaw.scheduler.queue import RequestPriority
-from Macaw.scheduler.scheduler import Scheduler
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.workers.manager import WorkerHandle, WorkerState
+from macaw.proto import Segment, TranscribeFileResponse, Word
+from macaw.scheduler.queue import RequestPriority
+from macaw.scheduler.scheduler import Scheduler
+from macaw.server.models.requests import TranscribeRequest
+from macaw.workers.manager import WorkerHandle, WorkerState
 
 
 def _make_request(
@@ -133,11 +133,11 @@ class TestSchedulerDispatch:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -160,11 +160,11 @@ class TestSchedulerDispatch:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -201,11 +201,11 @@ class TestSchedulerDispatch:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -238,14 +238,14 @@ class TestSchedulerWorkerUnavailable:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
-            patch("Macaw.scheduler.scheduler._NO_WORKER_BACKOFF_S", 0.01),
+            patch("macaw.scheduler.scheduler._NO_WORKER_BACKOFF_S", 0.01),
         ):
             await scheduler.start()
             try:
@@ -278,11 +278,11 @@ class TestSchedulerErrors:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -314,11 +314,11 @@ class TestSchedulerErrors:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -342,11 +342,11 @@ class TestSchedulerErrors:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -382,11 +382,11 @@ class TestSchedulerPriority:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -431,11 +431,11 @@ class TestSchedulerPriority:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -477,11 +477,11 @@ class TestSchedulerChannelPool:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 side_effect=make_channel,
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -509,11 +509,11 @@ class TestSchedulerChannelPool:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=mock_channel,
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -529,7 +529,7 @@ class TestSchedulerChannelPool:
         mock_channel = AsyncMock()
 
         with patch(
-            "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+            "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
             return_value=mock_channel,
         ):
             # Create a channel via pool
@@ -553,11 +553,11 @@ class TestSchedulerConcurrent:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -596,11 +596,11 @@ class TestSchedulerGracefulShutdown:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -633,11 +633,11 @@ class TestSchedulerInlineFallback:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=mock_channel,
             ),
             patch(
-                "Macaw.scheduler.scheduler.STTWorkerStub",
+                "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
         ):
@@ -648,7 +648,7 @@ class TestSchedulerInlineFallback:
 
     async def test_inline_no_worker_raises(self) -> None:
         """Inline mode raises WorkerUnavailableError when no worker."""
-        from Macaw.exceptions import WorkerUnavailableError
+        from macaw.exceptions import WorkerUnavailableError
 
         scheduler, _, _ = _make_scheduler(worker=None)
 

@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import grpc
 import pytest
 
-from Macaw._types import (
+from macaw._types import (
     BatchResult,
     EngineCapabilities,
     SegmentDetail,
@@ -16,9 +16,9 @@ from Macaw._types import (
     TranscriptSegment,
     WordTimestamp,
 )
-from Macaw.proto.stt_worker_pb2 import AudioFrame
-from Macaw.workers.stt.interface import STTBackend
-from Macaw.workers.stt.servicer import STTWorkerServicer
+from macaw.proto.stt_worker_pb2 import AudioFrame
+from macaw.workers.stt.interface import STTBackend
+from macaw.workers.stt.servicer import STTWorkerServicer
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator

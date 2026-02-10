@@ -17,20 +17,20 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import numpy as np
 
-from Macaw._types import SessionState, STTArchitecture, TranscriptSegment
-from Macaw.exceptions import WorkerCrashError
-from Macaw.session.backpressure import (
+from macaw._types import SessionState, STTArchitecture, TranscriptSegment
+from macaw.exceptions import WorkerCrashError
+from macaw.session.backpressure import (
     BackpressureController,
     FramesDroppedAction,
     RateLimitAction,
 )
-from Macaw.session.cross_segment import CrossSegmentContext
-from Macaw.session.ring_buffer import RingBuffer
-from Macaw.session.streaming import StreamingSession
-from Macaw.session.wal import SessionWAL
+from macaw.session.cross_segment import CrossSegmentContext
+from macaw.session.ring_buffer import RingBuffer
+from macaw.session.streaming import StreamingSession
+from macaw.session.wal import SessionWAL
 
 if TYPE_CHECKING:
-    from Macaw.session.state_machine import SessionStateMachine
+    from macaw.session.state_machine import SessionStateMachine
 
 
 # ---------------------------------------------------------------------------

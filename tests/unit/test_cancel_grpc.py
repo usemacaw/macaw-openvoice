@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import grpc
 import grpc.aio
 
-from Macaw._types import ResponseFormat
-from Macaw.proto.stt_worker_pb2 import (
+from macaw._types import ResponseFormat
+from macaw.proto.stt_worker_pb2 import (
     CancelRequest,
     CancelResponse,
     Segment,
@@ -23,11 +23,11 @@ from Macaw.proto.stt_worker_pb2 import (
     TranscribeFileResponse,
     Word,
 )
-from Macaw.scheduler.cancel import CancellationManager
-from Macaw.scheduler.scheduler import Scheduler
-from Macaw.server.models.requests import TranscribeRequest
-from Macaw.workers.manager import WorkerHandle, WorkerState
-from Macaw.workers.stt.servicer import STTWorkerServicer
+from macaw.scheduler.cancel import CancellationManager
+from macaw.scheduler.scheduler import Scheduler
+from macaw.server.models.requests import TranscribeRequest
+from macaw.workers.manager import WorkerHandle, WorkerState
+from macaw.workers.stt.servicer import STTWorkerServicer
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -169,7 +169,7 @@ class TestServicerCooperativeCancel:
         servicer = _make_servicer()
         context = AsyncMock()
 
-        from Macaw._types import BatchResult, SegmentDetail
+        from macaw._types import BatchResult, SegmentDetail
 
         # Backend returns normally, but we cancel during inference
         servicer._backend.transcribe_file.return_value = BatchResult(
@@ -216,7 +216,7 @@ class TestServicerCooperativeCancel:
         servicer = _make_servicer()
         context = AsyncMock()
 
-        from Macaw._types import BatchResult, SegmentDetail
+        from macaw._types import BatchResult, SegmentDetail
 
         servicer._backend.transcribe_file.return_value = BatchResult(
             text="hello",
@@ -252,7 +252,7 @@ class TestServicerCooperativeCancel:
         servicer = _make_servicer()
         context = AsyncMock()
 
-        from Macaw._types import BatchResult, SegmentDetail
+        from macaw._types import BatchResult, SegmentDetail
 
         servicer._backend.transcribe_file.return_value = BatchResult(
             text="hello",
@@ -298,7 +298,7 @@ class TestCancelInFlight:
         mock_stub = AsyncMock()
         mock_stub.Cancel.return_value = CancelResponse(acknowledged=True)
 
-        with patch("Macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
+        with patch("macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
             result = await cm.cancel_in_flight("req_1", "localhost:50051", channel=mock_channel)
 
         assert result is True
@@ -312,7 +312,7 @@ class TestCancelInFlight:
         mock_stub = AsyncMock()
         mock_stub.Cancel.return_value = CancelResponse(acknowledged=False)
 
-        with patch("Macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
+        with patch("macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
             result = await cm.cancel_in_flight("req_1", "localhost:50051", channel=mock_channel)
 
         assert result is False
@@ -325,7 +325,7 @@ class TestCancelInFlight:
         mock_stub = AsyncMock()
         mock_stub.Cancel.side_effect = TimeoutError("timeout")
 
-        with patch("Macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
+        with patch("macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
             result = await cm.cancel_in_flight("req_1", "localhost:50051", channel=mock_channel)
 
         assert result is False
@@ -343,7 +343,7 @@ class TestCancelInFlight:
             details="Worker unavailable",
         )
 
-        with patch("Macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
+        with patch("macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
             result = await cm.cancel_in_flight("req_1", "localhost:50051", channel=mock_channel)
 
         assert result is False
@@ -358,10 +358,10 @@ class TestCancelInFlight:
 
         with (
             patch(
-                "Macaw.scheduler.cancel.grpc.aio.insecure_channel",
+                "macaw.scheduler.cancel.grpc.aio.insecure_channel",
                 return_value=mock_channel,
             ) as mock_create_channel,
-            patch("Macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub),
         ):
             result = await cm.cancel_in_flight("req_1", "localhost:50051", channel=None)
 
@@ -378,7 +378,7 @@ class TestCancelInFlight:
         mock_stub = AsyncMock()
         mock_stub.Cancel.return_value = CancelResponse(acknowledged=True)
 
-        with patch("Macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
+        with patch("macaw.scheduler.cancel.STTWorkerStub", return_value=mock_stub):
             await cm.cancel_in_flight("req_1", "localhost:50051", channel=mock_channel)
 
         # Provided channel should NOT be closed
@@ -410,10 +410,10 @@ class TestSchedulerCancelInFlight:
 
         with (
             patch(
-                "Macaw.scheduler.scheduler.grpc.aio.insecure_channel",
+                "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
                 return_value=AsyncMock(),
             ),
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
             patch.object(
                 scheduler._cancellation,
                 "cancel_in_flight",
@@ -484,7 +484,7 @@ class TestSchedulerCancelInFlight:
         mock_stub.TranscribeFile.side_effect = slow_transcribe
 
         with (
-            patch("Macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
+            patch("macaw.scheduler.scheduler.STTWorkerStub", return_value=mock_stub),
             patch.object(
                 scheduler._cancellation,
                 "cancel_in_flight",

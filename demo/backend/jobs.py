@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from Macaw._types import BatchResult, SegmentDetail, WordTimestamp
-    from Macaw.scheduler.queue import RequestPriority
+    from macaw._types import BatchResult, SegmentDetail, WordTimestamp
+    from macaw.scheduler.queue import RequestPriority
 
 
 @dataclass(slots=True)

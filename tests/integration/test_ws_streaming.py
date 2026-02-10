@@ -26,22 +26,22 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import numpy as np
 import pytest
 
-from Macaw._types import TranscriptSegment, WordTimestamp
-from Macaw.server.app import create_app
-from Macaw.server.models.events import (
+from macaw._types import TranscriptSegment, WordTimestamp
+from macaw.server.app import create_app
+from macaw.server.models.events import (
     StreamingErrorEvent,
     TranscriptFinalEvent,
     TranscriptPartialEvent,
     VADSpeechEndEvent,
     VADSpeechStartEvent,
 )
-from Macaw.session.backpressure import (
+from macaw.session.backpressure import (
     BackpressureController,
     FramesDroppedAction,
     RateLimitAction,
 )
-from Macaw.session.streaming import StreamingSession
-from Macaw.vad.detector import VADEvent, VADEventType
+from macaw.session.streaming import StreamingSession
+from macaw.vad.detector import VADEvent, VADEventType
 
 if TYPE_CHECKING:
     from starlette.testclient import TestClient
@@ -89,7 +89,7 @@ def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:
     if known_models is None:
         known_models = ["faster-whisper-tiny"]
 
-    from Macaw.exceptions import ModelNotFoundError
+    from macaw.exceptions import ModelNotFoundError
 
     registry = MagicMock()
 
@@ -802,7 +802,7 @@ async def test_ws_final_with_word_timestamps() -> None:
 @pytest.mark.integration
 async def test_ws_worker_crash_emits_recoverable_error() -> None:
     """Crash do worker durante streaming emite erro recuperavel via callback."""
-    from Macaw.exceptions import WorkerCrashError
+    from macaw.exceptions import WorkerCrashError
 
     stream_handle = _make_stream_handle_mock(
         events=[WorkerCrashError("worker_1")],

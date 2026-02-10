@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from Macaw.workers.manager import (
+from macaw.workers.manager import (
     MAX_CRASHES_IN_WINDOW,
     WorkerManager,
     WorkerState,
@@ -28,13 +28,13 @@ def _make_mock_process(poll_return: int | None = None) -> MagicMock:
 
 
 class TestSpawnWorker:
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_creates_worker_handle(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             handle = await manager.spawn_worker(
@@ -52,13 +52,13 @@ class TestSpawnWorker:
             # Cleanup
             await manager.stop_all()
 
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_worker_starts_in_starting_state(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.side_effect = Exception("not ready yet")
             handle = await manager.spawn_worker(
@@ -73,13 +73,13 @@ class TestSpawnWorker:
 
             await manager.stop_all()
 
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_get_worker_returns_handle(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             await manager.spawn_worker(
@@ -98,13 +98,13 @@ class TestSpawnWorker:
 
 
 class TestHealthProbe:
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_transitions_to_ready(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             handle = await manager.spawn_worker(
@@ -121,13 +121,13 @@ class TestHealthProbe:
 
             await manager.stop_all()
 
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_stays_starting_when_health_fails(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.side_effect = Exception("Connection refused")
             handle = await manager.spawn_worker(
@@ -144,14 +144,14 @@ class TestHealthProbe:
 
             await manager.stop_all()
 
-    @patch("Macaw.workers.manager.HEALTH_PROBE_TIMEOUT", 1.0)
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.HEALTH_PROBE_TIMEOUT", 1.0)
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_crashes_on_timeout(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.side_effect = Exception("Connection refused")
             handle = await manager.spawn_worker(
@@ -170,14 +170,14 @@ class TestHealthProbe:
 
 
 class TestMonitorWorker:
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_detects_process_crash(self, mock_popen: MagicMock) -> None:
         proc = _make_mock_process(poll_return=None)
         mock_popen.return_value = proc
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
 
@@ -208,14 +208,14 @@ class TestMonitorWorker:
 
             await manager.stop_all()
 
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_does_not_trigger_on_graceful_stop(self, mock_popen: MagicMock) -> None:
         proc = _make_mock_process(poll_return=None)
         mock_popen.return_value = proc
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             handle = await manager.spawn_worker(
@@ -233,14 +233,14 @@ class TestMonitorWorker:
 
 
 class TestAutoRestart:
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_restart_increments_crash_count(self, mock_popen: MagicMock) -> None:
         proc = _make_mock_process(poll_return=None)
         mock_popen.return_value = proc
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             handle = await manager.spawn_worker(
@@ -262,14 +262,14 @@ class TestAutoRestart:
 
             await manager.stop_all()
 
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_exceeding_max_crashes_stays_crashed(self, mock_popen: MagicMock) -> None:
         proc = _make_mock_process(poll_return=None)
         mock_popen.return_value = proc
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             handle = await manager.spawn_worker(
@@ -295,13 +295,13 @@ class TestAutoRestart:
 
 
 class TestStopWorker:
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_sets_stopped_state(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             await manager.spawn_worker(
@@ -317,12 +317,12 @@ class TestStopWorker:
             assert handle is not None
             assert handle.state == WorkerState.STOPPED
 
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_stop_nonexistent_worker_is_noop(self, mock_popen: MagicMock) -> None:
         manager = WorkerManager()
         await manager.stop_worker("nonexistent-99999")
 
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_force_kills_on_timeout(self, mock_popen: MagicMock) -> None:
         proc = _make_mock_process(poll_return=None)
         # Make wait() hang forever to simulate stuck process
@@ -333,10 +333,10 @@ class TestStopWorker:
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
-            with patch("Macaw.workers.manager.STOP_GRACE_PERIOD", 0.2):
+            with patch("macaw.workers.manager.STOP_GRACE_PERIOD", 0.2):
                 await manager.spawn_worker(
                     model_name="large-v3",
                     port=50062,
@@ -351,13 +351,13 @@ class TestStopWorker:
 
 
 class TestStopAll:
-    @patch("Macaw.workers.manager.subprocess.Popen")
+    @patch("macaw.workers.manager.subprocess.Popen")
     async def test_stops_all_workers(self, mock_popen: MagicMock) -> None:
         mock_popen.return_value = _make_mock_process()
         manager = WorkerManager()
 
         with patch(
-            "Macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
             await manager.spawn_worker(

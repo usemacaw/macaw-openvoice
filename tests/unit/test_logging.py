@@ -6,12 +6,12 @@ import json
 
 import structlog
 
-import Macaw.logging as Macaw_logging
+import macaw.logging as macaw_logging
 
 
 def _reset_logging() -> None:
     """Reset do estado global de logging para isolamento entre testes."""
-    Macaw_logging._configured = False
+    macaw_logging._configured = False
     structlog.reset_defaults()
 
 
@@ -23,17 +23,17 @@ class TestGetLogger:
         _reset_logging()
 
     def test_get_logger_returns_bound_logger(self) -> None:
-        logger = Macaw_logging.get_logger("test")
+        logger = macaw_logging.get_logger("test")
         assert isinstance(logger, structlog.stdlib.BoundLogger)
 
     def test_get_logger_binds_component(self) -> None:
-        logger = Macaw_logging.get_logger("worker.stt")
+        logger = macaw_logging.get_logger("worker.stt")
         # Access the bound context via _context
         context = logger._context  # type: ignore[attr-defined]
         assert context.get("component") == "worker.stt"
 
     def test_bind_adds_context(self) -> None:
-        logger = Macaw_logging.get_logger("scheduler")
+        logger = macaw_logging.get_logger("scheduler")
         bound = logger.bind(request_id="req-123")
         context = bound._context  # type: ignore[attr-defined]
         assert context.get("component") == "scheduler"
@@ -48,22 +48,22 @@ class TestConfigureLogging:
         _reset_logging()
 
     def test_configure_idempotent(self) -> None:
-        Macaw_logging.configure_logging(log_format="console", level="DEBUG")
-        assert Macaw_logging._configured is True
+        macaw_logging.configure_logging(log_format="console", level="DEBUG")
+        assert macaw_logging._configured is True
         # Second call should not raise
-        Macaw_logging.configure_logging(log_format="json", level="ERROR")
+        macaw_logging.configure_logging(log_format="json", level="ERROR")
         # Still configured from first call
-        assert Macaw_logging._configured is True
+        assert macaw_logging._configured is True
 
     def test_configure_console_format_no_exception(self) -> None:
-        Macaw_logging.configure_logging(log_format="console", level="INFO")
-        logger = Macaw_logging.get_logger("test")
+        macaw_logging.configure_logging(log_format="console", level="INFO")
+        logger = macaw_logging.get_logger("test")
         # Should not raise
         logger.info("test message")
 
     def test_configure_json_format_has_required_fields(self, capsys: object) -> None:
-        Macaw_logging.configure_logging(log_format="json", level="DEBUG")
-        logger = Macaw_logging.get_logger("test_component")
+        macaw_logging.configure_logging(log_format="json", level="DEBUG")
+        logger = macaw_logging.get_logger("test_component")
         logger.info("test event")
 
         import sys
