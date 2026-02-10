@@ -17,7 +17,7 @@ from macaw.cli.serve import DEFAULT_MODELS_DIR
     "--models-dir",
     default=DEFAULT_MODELS_DIR,
     show_default=True,
-    help="Directory with installed models.",
+    help="Diretorio com os modelos instalados.",
 )
 def list_models(models_dir: str) -> None:
     """Lista modelos instalados."""
@@ -57,7 +57,7 @@ async def _list_models(models_dir: str) -> None:
     "--models-dir",
     default=DEFAULT_MODELS_DIR,
     show_default=True,
-    help="Directory with installed models.",
+    help="Diretorio com os modelos instalados.",
 )
 def inspect(model_name: str, models_dir: str) -> None:
     """Mostra detalhes de um modelo instalado."""

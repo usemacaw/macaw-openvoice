@@ -21,32 +21,32 @@ DEFAULT_WORKER_BASE_PORT = 50051
 
 
 @cli.command()
-@click.option("--host", default=DEFAULT_HOST, show_default=True, help="API Server host.")
-@click.option("--port", default=DEFAULT_PORT, type=int, show_default=True, help="HTTP port.")
+@click.option("--host", default=DEFAULT_HOST, show_default=True, help="Host do API Server.")
+@click.option("--port", default=DEFAULT_PORT, type=int, show_default=True, help="Porta HTTP.")
 @click.option(
     "--models-dir",
     default=DEFAULT_MODELS_DIR,
     show_default=True,
-    help="Directory with installed models.",
+    help="Diretorio com os modelos instalados.",
 )
 @click.option(
     "--cors-origins",
     default="",
-    help="CORS origins (comma-separated). Ex: http://localhost:3000",
+    help="Origens CORS (separadas por virgula). Ex: http://localhost:3000",
 )
 @click.option(
     "--log-format",
     type=click.Choice(["console", "json"]),
     default="console",
     show_default=True,
-    help="Log format.",
+    help="Formato do log.",
 )
 @click.option(
     "--log-level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
     default="INFO",
     show_default=True,
-    help="Log level.",
+    help="Nivel de log.",
 )
 def serve(
     host: str,

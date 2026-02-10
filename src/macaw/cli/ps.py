@@ -15,7 +15,7 @@ from macaw.cli.transcribe import DEFAULT_SERVER_URL
     "--server",
     default=DEFAULT_SERVER_URL,
     show_default=True,
-    help="Macaw server URL.",
+    help="URL do servidor Macaw.",
 )
 def ps(server: str) -> None:
     """Lista modelos carregados no servidor.

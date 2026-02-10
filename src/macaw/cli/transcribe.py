@@ -283,38 +283,38 @@ async def _stream_microphone_async(
 
 @cli.command()
 @click.argument("file", type=click.Path(exists=False), required=False, default=None)
-@click.option("--model", "-m", required=True, help="STT model name.")
+@click.option("--model", "-m", required=True, help="Nome do modelo STT.")
 @click.option(
     "--format",
     "response_format",
     type=click.Choice(["json", "verbose_json", "text", "srt", "vtt"]),
     default="json",
     show_default=True,
-    help="Response format.",
+    help="Formato da resposta.",
 )
-@click.option("--language", "-l", default=None, help="ISO 639-1 language code.")
+@click.option("--language", "-l", default=None, help="Codigo de idioma ISO 639-1.")
 @click.option(
     "--no-itn",
     is_flag=True,
     default=False,
-    help="Disable Inverse Text Normalization.",
+    help="Desativa ITN (Inverse Text Normalization).",
 )
 @click.option(
     "--hot-words",
     default=None,
-    help="Comma-separated hot words list (e.g., PIX,TED,Selic).",
+    help="Lista de hot words separadas por virgula (ex: PIX,TED,Selic).",
 )
 @click.option(
     "--stream",
     is_flag=True,
     default=False,
-    help="Real-time microphone streaming via WebSocket.",
+    help="Streaming em tempo real via microfone/WebSocket.",
 )
 @click.option(
     "--server",
     default=DEFAULT_SERVER_URL,
     show_default=True,
-    help="Macaw server URL.",
+    help="URL do servidor Macaw.",
 )
 def transcribe(
     file: str | None,
@@ -355,31 +355,31 @@ def transcribe(
 
 @cli.command()
 @click.argument("file", type=click.Path(exists=False))
-@click.option("--model", "-m", required=True, help="STT model name.")
+@click.option("--model", "-m", required=True, help="Nome do modelo STT.")
 @click.option(
     "--format",
     "response_format",
     type=click.Choice(["json", "verbose_json", "text", "srt", "vtt"]),
     default="json",
     show_default=True,
-    help="Response format.",
+    help="Formato da resposta.",
 )
 @click.option(
     "--no-itn",
     is_flag=True,
     default=False,
-    help="Disable Inverse Text Normalization.",
+    help="Desativa ITN (Inverse Text Normalization).",
 )
 @click.option(
     "--hot-words",
     default=None,
-    help="Comma-separated hot words list (e.g., PIX,TED,Selic).",
+    help="Lista de hot words separadas por virgula (ex: PIX,TED,Selic).",
 )
 @click.option(
     "--server",
     default=DEFAULT_SERVER_URL,
     show_default=True,
-    help="Macaw server URL.",
+    help="URL do servidor Macaw.",
 )
 def translate(
     file: str,

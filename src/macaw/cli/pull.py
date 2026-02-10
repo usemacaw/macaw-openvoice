@@ -16,23 +16,16 @@ from macaw.cli.serve import DEFAULT_MODELS_DIR
     "--models-dir",
     default=DEFAULT_MODELS_DIR,
     show_default=True,
-    help="Directory to install models.",
+    help="Diretorio onde os modelos serao instalados.",
 )
 @click.option(
     "--force",
     is_flag=True,
     default=False,
-    help="Overwrite existing model.",
+    help="Sobrescreve modelo existente.",
 )
 def pull(model_name: str, models_dir: str, force: bool) -> None:
-    """Download a model from the HuggingFace Hub.
-
-    Available models: faster-whisper-tiny, faster-whisper-small,
-    faster-whisper-medium, faster-whisper-large-v3, distil-whisper-large-v3,
-    kokoro-v1.
-
-    Example: macaw pull faster-whisper-tiny
-    """
+    """Baixa um modelo do HuggingFace Hub."""
     from pathlib import Path
 
     from macaw.registry.catalog import ModelCatalog
@@ -43,7 +36,7 @@ def pull(model_name: str, models_dir: str, force: bool) -> None:
     try:
         catalog.load()
     except (FileNotFoundError, ValueError) as e:
-        click.echo(f"Error loading catalog: {e}", err=True)
+        click.echo(f"Erro ao carregar o catalogo: {e}", err=True)
         sys.exit(1)
 
     # Check if model exists in the catalog

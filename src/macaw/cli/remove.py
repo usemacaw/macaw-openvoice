@@ -16,20 +16,17 @@ from macaw.cli.serve import DEFAULT_MODELS_DIR
     "--models-dir",
     default=DEFAULT_MODELS_DIR,
     show_default=True,
-    help="Directory with installed models.",
+    help="Diretorio com os modelos instalados.",
 )
 @click.option(
     "--yes",
     "-y",
     is_flag=True,
     default=False,
-    help="Confirm removal without prompting.",
+    help="Confirma a remocao sem perguntar.",
 )
 def remove(model_name: str, models_dir: str, yes: bool) -> None:
-    """Remove an installed model.
-
-    Example: macaw remove faster-whisper-tiny
-    """
+    """Remove um modelo instalado."""
     from pathlib import Path
 
     from macaw.registry.downloader import ModelDownloader
