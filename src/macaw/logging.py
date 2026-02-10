@@ -1,5 +1,6 @@
 """Structured logging for Macaw OpenVoice.
 
+
 Uses structlog with stdlib logging as the backend. Two formats:
 - console: human-readable for development (default)
 - json: structured for production
