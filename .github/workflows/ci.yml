@@ -64,6 +64,9 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev,grpc]"
 
+      - name: Generate protobuf stubs
+        run: bash scripts/generate_proto.sh
+
       - name: Integration tests
         run: python -m pytest tests/ -v -m integration
         timeout-minutes: 10
