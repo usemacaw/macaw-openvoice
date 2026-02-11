@@ -3,17 +3,17 @@
 from __future__ import annotations
 
 import struct
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Ensure `src/` is on sys.path so tests can import the `macaw` package
 # when running pytest from the repository root without an editable install.
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-import pytest
+import pytest  # noqa: E402
 
-from macaw._types import BatchResult, SegmentDetail, WordTimestamp
+from macaw._types import BatchResult, SegmentDetail, WordTimestamp  # noqa: E402
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 AUDIO_DIR = FIXTURES_DIR / "audio"

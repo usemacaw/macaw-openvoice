@@ -9,16 +9,18 @@ Marcado como @pytest.mark.integration — requer `openai` instalado.
 from __future__ import annotations
 
 import io
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import httpx
 import pytest
 
-from fastapi import FastAPI
-
 from macaw._types import BatchResult, SegmentDetail, WordTimestamp
 from macaw.server.app import create_app
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI
 
 
 def _make_batch_result() -> BatchResult:
