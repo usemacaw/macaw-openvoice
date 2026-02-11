@@ -54,7 +54,7 @@ log_step()  { echo -e "${CYAN}[STEP]${NC}  $*"; }
 echo -e "${BOLD}"
 echo "  ╔══════════════════════════════════════════════╗"
 echo "  ║         Macaw OpenVoice — Demo                ║"
-echo "  ║   Unified voice runtime (STT + TTS)           ║"
+echo "  ║    Voice runtime (STT + TTS)           ║"
 echo "  ╚══════════════════════════════════════════════╝"
 echo -e "${NC}"
 

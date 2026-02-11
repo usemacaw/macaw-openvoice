@@ -1,3 +1,3 @@
-"""Macaw OpenVoice -- Unified voice runtime (STT + TTS)."""
+"""Macaw OpenVoice -- Voice runtime (STT + TTS)."""
 
 __version__ = "0.1.0"
