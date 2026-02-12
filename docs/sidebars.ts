@@ -15,6 +15,17 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Supported Models',
+      items: [
+        'models/index',
+        'models/faster-whisper',
+        'models/wenet',
+        'models/kokoro',
+        'models/silero-vad',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Guides',
       items: [
         'guides/batch-transcription',
