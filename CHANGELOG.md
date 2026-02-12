@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CNAME file for GitHub Pages custom domain (`docs.usemacaw.io`) (#docs)
 - DNS setup guide (`docs/DNS_SETUP.md`) for migrating docs to `docs.usemacaw.io` (#docs)
 
+### Fixed
+- Protobuf stubs (`*_pb2.py`) ausentes no wheel PyPI causavam `ModuleNotFoundError` ao rodar `macaw serve` — adicionado hatch build hook que gera os stubs automaticamente durante o build (#build)
+- Kokoro TTS `languages` no catálogo listava apenas 3 idiomas (en, pt, ja) mas o backend suporta 8 — atualizado para en, es, fr, hi, it, ja, pt, zh (#catalog)
+
 ### Changed
 - Docusaurus config prepared for custom domain migration to `docs.usemacaw.io` (#docs)
 - Imagem Docker CPU agora é apenas `linux/amd64` — `pynini` (dependência de ITN) não publica wheels arm64 e requer OpenFst compilado from source (#release-ci)

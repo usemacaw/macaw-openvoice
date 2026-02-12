@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "grpcio-tools>=1.68,<2.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -111,6 +111,8 @@ Changelog = "https://github.com/usemacaw/macaw-openvoice/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/macaw"]
+
+[tool.hatch.build.hooks.custom]
 
 [tool.ruff]
 target-version = "py311"

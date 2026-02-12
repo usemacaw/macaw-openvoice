@@ -197,7 +197,7 @@ models:
       description: "Kokoro TTS - neural text-to-speech"
       capabilities:
         streaming: true
-        languages: ["en", "pt", "ja"]
+        languages: ["en", "es", "fr", "hi", "it", "ja", "pt", "zh"]
       resources:
         memory_mb: 512
         gpu_required: false

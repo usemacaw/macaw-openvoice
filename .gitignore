@@ -47,6 +47,7 @@ Thumbs.db
 .env
 .env.*
 
+
 # gRPC generated
 src/macaw/proto/*_pb2.py
 src/macaw/proto/*_pb2_grpc.py
