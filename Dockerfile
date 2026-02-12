@@ -6,6 +6,10 @@
 # ── Stage 1: build ──────────────────────────────────────────────
 FROM python:3.12-slim AS builder
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 RUN pip install --no-cache-dir uv

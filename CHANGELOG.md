@@ -8,8 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- Corrigido namespace Docker inconsistente no release.yml (useMacaw -> macaw-voice) para CPU e GPU builds (#release-ci)
-- Corrigido caminho do volume de modelos nos Dockerfiles (/root/.Macaw -> /root/.macaw) (#release-ci)
+- Build de imagens Docker falhava porque `cdifflib` (dependência transitiva de `nemo-text-processing`) requer compilador C — adicionado `gcc`/`g++` no builder stage dos Dockerfiles CPU e GPU (#release-ci)
+
+## [0.1.1] - 2026-02-12
 
 ### Added
 - Cache de pip no CI para acelerar builds (#release-ci)
@@ -38,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ollama-specific deploy scripts: `tag_latest.sh`, `push_docker.sh`, `.this-is-the-create-dmg-repo` (#install-scripts)
 
 ### Fixed
+- Corrigido namespace Docker inconsistente no release.yml (useMacaw -> macaw-voice) para CPU e GPU builds (#release-ci)
+- Corrigido caminho do volume de modelos nos Dockerfiles (/root/.Macaw -> /root/.macaw) (#release-ci)
 - Package metadata layout in `pyproject.toml` to keep dependencies out of `project.urls` (#release-oss)
 - Restored `scripts/generate_proto.sh` for CI proto stub verification (#release-oss)
 - Mypy config for optional dependencies in CI (FastAPI, Prometheus, Uvicorn) (#release-oss)
