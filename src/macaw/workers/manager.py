@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from dataclasses import dataclass, field
+from enum import Enum
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
-from pathlib import Path
-from dataclasses import dataclass, field
-from enum import Enum
 
 from macaw.logging import get_logger
 
@@ -164,7 +164,7 @@ class WorkerManager:
                     asyncio.get_running_loop().run_in_executor(None, process.wait),
                     timeout=STOP_GRACE_PERIOD,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("worker_force_kill", worker_id=worker_id)
                 process.kill()
                 try:
@@ -172,7 +172,7 @@ class WorkerManager:
                         asyncio.get_running_loop().run_in_executor(None, process.wait),
                         timeout=STOP_GRACE_PERIOD,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("worker_force_kill_timeout", worker_id=worker_id)
 
         handle.state = WorkerState.STOPPED
