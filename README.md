@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/static/img/logo-256.png" alt="Macaw OpenVoice" width="128" />
+  <img src="https://macaw-voice.github.io//macaw-openvoice/img/logo-256.png" alt="Macaw OpenVoice" width="128" />
 </p>
 
 <h1 align="center">Macaw OpenVoice</h1>

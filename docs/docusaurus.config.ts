@@ -71,7 +71,7 @@ const config: Config = {
       title: 'Macaw OpenVoice',
       logo: {
         alt: 'Macaw OpenVoice Logo',
-        src: 'img/logo.svg',
+        src: 'img/logo-64.png',
       },
       items: [
         {
