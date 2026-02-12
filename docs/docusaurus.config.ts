@@ -11,7 +11,11 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://docs.usemacaw.io',
+  // When docs.usemacaw.io DNS is configured, change to:
+  //   url: 'https://docs.usemacaw.io',
+  //   baseUrl: '/',
+  // See docs/DNS_SETUP.md for migration steps.
+  url: 'http://docs.usemacaw.io',
   baseUrl: '/',
 
   organizationName: 'usemacaw',
