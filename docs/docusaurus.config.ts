@@ -12,7 +12,7 @@ const config: Config = {
   },
 
   url: 'https://macawvoice.github.io',
-  baseUrl: '/',
+  baseUrl: '/macaw-openvoice/',
 
   organizationName: 'usemacaw',
   projectName: 'macaw-openvoice',
