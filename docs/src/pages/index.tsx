@@ -11,36 +11,136 @@ function HomepageHeader() {
 
   return (
     <header className={styles.heroBanner}>
+      <div className={styles.heroGlow} />
       <div className={styles.heroInner}>
         <div className={styles.heroCopy}>
-          <p className={styles.heroEyebrow}>Macaw OpenVoice</p>
+          <p className={styles.heroEyebrow}>Open-Source Voice Runtime</p>
           <Heading as="h1" className={styles.heroTitle}>
-            Runtime for streaming speech.
+            Build voice apps{' '}
+            <span className={styles.heroHighlight}>in minutes,</span>{' '}
+            not months
           </Heading>
-          <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
+          <p className={styles.heroSubtitle}>
+            Macaw OpenVoice is a production-ready runtime for real-time speech-to-text and
+            text-to-speech. Drop-in OpenAI API compatibility, streaming WebSocket support,
+            and multi-engine architecture — all in a single Python process.
+          </p>
           <div className={styles.heroActions}>
             <Link className="button button--primary button--lg" to="/docs/getting-started/quickstart">
               Get Started
             </Link>
-            <Link className="button button--outline button--lg" to="https://github.com/useMacaw/Macaw-openvoice">
-              View on GitHub
+            <Link className="button button--outline button--lg" to="/docs/intro">
+              Read the Docs
             </Link>
+          </div>
+          <div className={styles.heroMeta}>
+            <span className={styles.heroBadge}>Python 3.11+</span>
+            <span className={styles.heroBadge}>Apache 2.0</span>
+            <span className={styles.heroBadge}>1600+ tests</span>
           </div>
         </div>
         <div className={styles.heroCard}>
-          <p className={styles.heroCardTitle}>Quick start</p>
+          <div className={styles.heroCardHeader}>
+            <span className={styles.heroCardDot} />
+            <span className={styles.heroCardDot} />
+            <span className={styles.heroCardDot} />
+            <span className={styles.heroCardLabel}>terminal</span>
+          </div>
           <pre className={styles.heroCode}>
-            <code>{`pip install Macaw-openvoice[server,grpc,faster-whisper]
+            <code>{`$ pip install macaw-openvoice[server,grpc,faster-whisper]
 
-Macaw serve
+$ macaw serve
+  ╔═══════════════════════════════════════╗
+  ║       Macaw OpenVoice v1.0.0         ║
+  ╚═══════════════════════════════════════╝
+  INFO  Found 2 model(s)
+  INFO  STT worker ready   port=50051
+  INFO  TTS worker ready   port=50052
+  INFO  Uvicorn running on http://127.0.0.1:8000
 
-curl -X POST http://localhost:8000/v1/audio/transcriptions \
-  -F file=@audio.wav \
-  -F model=faster-whisper-large-v3`}</code>
+$ curl -X POST localhost:8000/v1/audio/transcriptions \\
+    -F file=@audio.wav -F model=faster-whisper-tiny
+
+{"text": "Hello, how can I help you today?"}`}</code>
           </pre>
         </div>
       </div>
     </header>
+  );
+}
+
+function CompatibilitySection() {
+  return (
+    <section className={styles.compatSection}>
+      <div className="container">
+        <div className={styles.compatGrid}>
+          <div className={styles.compatCopy}>
+            <Heading as="h2" className={styles.sectionTitle}>
+              OpenAI SDK compatible
+            </Heading>
+            <p className={styles.sectionSubtitle}>
+              Existing OpenAI client libraries work out of the box.
+              Just point <code>base_url</code> to your Macaw server.
+            </p>
+          </div>
+          <div className={styles.compatCode}>
+            <pre className={styles.heroCode}>
+              <code>{`from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="not-needed"
+)
+
+result = client.audio.transcriptions.create(
+    model="faster-whisper-tiny",
+    file=open("audio.wav", "rb"),
+)
+print(result.text)`}</code>
+            </pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ArchitectureSection() {
+  return (
+    <section className={styles.archSection}>
+      <div className="container">
+        <Heading as="h2" className={styles.sectionTitle}>
+          Architecture at a glance
+        </Heading>
+        <p className={styles.sectionSubtitle}>
+          A single runtime orchestrates isolated gRPC workers per engine.
+          Workers crash independently — the runtime recovers automatically.
+        </p>
+        <pre className={styles.archDiagram}>
+          <code>{`              Clients (REST / WebSocket / CLI)
+                          │
+              ┌───────────┴───────────┐
+              │     API Server        │
+              │  (FastAPI + Uvicorn)  │
+              └───────────┬───────────┘
+                          │
+              ┌───────────┴───────────┐
+              │      Scheduler        │
+              │  Priority · Batching  │
+              │  Cancellation · TTFB  │
+              └─────┬─────────┬───────┘
+                    │         │
+           ┌────────┴──┐  ┌───┴────────┐
+           │ STT Worker │  │ TTS Worker │
+           │  (gRPC)    │  │  (gRPC)    │
+           ├────────────┤  ├────────────┤
+           │ Faster-    │  │ Kokoro     │
+           │ Whisper    │  └────────────┘
+           │ WeNet      │
+           └────────────┘`}</code>
+        </pre>
+      </div>
+    </section>
   );
 }
 
@@ -49,39 +149,13 @@ export default function Home(): ReactNode {
 
   return (
     <Layout
-      title={`${siteConfig.title}`}
-      description="Voice runtime (STT + TTS) with OpenAI-compatible API">
+      title="Build voice apps in minutes"
+      description="Real-time Speech-to-Text and Text-to-Speech with OpenAI-compatible API, streaming session control, and extensible execution architecture.">
       <HomepageHeader />
       <main>
-        <section className={styles.section}>
-          <div className="container">
-            <div className={styles.sectionIntro}>
-              <Heading as="h2" className={styles.sectionTitle}>
-                Built for real-time voice pipelines
-              </Heading>
-              <p className={styles.sectionSubtitle}>
-                A single runtime that handles streaming STT, TTS, VAD, preprocessing, and scheduling.
-              </p>
-            </div>
-          </div>
-        </section>
         <HomepageFeatures />
-        <section className={styles.sectionAlt}>
-          <div className="container">
-            <Heading as="h2" className={styles.sectionTitle}>
-              Architecture snapshot
-            </Heading>
-            <p className={styles.sectionSubtitle}>
-              STT and TTS share a single server with isolated gRPC workers per engine.
-            </p>
-            <pre className={styles.archDiagram}>
-              <code>{`Clients -> API Server -> Scheduler -> gRPC Workers
-                         |              |
-                         |              +-> TTS (Kokoro)
-                         +-> STT (Faster-Whisper, WeNet)`}</code>
-            </pre>
-          </div>
-        </section>
+        <CompatibilitySection />
+        <ArchitectureSection />
       </main>
     </Layout>
   );

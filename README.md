@@ -18,7 +18,7 @@
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
-  <a href="#features">Features</a> &middot;
+  <a href="#core-capabilities">Core Capabilities</a> &middot;
   <a href="#architecture">Architecture</a> &middot;
   <a href="#api-compatibility">API Docs</a> &middot;
   <a href="#demo">Demo</a> &middot;
@@ -27,25 +27,97 @@
 
 ---
 
-Macaw OpenVoice is a **voice runtime built from scratch** in Python. It orchestrates inference engines (Faster-Whisper, WeNet, Silero VAD, Kokoro) within a single process and serves both STT and TTS through an OpenAI-compatible API and an Ollama-inspired CLI.
+**Production Voice Runtime Infrastructure**
+Real-time Speech-to-Text and Text-to-Speech with OpenAI-compatible API, streaming session control, and extensible execution architecture.
 
-Macaw is **not** a fork, wrapper, or extension of existing projects. It is the **runtime layer** that sits between inference engines and production: session management, preprocessing, post-processing, scheduling, observability, and a unified CLI.
+
+## Overview
+
+**Macaw OpenVoice is a production-grade runtime for voice systems.**
+
+It standardizes and operationalizes the execution of Speech-to-Text (STT) and Text-to-Speech (TTS) models in real environments by providing:
+
+* a unified execution interface for multiple inference engines
+* real-time audio streaming with controlled latency
+* continuous session management
+* bidirectional speech interaction
+* operational observability
+* production-ready APIs
+
+Macaw acts as the **infrastructure layer between voice models and production applications**, abstracting complexity related to streaming, synchronization, state management, and execution control.
 
 
-## Features
 
-- **OpenAI-compatible API** — `POST /v1/audio/transcriptions`, `/translations`, `/speech`, `WS /v1/realtime`
-- **Full-duplex STT + TTS** — simultaneous speech-to-text and text-to-speech on the same WebSocket
-- **Real-time streaming** — partial and final transcripts via WebSocket with <300ms TTFB
-- **Multi-engine** — Faster-Whisper (encoder-decoder), WeNet (CTC), Kokoro (TTS) with a single interface
-- **Session Manager** — 6-state machine, ring buffer, WAL, crash recovery without segment duplication
-- **Voice Activity Detection** — Silero VAD + energy pre-filter, sensitivity levels (high/normal/low)
-- **Audio preprocessing** — resample, DC remove, gain normalize (any sample rate to 16kHz)
-- **Post-processing** — Inverse Text Normalization via NeMo ("dois mil" to "2000")
-- **Mute-on-speak** — STT pauses during TTS to prevent feedback loops
-- **Hot words** — domain-specific keyword boosting per session
-- **CLI** — `macaw serve`, `macaw transcribe`, `macaw translate`, `macaw list` (Ollama-style UX)
-- **Observability** — Prometheus metrics for TTFB, session duration, VAD events, TTS latency
+## Technology Positioning
+
+Macaw OpenVoice plays the same role for voice systems that:
+
+* **vLLM** plays for LLM serving
+* **Triton Inference Server** plays for GPU inference
+* **Ollama** plays for local model execution
+
+It transforms voice models into operational services.
+
+---
+
+## Core Capabilities
+
+### Unified Interface
+
+* OpenAI-compatible Audio API
+* Real-time full-duplex WebSocket streaming
+* Local runtime CLI
+
+### Bidirectional Speech Streaming
+
+* simultaneous STT and TTS in the same session
+* automatic speech detection
+* barge-in support (interruptible speech)
+* automatic mute during synthesis
+
+### Session Management
+
+* state machine for continuous audio processing
+* ring buffer with persistence
+* crash recovery without context loss
+* cross-segment coherence
+
+### Audio Processing Pipeline
+
+* automatic resampling
+* DC offset removal
+* gain normalization
+* voice activity detection
+
+### Multi-Engine Execution
+
+* multiple STT and TTS engines
+* subprocess isolation
+* declarative model registry
+* pluggable architecture
+
+### Operational Control
+
+* priority-based scheduler
+* dynamic batching
+* latency tracking
+* Prometheus metrics
+
+---
+
+## Production Use Cases
+
+Macaw is designed for real-world voice workloads:
+
+* real-time conversational voice agents
+* telephony automation (SIP / VoIP)
+* live transcription systems
+* embedded voice interfaces
+* multimodal assistants
+* interactive media streaming
+* continuous audio processing pipelines
+
+---
 
 ## Quick Start
 
@@ -251,14 +323,14 @@ make ci          # full pipeline: format + lint + typecheck + test
 
 ## Documentation
 
-Full documentation is available at **[macaw-voice.github.io/macaw-openvoice](https://macaw-voice.github.io/macaw-openvoice)**.
+Full documentation is available at **[macaw-voice.github.io](https://macaw-voice.github.io)**.
 
-- [Getting Started](https://macaw-voice.github.io/macaw-openvoice/docs/getting-started/installation)
-- [Streaming Guide](https://macaw-voice.github.io/macaw-openvoice/docs/guides/streaming-stt)
-- [Full-Duplex Guide](https://macaw-voice.github.io/macaw-openvoice/docs/guides/full-duplex)
-- [Adding an Engine](https://macaw-voice.github.io/macaw-openvoice/docs/guides/adding-engine)
-- [API Reference](https://macaw-voice.github.io/macaw-openvoice/docs/api-reference/rest-api)
-- [Architecture](https://macaw-voice.github.io/macaw-openvoice/docs/architecture/overview)
+- [Getting Started](https://macaw-voice.github.io/docs/getting-started/installation)
+- [Streaming Guide](https://macaw-voice.github.io/docs/guides/streaming-stt)
+- [Full-Duplex Guide](https://macaw-voice.github.io/docs/guides/full-duplex)
+- [Adding an Engine](https://macaw-voice.github.io/docs/guides/adding-engine)
+- [API Reference](https://macaw-voice.github.io/docs/api-reference/rest-api)
+- [Architecture](https://macaw-voice.github.io/docs/architecture/overview)
 
 ## Contributing
 

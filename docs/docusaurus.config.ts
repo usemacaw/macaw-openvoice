@@ -2,35 +2,24 @@ import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
-
 const config: Config = {
   title: 'Macaw OpenVoice',
-  tagline: 'Voice runtime (STT + TTS) with OpenAI-compatible API',
+  tagline: 'Real-time Speech-to-Text and Text-to-Speech with OpenAI-compatible API, streaming session control, and extensible execution architecture',
   favicon: 'img/favicon.ico',
 
-  // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
-    v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    v4: true,
   },
 
-  // Set the production url of your site here
   url: 'https://macawvoice.github.io',
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/macaw-openvoice/',
+  baseUrl: '/',
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
   organizationName: 'macaw-voice',
   projectName: 'macaw-openvoice',
   trailingSlash: false,
 
   onBrokenLinks: 'throw',
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
@@ -42,7 +31,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/macaw-voice/macaw-openvoice/edit/main/website/',
+          editUrl: 'https://github.com/macaw-voice/macaw-openvoice/edit/main/docs/',
         },
         blog: false,
         theme: {
@@ -64,13 +53,20 @@ const config: Config = {
 
   themeConfig: {
     colorMode: {
-      respectPrefersColorScheme: true,
-      defaultMode: 'light',
+      defaultMode: 'dark',
+      respectPrefersColorScheme: false,
+    },
+    announcementBar: {
+      id: 'star_us',
+      content: 'If you like Macaw OpenVoice, give us a <a target="_blank" rel="noopener noreferrer" href="https://github.com/macaw-voice/macaw-openvoice">star on GitHub</a>!',
+      backgroundColor: '#FDD614',
+      textColor: '#0e1017',
+      isCloseable: true,
     },
     navbar: {
       title: 'Macaw OpenVoice',
       logo: {
-        alt: 'Macaw OpenVoice Logo',
+        alt: 'Macaw OpenVoice',
         src: 'img/logo-64.png',
       },
       items: [
@@ -79,6 +75,12 @@ const config: Config = {
           docId: 'intro',
           position: 'left',
           label: 'Docs',
+        },
+        {
+          type: 'doc',
+          docId: 'getting-started/quickstart',
+          position: 'left',
+          label: 'Quickstart',
         },
         {
           type: 'doc',
@@ -103,12 +105,25 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Docs',
+          title: 'Learn',
           items: [
             {
-              label: 'Getting Started',
+              label: 'Welcome',
+              to: '/docs/intro',
+            },
+            {
+              label: 'Quickstart',
+              to: '/docs/getting-started/quickstart',
+            },
+            {
+              label: 'Installation',
               to: '/docs/getting-started/installation',
             },
+          ],
+        },
+        {
+          title: 'Guides',
+          items: [
             {
               label: 'Streaming STT',
               to: '/docs/guides/streaming-stt',
@@ -117,27 +132,31 @@ const config: Config = {
               label: 'Full-Duplex',
               to: '/docs/guides/full-duplex',
             },
+            {
+              label: 'Adding an Engine',
+              to: '/docs/guides/adding-engine',
+            },
+          ],
+        },
+        {
+          title: 'Reference',
+          items: [
+            {
+              label: 'REST API',
+              to: '/docs/api-reference/rest-api',
+            },
+            {
+              label: 'WebSocket Protocol',
+              to: '/docs/api-reference/websocket-protocol',
+            },
+            {
+              label: 'Architecture',
+              to: '/docs/architecture/overview',
+            },
           ],
         },
         {
           title: 'Community',
-          items: [
-            {
-              label: 'Contributing',
-              to: '/docs/community/contributing',
-            },
-            {
-              label: 'Changelog',
-              to: '/docs/community/changelog',
-            },
-            {
-              label: 'Roadmap',
-              to: '/docs/community/roadmap',
-            },
-          ],
-        },
-        {
-          title: 'More',
           items: [
             {
               label: 'GitHub',
@@ -147,14 +166,23 @@ const config: Config = {
               label: 'Issues',
               href: 'https://github.com/macaw-voice/macaw-openvoice/issues',
             },
+            {
+              label: 'Contributing',
+              to: '/docs/community/contributing',
+            },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Macaw Team. Built with Docusaurus.`,
+      copyright: `Copyright \u00A9 ${new Date().getFullYear()} Macaw Team. Apache 2.0 License.`,
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: ['bash', 'python', 'json', 'yaml', 'toml', 'protobuf'],
+    },
+    tableOfContents: {
+      minHeadingLevel: 2,
+      maxHeadingLevel: 4,
     },
   } satisfies Preset.ThemeConfig,
 };

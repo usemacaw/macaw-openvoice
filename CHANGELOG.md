@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build de imagens Docker falhava porque `cdifflib` (dependência transitiva de `nemo-text-processing`) requer compilador C — adicionado `gcc`/`g++` no builder stage dos Dockerfiles CPU e GPU (#release-ci)
 - Testes de integração falhavam no CI porque o job não instalava o extra `faster-whisper` — adicionado `.[dev,grpc,faster-whisper]` no job integration (#ci)
 - Build da imagem Docker GPU falhava porque Ubuntu 22.04 não tem Python 3.12 nos repos oficiais — adicionado PPA `deadsnakes` nos stages builder e runtime (#release-ci)
+- Build da imagem Docker GPU falhava porque `pip` do sistema (Python 3.10) não funciona com Python 3.12 (`distutils` removido) — substituído por `python3.12 -m ensurepip` + `python3.12 -m pip` e removido `python3-pip` do apt (#release-ci)
 
 ### Changed
 - Imagem Docker CPU agora é apenas `linux/amd64` — `pynini` (dependência de ITN) não publica wheels arm64 e requer OpenFst compilado from source (#release-ci)
