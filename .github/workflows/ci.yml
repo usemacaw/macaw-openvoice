@@ -62,7 +62,7 @@ jobs:
           cache-dependency-path: 'pyproject.toml'
 
       - name: Install dependencies
-        run: pip install -e ".[dev,grpc]"
+        run: pip install -e ".[dev,grpc,faster-whisper]"
 
       - name: Generate protobuf stubs
         run: bash scripts/generate_proto.sh
