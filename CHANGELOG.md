@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Build de imagens Docker falhava porque `cdifflib` (dependência transitiva de `nemo-text-processing`) requer compilador C — adicionado `gcc`/`g++` no builder stage dos Dockerfiles CPU e GPU (#release-ci)
 
+### Changed
+- Imagem Docker CPU agora é apenas `linux/amd64` — `pynini` (dependência de ITN) não publica wheels arm64 e requer OpenFst compilado from source (#release-ci)
+
 ## [0.1.1] - 2026-02-12
 
 ### Added
