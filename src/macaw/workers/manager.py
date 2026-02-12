@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 from macaw.logging import get_logger
 
@@ -27,7 +29,7 @@ MAX_CRASHES_IN_WINDOW = 3
 CRASH_WINDOW_SECONDS = 60.0
 HEALTH_PROBE_INITIAL_DELAY = 0.5
 HEALTH_PROBE_MAX_DELAY = 5.0
-HEALTH_PROBE_TIMEOUT = 30.0
+HEALTH_PROBE_TIMEOUT = 120.0
 STOP_GRACE_PERIOD = 5.0
 MONITOR_INTERVAL = 1.0
 
@@ -162,10 +164,16 @@ class WorkerManager:
                     asyncio.get_running_loop().run_in_executor(None, process.wait),
                     timeout=STOP_GRACE_PERIOD,
                 )
-            except TimeoutError:
+            except asyncio.TimeoutError:  # noqa: UP041
                 logger.warning("worker_force_kill", worker_id=worker_id)
                 process.kill()
-                await asyncio.get_running_loop().run_in_executor(None, process.wait)
+                try:
+                    await asyncio.wait_for(
+                        asyncio.get_running_loop().run_in_executor(None, process.wait),
+                        timeout=STOP_GRACE_PERIOD,
+                    )
+                except asyncio.TimeoutError:  # noqa: UP041
+                    logger.warning("worker_force_kill_timeout", worker_id=worker_id)
 
         handle.state = WorkerState.STOPPED
         logger.info("worker_stopped", worker_id=worker_id)
@@ -389,10 +397,18 @@ def _spawn_worker_process(
         Popen handle for the created process.
     """
     cmd = _build_worker_cmd(port, engine, model_path, engine_config, worker_type=worker_type)
+    src_dir = Path(__file__).resolve().parents[2]
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH")
+    if existing_pythonpath:
+        env["PYTHONPATH"] = f"{src_dir}{os.pathsep}{existing_pythonpath}"
+    else:
+        env["PYTHONPATH"] = str(src_dir)
     return subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
+        env=env,
     )
 
 

@@ -116,6 +116,9 @@ def _stream_microphone(
     )
 
 
+_STREAM_MICROPHONE_IMPL = _stream_microphone
+
+
 async def _stream_microphone_async(
     server_url: str,
     model: str,
@@ -328,7 +331,10 @@ def transcribe(
 ) -> None:
     """Transcreve um arquivo de audio."""
     if stream:
-        _stream_microphone(
+        stream_handler = getattr(transcribe, "_stream_microphone", _stream_microphone)
+        if stream_handler is _STREAM_MICROPHONE_IMPL:
+            stream_handler = _stream_microphone
+        stream_handler(
             server_url=server,
             model=model,
             language=language,
@@ -351,6 +357,9 @@ def transcribe(
         itn=not no_itn,
         hot_words=hot_words,
     )
+
+
+transcribe._stream_microphone = _stream_microphone
 
 
 @cli.command()

@@ -1,7 +1,8 @@
 # Reference projects (study only, not part of Macaw)
 examples/speaches/
 examples/ollama/
-docs_bkp
+roadmap/
+docs/
 # Claude Code
 .claude/
 logs.txt

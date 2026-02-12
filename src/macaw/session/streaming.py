@@ -342,7 +342,7 @@ class StreamingSession:
         if self._receiver_task is not None and not self._receiver_task.done():
             try:
                 await asyncio.wait_for(self._receiver_task, timeout=5.0)
-            except TimeoutError:
+            except asyncio.TimeoutError:  # noqa: UP041
                 logger.warning(
                     "commit_receiver_task_timeout",
                     session_id=self._session_id,
@@ -640,7 +640,7 @@ class StreamingSession:
         if self._receiver_task is not None and not self._receiver_task.done():
             try:
                 await asyncio.wait_for(self._receiver_task, timeout=5.0)
-            except TimeoutError:
+            except asyncio.TimeoutError:  # noqa: UP041
                 logger.warning(
                     "receiver_task_timeout",
                     session_id=self._session_id,
@@ -936,7 +936,7 @@ class StreamingSession:
                 self._grpc_client.open_stream(self._session_id),
                 timeout=self._recovery_timeout_s,
             )
-        except (TimeoutError, WorkerCrashError) as exc:
+        except (asyncio.TimeoutError, WorkerCrashError) as exc:  # noqa: UP041
             logger.error(
                 "recovery_open_stream_failed",
                 session_id=self._session_id,
@@ -1011,7 +1011,7 @@ class StreamingSession:
         if self._receiver_task is not None and not self._receiver_task.done():
             try:
                 await asyncio.wait_for(self._receiver_task, timeout=2.0)
-            except TimeoutError:
+            except asyncio.TimeoutError:  # noqa: UP041
                 self._receiver_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await self._receiver_task

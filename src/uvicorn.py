@@ -7,7 +7,7 @@ environments where uvicorn isn't installed.
 
 The shim is simple: Server.serve() is an async coroutine that sets
 `started = True` and waits until `should_exit` becomes truthy.
-force build release 
+force build release
 """
 
 from __future__ import annotations

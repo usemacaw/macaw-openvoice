@@ -8,11 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- End-to-end demo notebook (`e2e_test.ipynb`) covering all CLI commands, REST API endpoints, and WebSocket protocols — client-facing, zero internal imports (#e2e)
 - Website (usemacaw.io) and contact email (hello@usemacaw.io) documented across README, docs site, contributing guides, and security policy (#docs)
+- CNAME file for GitHub Pages custom domain (`docs.usemacaw.io`) (#docs)
+- DNS setup guide (`docs/DNS_SETUP.md`) for migrating docs to `docs.usemacaw.io` (#docs)
 
 ### Changed
-- All documentation links migrated from `usemacaw.github.io` to `docs.usemacaw.io` (#docs)
-- Docusaurus site URL updated from `macawvoice.github.io/macaw-openvoice/` to `docs.usemacaw.io` (#docs)
+- Docusaurus config prepared for custom domain migration to `docs.usemacaw.io` (#docs)
+- Imagem Docker CPU agora é apenas `linux/amd64` — `pynini` (dependência de ITN) não publica wheels arm64 e requer OpenFst compilado from source (#release-ci)
 
 ### Fixed
 - Malformed security email in SECURITY.md (`security@usemacawcom` corrected to `hello@usemacaw.io`) (#docs)
@@ -20,9 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Testes de integração falhavam no CI porque o job não instalava o extra `faster-whisper` — adicionado `.[dev,grpc,faster-whisper]` no job integration (#ci)
 - Build da imagem Docker GPU falhava porque Ubuntu 22.04 não tem Python 3.12 nos repos oficiais — adicionado PPA `deadsnakes` nos stages builder e runtime (#release-ci)
 - Build da imagem Docker GPU falhava porque `pip` do sistema (Python 3.10) não funciona com Python 3.12 (`distutils` removido) — substituído por `python3.12 -m ensurepip` + `python3.12 -m pip` e removido `python3-pip` do apt (#release-ci)
-
-### Changed
-- Imagem Docker CPU agora é apenas `linux/amd64` — `pynini` (dependência de ITN) não publica wheels arm64 e requer OpenFst compilado from source (#release-ci)
+- Protobuf runtime passa a ser instalado por padrão para evitar mismatch com stubs gerados (#deps)
 
 ## [0.1.1] - 2026-02-12
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uvicorn
-
 from macaw.logging import configure_logging
 
 from .config import DemoConfig
