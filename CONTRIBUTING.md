@@ -256,6 +256,8 @@ Before making significant changes, familiarize yourself with:
 
 - Open a [GitHub Issue](https://github.com/useMacaw/Macaw-openvoice/issues) for bug reports or feature requests
 - Use [GitHub Discussions](https://github.com/useMacaw/Macaw-openvoice/discussions) for questions
+- For general inquiries, reach out at [hello@usemacaw.io](mailto:hello@usemacaw.io)
+- Visit our website at [usemacaw.io](https://usemacaw.io)
 
 ## Code of Conduct
 

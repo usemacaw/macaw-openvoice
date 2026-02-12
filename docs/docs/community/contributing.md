@@ -198,3 +198,5 @@ These are the most common issues contributors encounter. Read these before divin
 - Open an issue on [GitHub](https://github.com/usemacaw/macaw-openvoice/issues) for bugs and feature requests
 - Check existing issues and PRs before creating duplicates
 - For architecture questions, review the [Architecture Overview](../architecture/overview)
+- For general questions, reach out at [hello@usemacaw.io](mailto:hello@usemacaw.io)
+- Visit our website at [usemacaw.io](https://usemacaw.io)

@@ -11,7 +11,7 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://macawvoice.github.io',
+  url: 'https://docs.usemacaw.io',
   baseUrl: '/',
 
   organizationName: 'usemacaw',
@@ -158,6 +158,14 @@ const config: Config = {
         {
           title: 'Community',
           items: [
+            {
+              label: 'Website',
+              href: 'https://usemacaw.io',
+            },
+            {
+              label: 'Email',
+              href: 'mailto:hello@usemacaw.io',
+            },
             {
               label: 'GitHub',
               href: 'https://github.com/usemacaw/macaw-openvoice',

@@ -8,7 +8,7 @@ vulnerability.
 
 ## Reporting a Vulnerability
 
-Please report security issues privately by emailing security@usemacawcom.
+Please report security issues privately by emailing [hello@usemacaw.io](mailto:hello@usemacaw.io).
 
 Do not open public GitHub issues for security vulnerabilities.
 

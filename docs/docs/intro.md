@@ -109,3 +109,10 @@ print(result.text)
 - **[Full-Duplex](guides/full-duplex)** -- Build voice assistants with simultaneous STT and TTS
 - **[API Reference](api-reference/rest-api)** -- Complete endpoint documentation
 - **[Architecture](architecture/overview)** -- Understand how the runtime is structured
+
+---
+
+## Contact
+
+- **Website:** [usemacaw.io](https://usemacaw.io)
+- **Email:** [hello@usemacaw.io](mailto:hello@usemacaw.io)

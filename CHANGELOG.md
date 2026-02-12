@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Website (usemacaw.io) and contact email (hello@usemacaw.io) documented across README, docs site, contributing guides, and security policy (#docs)
+
+### Changed
+- All documentation links migrated from `usemacaw.github.io` to `docs.usemacaw.io` (#docs)
+- Docusaurus site URL updated from `macawvoice.github.io/macaw-openvoice/` to `docs.usemacaw.io` (#docs)
+
 ### Fixed
+- Malformed security email in SECURITY.md (`security@usemacawcom` corrected to `hello@usemacaw.io`) (#docs)
 - Build de imagens Docker falhava porque `cdifflib` (dependência transitiva de `nemo-text-processing`) requer compilador C — adicionado `gcc`/`g++` no builder stage dos Dockerfiles CPU e GPU (#release-ci)
 - Testes de integração falhavam no CI porque o job não instalava o extra `faster-whisper` — adicionado `.[dev,grpc,faster-whisper]` no job integration (#ci)
 - Build da imagem Docker GPU falhava porque Ubuntu 22.04 não tem Python 3.12 nos repos oficiais — adicionado PPA `deadsnakes` nos stages builder e runtime (#release-ci)

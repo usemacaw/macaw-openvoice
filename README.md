@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://usemacaw.github.io/img/logo-256.png" alt="Macaw OpenVoice" width="128" />
+  <img src="https://docs.usemacaw.io/img/logo-256.png" alt="Macaw OpenVoice" width="128" />
 </p>
 
 <h1 align="center">Macaw OpenVoice</h1>
@@ -22,7 +22,7 @@
   <a href="#architecture">Architecture</a> &middot;
   <a href="#api-compatibility">API Docs</a> &middot;
   <a href="#demo">Demo</a> &middot;
-  <a href="https://usemacaw.github.io/macaw-openvoice">Full Documentation</a>
+  <a href="https://docs.usemacaw.io">Full Documentation</a>
 </p>
 
 ---
@@ -234,7 +234,7 @@ curl -X POST http://localhost:8000/v1/audio/speech \
 | [WeNet](https://github.com/wenet-e2e/wenet) | STT | CTC | native | native keyword boosting | Supported |
 | [Kokoro](https://github.com/hexgrad/kokoro) | TTS | neural | — | — | Supported |
 
-Adding a new engine requires ~400-700 lines of code and zero changes to the runtime core. See the [Adding an Engine](https://usemacaw.github.io/macaw-openvoice/docs/guides/adding-engine) guide.
+Adding a new engine requires ~400-700 lines of code and zero changes to the runtime core. See the [Adding an Engine](https://docs.usemacaw.io/docs/guides/adding-engine) guide.
 
 ## API Compatibility
 
@@ -323,18 +323,24 @@ make ci          # full pipeline: format + lint + typecheck + test
 
 ## Documentation
 
-Full documentation is available at **[usemacaw.github.io](https://usemacaw.github.io)**.
+Full documentation is available at **[docs.usemacaw.io](https://docs.usemacaw.io)**.
 
-- [Getting Started](https://usemacaw.github.io/docs/getting-started/installation)
-- [Streaming Guide](https://usemacaw.github.io/docs/guides/streaming-stt)
-- [Full-Duplex Guide](https://usemacaw.github.io/docs/guides/full-duplex)
-- [Adding an Engine](https://usemacaw.github.io/docs/guides/adding-engine)
-- [API Reference](https://usemacaw.github.io/docs/api-reference/rest-api)
-- [Architecture](https://usemacaw.github.io/docs/architecture/overview)
+- [Getting Started](https://docs.usemacaw.io/docs/getting-started/installation)
+- [Streaming Guide](https://docs.usemacaw.io/docs/guides/streaming-stt)
+- [Full-Duplex Guide](https://docs.usemacaw.io/docs/guides/full-duplex)
+- [Adding an Engine](https://docs.usemacaw.io/docs/guides/adding-engine)
+- [API Reference](https://docs.usemacaw.io/docs/api-reference/rest-api)
+- [Architecture](https://docs.usemacaw.io/docs/architecture/overview)
 
 ## Contributing
 
 We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a pull request.
+
+## Contact
+
+- **Website:** [usemacaw.io](https://usemacaw.io)
+- **Email:** [hello@usemacaw.io](mailto:hello@usemacaw.io)
+- **GitHub:** [github.com/usemacaw/macaw-openvoice](https://github.com/usemacaw/macaw-openvoice)
 
 ## License
 
