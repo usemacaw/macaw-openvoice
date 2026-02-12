@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- End-to-end demo notebook (`e2e_test.ipynb`) covering all CLI commands, REST API endpoints, and WebSocket protocols — client-facing, zero internal imports (#e2e)
 - Website (usemacaw.io) and contact email (hello@usemacaw.io) documented across README, docs site, contributing guides, and security policy (#docs)
 - CNAME file for GitHub Pages custom domain (`docs.usemacaw.io`) (#docs)
 - DNS setup guide (`docs/DNS_SETUP.md`) for migrating docs to `docs.usemacaw.io` (#docs)
