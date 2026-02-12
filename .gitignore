@@ -54,3 +54,4 @@ src/macaw/proto/*_pb2.pyi
 # Models (downloaded via macaw pull)
 models/
 !src/macaw/server/models/
+!docs/docs/models/
