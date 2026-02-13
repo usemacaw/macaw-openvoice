@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "grpcio-tools>=1.68,<2.0"]
+requires = ["hatchling", "grpcio-tools>=1.78,<2.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -46,7 +46,7 @@ dependencies = [
     "httpx>=0.27,<1.0",
     "scipy>=1.11,<2.0",
     "soundfile>=0.12,<1.0",
-    "grpcio>=1.68,<2.0",
+    "grpcio>=1.78,<2.0",
     "protobuf>=6.31,<7.0",
 ]
 
@@ -60,7 +60,7 @@ server = [
     "python-multipart>=0.0.18",
 ]
 grpc = [
-    "grpcio-tools>=1.68,<2.0",
+    "grpcio-tools>=1.78,<2.0",
 ]
 faster-whisper = [
     "faster-whisper>=1.1,<2.0",
@@ -89,7 +89,7 @@ dev = [
     "mypy>=1.14,<2.0",
     "pytest>=8.0,<9.0",
     "pytest-asyncio>=0.25,<1.0",
-    "grpcio-tools>=1.68,<2.0",
+    "grpcio-tools>=1.78,<2.0",
     "types-PyYAML>=6.0",
     "types-protobuf>=6.31,<7.0",
     "types-grpcio>=1.0",
