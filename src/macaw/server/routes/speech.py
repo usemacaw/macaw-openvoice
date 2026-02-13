@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import base64
-import contextlib
 import io
 import struct
 import uuid
 from typing import TYPE_CHECKING
 
 import grpc.aio
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 
 from macaw._types import ModelType
@@ -54,9 +53,36 @@ _GRPC_CHANNEL_OPTIONS = [
 ]
 
 
+def _get_or_create_tts_channel(
+    tts_channels: dict[str, grpc.aio.Channel],
+    address: str,
+) -> grpc.aio.Channel:
+    """Return a pooled gRPC channel for the TTS worker address, creating if needed.
+
+    Channels are reused across requests to avoid TCP+HTTP/2 handshake
+    overhead (~5-20ms per request).
+    """
+    channel = tts_channels.get(address)
+    if channel is None:
+        channel = grpc.aio.insecure_channel(address, options=_GRPC_CHANNEL_OPTIONS)
+        tts_channels[address] = channel
+    return channel
+
+
+async def close_tts_channels(tts_channels: dict[str, grpc.aio.Channel]) -> None:
+    """Close all pooled TTS gRPC channels. Called on server shutdown."""
+    for address, channel in tts_channels.items():
+        try:
+            await channel.close()
+        except Exception:
+            logger.warning("tts_channel_close_error", address=address)
+    tts_channels.clear()
+
+
 @router.post("/v1/audio/speech")
 async def create_speech(
     body: SpeechRequest,
+    request: Request,
     registry: ModelRegistry = Depends(get_registry),  # noqa: B008
     worker_manager: WorkerManager = Depends(get_worker_manager),  # noqa: B008
 ) -> Response:
@@ -124,11 +150,15 @@ async def create_speech(
 
     worker_address = f"localhost:{worker.port}"
 
+    # Get pooled TTS channel (reused across requests)
+    tts_channels: dict[str, grpc.aio.Channel] = request.app.state.tts_channels
+    channel = _get_or_create_tts_channel(tts_channels, worker_address)
+
     # Pre-flight: open gRPC stream and fetch first audio chunk.
     # This validates the connection and request params BEFORE starting
     # the StreamingResponse (so we can still return proper HTTP errors).
-    channel, response_stream, first_audio_chunk = await _open_tts_stream(
-        worker_address=worker_address,
+    response_stream, first_audio_chunk = await _open_tts_stream(
+        channel=channel,
         proto_request=proto_request,
         worker_id=worker.worker_id,
     )
@@ -139,7 +169,6 @@ async def create_speech(
     media_type = "audio/wav" if is_wav else "audio/pcm"
     return StreamingResponse(
         _stream_tts_audio(
-            channel=channel,
             response_stream=response_stream,
             first_audio_chunk=first_audio_chunk,
             is_wav=is_wav,
@@ -152,19 +181,20 @@ async def create_speech(
 
 async def _open_tts_stream(
     *,
-    worker_address: str,
+    channel: grpc.aio.Channel,
     proto_request: SynthesizeRequest,
     worker_id: str,
-) -> tuple[grpc.aio.Channel, object, bytes]:
+) -> tuple[object, bytes]:
     """Open gRPC stream and fetch first audio chunk (pre-flight validation).
 
-    Returns the channel, the response stream iterator, and the first audio bytes.
-    The caller is responsible for closing the channel when done (via the generator).
+    Uses a pooled channel (not closed on error — gRPC channels handle
+    reconnection automatically).
+
+    Returns the response stream iterator and the first audio bytes.
 
     Raises domain exceptions on gRPC errors so the HTTP layer can return
     proper status codes before the StreamingResponse starts.
     """
-    channel = grpc.aio.insecure_channel(worker_address, options=_GRPC_CHANNEL_OPTIONS)
     try:
         stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
         response_stream = stub.Synthesize(proto_request, timeout=_TTS_GRPC_TIMEOUT)
@@ -178,13 +208,9 @@ async def _open_tts_stream(
             if chunk.is_last:
                 break
 
-        return channel, response_stream, first_audio_chunk
+        return response_stream, first_audio_chunk
 
     except grpc.aio.AioRpcError as exc:
-        try:
-            await channel.close()
-        except Exception:
-            logger.warning("tts_channel_close_error", worker_address=worker_address)
         code = exc.code()
         if code == grpc.StatusCode.DEADLINE_EXCEEDED:
             raise WorkerTimeoutError(worker_id, _TTS_GRPC_TIMEOUT) from exc
@@ -198,7 +224,6 @@ async def _open_tts_stream(
 
 async def _stream_tts_audio(
     *,
-    channel: grpc.aio.Channel,
     response_stream: object,
     first_audio_chunk: bytes,
     is_wav: bool,
@@ -209,7 +234,9 @@ async def _stream_tts_audio(
 
     For WAV format: yields a WAV header (with max data size placeholder)
     followed by raw PCM chunks. For PCM format: yields raw PCM directly.
-    Closes the gRPC channel when done.
+
+    The gRPC channel is pooled and NOT closed here — it is reused across
+    requests and closed on server shutdown via close_tts_channels().
     """
     total_audio_bytes = 0
     try:
@@ -223,7 +250,7 @@ async def _stream_tts_audio(
             yield first_audio_chunk
 
         # Stream remaining chunks
-        async for chunk in response_stream:  # type: ignore[union-attr]
+        async for chunk in response_stream:  # type: ignore[attr-defined]
             if chunk.audio_data:
                 total_audio_bytes += len(chunk.audio_data)
                 yield chunk.audio_data
@@ -251,9 +278,6 @@ async def _stream_tts_audio(
             request_id=request_id,
             audio_bytes_sent=total_audio_bytes,
         )
-    finally:
-        with contextlib.suppress(Exception):
-            await channel.close()
 
 
 def _wav_streaming_header(sample_rate: int) -> bytes:

@@ -21,6 +21,7 @@ from macaw._types import (
 )
 from macaw.exceptions import AudioFormatError, ModelLoadError
 from macaw.logging import get_logger
+from macaw.workers.audio_utils import pcm_bytes_to_float32
 from macaw.workers.stt.interface import STTBackend
 
 if TYPE_CHECKING:
@@ -43,6 +44,7 @@ class FasterWhisperBackend(STTBackend):
     def __init__(self) -> None:
         self._model: object | None = None
         self._beam_size: int = 5
+        self._accumulation_threshold_seconds: float = 5.0
 
     @property
     def architecture(self) -> STTArchitecture:
@@ -57,6 +59,9 @@ class FasterWhisperBackend(STTBackend):
         compute_type = str(config.get("compute_type", "float16"))
         device = str(config.get("device", "auto"))
         self._beam_size = int(config.get("beam_size", 5))  # type: ignore[call-overload]
+        self._accumulation_threshold_seconds = float(
+            config.get("accumulation_threshold_seconds", 5.0)  # type: ignore[arg-type]
+        )
 
         loop = asyncio.get_running_loop()
         try:
@@ -77,6 +82,7 @@ class FasterWhisperBackend(STTBackend):
             model_size=model_size,
             compute_type=compute_type,
             device=device,
+            accumulation_threshold_seconds=self._accumulation_threshold_seconds,
         )
 
     async def capabilities(self) -> EngineCapabilities:
@@ -105,7 +111,7 @@ class FasterWhisperBackend(STTBackend):
             msg = "Audio vazio"
             raise AudioFormatError(msg)
 
-        audio_array = _audio_bytes_to_numpy(audio_data)
+        audio_array = pcm_bytes_to_float32(audio_data)
 
         fw_language: str | None = language
         if fw_language in ("auto", "mixed"):
@@ -161,7 +167,8 @@ class FasterWhisperBackend(STTBackend):
         """Transcribe streaming audio via accumulation with a threshold.
 
         Accumulates 16-bit PCM 16kHz mono chunks in an internal buffer.
-        When the buffer reaches the threshold (5s), it runs inference on the
+        When the buffer reaches the threshold (configurable via
+        accumulation_threshold_seconds, default 5s), it runs inference on the
         accumulated buffer and yields TranscriptSegment(is_final=True).
 
         An empty chunk (b"") signals end of stream -- the remaining buffer is
@@ -183,9 +190,8 @@ class FasterWhisperBackend(STTBackend):
             msg = "Modelo nao carregado. Chame load() primeiro."
             raise ModelLoadError("unknown", msg)
 
-        accumulation_threshold_seconds = 5.0
         sample_rate = 16000
-        threshold_samples = int(accumulation_threshold_seconds * sample_rate)
+        threshold_samples = int(self._accumulation_threshold_seconds * sample_rate)
 
         buffer_chunks: list[np.ndarray] = []
         buffer_samples = 0
@@ -206,7 +212,7 @@ class FasterWhisperBackend(STTBackend):
             if not chunk:
                 break
 
-            audio_array = _audio_bytes_to_numpy(chunk)
+            audio_array = pcm_bytes_to_float32(chunk)
             buffer_chunks.append(audio_array)
             buffer_samples += len(audio_array)
 
@@ -281,26 +287,6 @@ class FasterWhisperBackend(STTBackend):
         if self._model is not None:
             return {"status": "ok"}
         return {"status": "not_loaded"}
-
-
-def _audio_bytes_to_numpy(audio_data: bytes) -> np.ndarray:
-    """Convert 16-bit PCM bytes to normalized float32 numpy array.
-
-    Args:
-        audio_data: 16-bit PCM audio (little-endian).
-
-    Returns:
-        Normalized float32 array in [-1.0, 1.0].
-
-    Raises:
-        AudioFormatError: If the byte length is not even (16-bit PCM = 2 bytes/sample).
-    """
-    if len(audio_data) % 2 != 0:
-        msg = "Audio PCM 16-bit deve ter numero par de bytes"
-        raise AudioFormatError(msg)
-
-    int16_array = np.frombuffer(audio_data, dtype=np.int16)
-    return int16_array.astype(np.float32) / 32768.0
 
 
 def _fw_segment_to_detail(segment: object, index: int) -> SegmentDetail:

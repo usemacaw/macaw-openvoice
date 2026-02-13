@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
@@ -11,6 +12,8 @@ from macaw.server.error_handlers import register_error_handlers
 from macaw.server.routes import health, realtime, speech, transcriptions, translations
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from macaw.postprocessing.pipeline import PostProcessingPipeline
     from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
     from macaw.registry.registry import ModelRegistry
@@ -39,10 +42,22 @@ def create_app(
     Returns:
         FastAPI application configurada.
     """
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        yield
+        # Shutdown: close pooled TTS gRPC channels
+        tts_channels = getattr(app.state, "tts_channels", None)
+        if tts_channels:
+            from macaw.server.routes.speech import close_tts_channels
+
+            await close_tts_channels(tts_channels)
+
     app = FastAPI(
         title="Macaw OpenVoice",
         version=macaw.__version__,
         description="Runtime unificado de voz (STT + TTS) com API OpenAI-compatible",
+        lifespan=lifespan,
     )
 
     app.state.registry = registry
@@ -50,6 +65,7 @@ def create_app(
     app.state.preprocessing_pipeline = preprocessing_pipeline
     app.state.postprocessing_pipeline = postprocessing_pipeline
     app.state.worker_manager = worker_manager
+    app.state.tts_channels = {}
 
     if cors_origins:
         from fastapi.middleware.cors import CORSMiddleware

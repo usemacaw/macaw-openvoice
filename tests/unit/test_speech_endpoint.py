@@ -59,10 +59,8 @@ def _make_tts_result(
 def _make_open_tts_stream_mock(
     audio_data: bytes = b"\x00\x01" * 100,
 ) -> AsyncMock:
-    """Create an AsyncMock for _open_tts_stream that returns a channel,
-    an empty async iterator, and the audio data as first chunk."""
-    mock_channel = AsyncMock()
-    mock_channel.close = AsyncMock()
+    """Create an AsyncMock for _open_tts_stream that returns
+    an empty async iterator and the audio data as first chunk."""
 
     # Empty async iterator (no more chunks after first_audio_chunk)
     async def _empty_iter():
@@ -70,7 +68,7 @@ def _make_open_tts_stream_mock(
         yield  # make it a generator
 
     mock = AsyncMock(
-        return_value=(mock_channel, _empty_iter(), audio_data),
+        return_value=(_empty_iter(), audio_data),
     )
     return mock
 
@@ -444,6 +442,8 @@ class TestSpeechRoute:
         call_kwargs = mock.call_args[1]
         # Proto request is built upstream; voice is in the proto
         assert call_kwargs["proto_request"].voice == "alloy"
+        # Channel is now pooled and passed from app.state.tts_channels
+        assert "channel" in call_kwargs
 
     async def test_speech_passes_speed_parameter(self) -> None:
         registry = _make_mock_registry()
@@ -544,3 +544,115 @@ class TestGetWorkerManagerDependency:
 
         with pytest.raises(RuntimeError, match="WorkerManager"):
             get_worker_manager(mock_request)
+
+
+# ─── TTS gRPC Channel Pooling ───
+
+
+class TestTTSChannelPooling:
+    def test_get_or_create_creates_channel_on_first_call(self) -> None:
+        from macaw.server.routes.speech import _get_or_create_tts_channel
+
+        pool: dict[str, object] = {}
+        with patch("macaw.server.routes.speech.grpc.aio.insecure_channel") as mock_create:
+            mock_channel = MagicMock()
+            mock_create.return_value = mock_channel
+
+            result = _get_or_create_tts_channel(pool, "localhost:50052")
+
+        assert result is mock_channel
+        assert pool["localhost:50052"] is mock_channel
+        mock_create.assert_called_once()
+
+    def test_get_or_create_reuses_existing_channel(self) -> None:
+        from macaw.server.routes.speech import _get_or_create_tts_channel
+
+        existing_channel = MagicMock()
+        pool: dict[str, object] = {"localhost:50052": existing_channel}
+
+        with patch("macaw.server.routes.speech.grpc.aio.insecure_channel") as mock_create:
+            result = _get_or_create_tts_channel(pool, "localhost:50052")
+
+        assert result is existing_channel
+        mock_create.assert_not_called()
+
+    def test_get_or_create_different_addresses_get_different_channels(self) -> None:
+        from macaw.server.routes.speech import _get_or_create_tts_channel
+
+        pool: dict[str, object] = {}
+        with patch("macaw.server.routes.speech.grpc.aio.insecure_channel") as mock_create:
+            ch1 = MagicMock()
+            ch2 = MagicMock()
+            mock_create.side_effect = [ch1, ch2]
+
+            result1 = _get_or_create_tts_channel(pool, "localhost:50052")
+            result2 = _get_or_create_tts_channel(pool, "localhost:50053")
+
+        assert result1 is ch1
+        assert result2 is ch2
+        assert len(pool) == 2
+
+    async def test_close_tts_channels_closes_all(self) -> None:
+        from macaw.server.routes.speech import close_tts_channels
+
+        ch1 = AsyncMock()
+        ch2 = AsyncMock()
+        pool = {"localhost:50052": ch1, "localhost:50053": ch2}
+
+        await close_tts_channels(pool)
+
+        ch1.close.assert_awaited_once()
+        ch2.close.assert_awaited_once()
+        assert len(pool) == 0
+
+    async def test_close_tts_channels_handles_close_error(self) -> None:
+        from macaw.server.routes.speech import close_tts_channels
+
+        ch1 = AsyncMock()
+        ch1.close.side_effect = RuntimeError("close failed")
+        ch2 = AsyncMock()
+        pool = {"localhost:50052": ch1, "localhost:50053": ch2}
+
+        await close_tts_channels(pool)
+
+        # Both channels attempted close, pool cleared despite error on ch1
+        ch1.close.assert_awaited_once()
+        ch2.close.assert_awaited_once()
+        assert len(pool) == 0
+
+    async def test_channel_reused_across_requests(self) -> None:
+        """Verify the same pooled channel is passed to _open_tts_stream for
+        consecutive requests to the same worker address."""
+        registry = _make_mock_registry()
+        manager = _make_mock_worker_manager()
+        app = create_app(registry=registry, worker_manager=manager)
+
+        mock = _make_open_tts_stream_mock()
+        with patch("macaw.server.routes.speech._open_tts_stream", mock):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://test",
+            ) as client:
+                await client.post(
+                    "/v1/audio/speech",
+                    json={"model": "kokoro-v1", "input": "First"},
+                )
+                # Reset mock to capture second call independently
+                first_channel = mock.call_args[1]["channel"]
+
+                mock.reset_mock()
+                mock.return_value = _make_open_tts_stream_mock().return_value
+
+                await client.post(
+                    "/v1/audio/speech",
+                    json={"model": "kokoro-v1", "input": "Second"},
+                )
+                second_channel = mock.call_args[1]["channel"]
+
+        # Same channel object reused for both requests
+        assert first_channel is second_channel
+
+    async def test_app_state_has_tts_channels(self) -> None:
+        app = create_app()
+        assert hasattr(app.state, "tts_channels")
+        assert app.state.tts_channels == {}

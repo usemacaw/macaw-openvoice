@@ -14,15 +14,26 @@ import pytest
 
 from macaw._types import STTArchitecture
 from macaw.exceptions import AudioFormatError, ModelLoadError
+from macaw.workers.audio_utils import pcm_bytes_to_float32
 from macaw.workers.stt.wenet import (
     WeNetBackend,
-    _audio_bytes_to_numpy,
     _build_segments,
     _build_words,
     _extract_text,
+    _load_and_configure_model,
+    _resolve_compute_dtype,
     _resolve_device,
     _safe_float,
 )
+
+
+def _has_torch() -> bool:
+    try:
+        import torch  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
 
 
 def _make_wenet_result(
@@ -578,7 +589,7 @@ class TestResolveDevice:
 class TestAudioBytesToNumpy:
     def test_valid_pcm_16bit(self) -> None:
         audio = b"\x00\x00\xff\x7f"
-        result = _audio_bytes_to_numpy(audio)
+        result = pcm_bytes_to_float32(audio)
         assert result.dtype == np.float32
         assert len(result) == 2
         assert abs(result[0]) < 0.01
@@ -586,10 +597,10 @@ class TestAudioBytesToNumpy:
 
     def test_odd_bytes_raises_error(self) -> None:
         with pytest.raises(AudioFormatError, match="numero par"):
-            _audio_bytes_to_numpy(b"\x00\x01\x02")
+            pcm_bytes_to_float32(b"\x00\x01\x02")
 
     def test_empty_audio_returns_empty_array(self) -> None:
-        result = _audio_bytes_to_numpy(b"")
+        result = pcm_bytes_to_float32(b"")
         assert len(result) == 0
 
 
@@ -698,3 +709,166 @@ class TestSafeFloat:
 
     def test_returns_none_for_invalid(self) -> None:
         assert _safe_float("not_a_number") is None
+
+
+class TestResolveComputeDtype:
+    def test_auto_on_cuda_returns_float16(self) -> None:
+        assert _resolve_compute_dtype("auto", "cuda") == "float16"
+
+    def test_auto_on_cuda_with_id_returns_float16(self) -> None:
+        assert _resolve_compute_dtype("auto", "cuda:0") == "float16"
+
+    def test_auto_on_cpu_returns_float32(self) -> None:
+        assert _resolve_compute_dtype("auto", "cpu") == "float32"
+
+    def test_float16_on_cuda_passthrough(self) -> None:
+        assert _resolve_compute_dtype("float16", "cuda") == "float16"
+
+    def test_float16_on_cpu_falls_back_to_float32(self) -> None:
+        assert _resolve_compute_dtype("float16", "cpu") == "float32"
+
+    def test_bfloat16_on_cuda_passthrough(self) -> None:
+        assert _resolve_compute_dtype("bfloat16", "cuda") == "bfloat16"
+
+    def test_bfloat16_on_cpu_passthrough(self) -> None:
+        assert _resolve_compute_dtype("bfloat16", "cpu") == "bfloat16"
+
+    def test_float32_on_any_device_passthrough(self) -> None:
+        assert _resolve_compute_dtype("float32", "cpu") == "float32"
+        assert _resolve_compute_dtype("float32", "cuda") == "float32"
+
+    def test_unknown_type_falls_back_to_float32(self) -> None:
+        assert _resolve_compute_dtype("int8", "cuda") == "float32"
+
+
+class TestLoadAndConfigureModel:
+    def test_float32_does_not_call_half(self) -> None:
+        import macaw.workers.stt.wenet as wenet_mod
+
+        original = wenet_mod.wenet_lib
+        mock_wenet = MagicMock()
+        mock_model = MagicMock()
+        mock_wenet.load_model.return_value = mock_model
+        wenet_mod.wenet_lib = mock_wenet  # type: ignore[assignment]
+        try:
+            result = _load_and_configure_model("/models/test", "cpu", "float32")
+            assert result is mock_model
+            mock_model.half.assert_not_called()
+        finally:
+            wenet_mod.wenet_lib = original  # type: ignore[assignment]
+
+    def test_float16_calls_half(self) -> None:
+        import macaw.workers.stt.wenet as wenet_mod
+
+        original = wenet_mod.wenet_lib
+        mock_wenet = MagicMock()
+        mock_model = MagicMock()
+        mock_wenet.load_model.return_value = mock_model
+        wenet_mod.wenet_lib = mock_wenet  # type: ignore[assignment]
+        try:
+            result = _load_and_configure_model("/models/test", "cuda", "float16")
+            assert result is mock_model
+            mock_model.half.assert_called_once()
+        finally:
+            wenet_mod.wenet_lib = original  # type: ignore[assignment]
+
+    @pytest.mark.skipif(
+        not _has_torch(),
+        reason="torch not installed",
+    )
+    def test_bfloat16_calls_model_to(self) -> None:
+        import torch
+
+        import macaw.workers.stt.wenet as wenet_mod
+
+        original = wenet_mod.wenet_lib
+        mock_wenet = MagicMock()
+        mock_model = MagicMock()
+        mock_wenet.load_model.return_value = mock_model
+        wenet_mod.wenet_lib = mock_wenet  # type: ignore[assignment]
+        try:
+            result = _load_and_configure_model("/models/test", "cuda", "bfloat16")
+            assert result is mock_model
+            mock_model.to.assert_called_once_with(torch.bfloat16)
+        finally:
+            wenet_mod.wenet_lib = original  # type: ignore[assignment]
+
+
+class TestLoadWithComputeType:
+    async def test_load_with_float16_on_cuda(self) -> None:
+        import macaw.workers.stt.wenet as wenet_mod
+
+        original = wenet_mod.wenet_lib
+        mock_wenet = MagicMock()
+        mock_model = MagicMock()
+        mock_wenet.load_model.return_value = mock_model
+        wenet_mod.wenet_lib = mock_wenet  # type: ignore[assignment]
+        try:
+            backend = WeNetBackend()
+            await backend.load(
+                "/models/wenet-ctc",
+                {"device": "cuda", "compute_type": "float16"},
+            )
+            assert backend._model is not None
+            mock_model.half.assert_called_once()
+        finally:
+            wenet_mod.wenet_lib = original  # type: ignore[assignment]
+
+    async def test_load_with_auto_on_cpu_stays_float32(self) -> None:
+        import macaw.workers.stt.wenet as wenet_mod
+
+        original = wenet_mod.wenet_lib
+        mock_wenet = MagicMock()
+        mock_model = MagicMock()
+        mock_wenet.load_model.return_value = mock_model
+        wenet_mod.wenet_lib = mock_wenet  # type: ignore[assignment]
+        try:
+            backend = WeNetBackend()
+            await backend.load(
+                "/models/wenet-ctc",
+                {"device": "cpu", "compute_type": "auto"},
+            )
+            assert backend._model is not None
+            mock_model.half.assert_not_called()
+            mock_model.to.assert_not_called()
+        finally:
+            wenet_mod.wenet_lib = original  # type: ignore[assignment]
+
+    async def test_load_defaults_compute_type_to_auto(self) -> None:
+        import macaw.workers.stt.wenet as wenet_mod
+
+        original = wenet_mod.wenet_lib
+        mock_wenet = MagicMock()
+        mock_model = MagicMock()
+        mock_wenet.load_model.return_value = mock_model
+        wenet_mod.wenet_lib = mock_wenet  # type: ignore[assignment]
+        try:
+            backend = WeNetBackend()
+            # No compute_type in config — should default to "auto"
+            await backend.load("/models/wenet-ctc", {"device": "cpu"})
+            assert backend._model is not None
+            # auto + cpu = float32, no dtype conversion
+            mock_model.half.assert_not_called()
+            mock_model.to.assert_not_called()
+        finally:
+            wenet_mod.wenet_lib = original  # type: ignore[assignment]
+
+    async def test_load_with_float16_on_cpu_falls_back_to_float32(self) -> None:
+        import macaw.workers.stt.wenet as wenet_mod
+
+        original = wenet_mod.wenet_lib
+        mock_wenet = MagicMock()
+        mock_model = MagicMock()
+        mock_wenet.load_model.return_value = mock_model
+        wenet_mod.wenet_lib = mock_wenet  # type: ignore[assignment]
+        try:
+            backend = WeNetBackend()
+            # float16 on CPU should fall back to float32
+            await backend.load(
+                "/models/wenet-ctc",
+                {"device": "cpu", "compute_type": "float16"},
+            )
+            assert backend._model is not None
+            mock_model.half.assert_not_called()
+        finally:
+            wenet_mod.wenet_lib = original  # type: ignore[assignment]

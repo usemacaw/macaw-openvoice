@@ -353,12 +353,22 @@ def _stream_pipeline_segments(
         error_holder: Mutable list to store any exception from the pipeline.
     """
     try:
-        for _gs, _ps, audio in pipeline(text, voice=voice_path, speed=speed):  # type: ignore[operator]
-            if audio is not None and len(audio) > 0:
-                # Kokoro v0.9.4 returns torch.Tensor, convert to numpy
-                arr = audio.numpy() if hasattr(audio, "numpy") else np.asarray(audio)
-                pcm_bytes = float32_to_pcm16_bytes(arr)
-                loop.call_soon_threadsafe(queue.put_nowait, pcm_bytes)
+        import torch
+
+        inference_ctx = torch.inference_mode()
+    except ImportError:
+        from contextlib import nullcontext
+
+        inference_ctx = nullcontext()  # type: ignore[assignment]
+
+    try:
+        with inference_ctx:
+            for _gs, _ps, audio in pipeline(text, voice=voice_path, speed=speed):  # type: ignore[operator]
+                if audio is not None and len(audio) > 0:
+                    # Kokoro v0.9.4 returns torch.Tensor, convert to numpy
+                    arr = audio.numpy() if hasattr(audio, "numpy") else np.asarray(audio)
+                    pcm_bytes = float32_to_pcm16_bytes(arr)
+                    loop.call_soon_threadsafe(queue.put_nowait, pcm_bytes)
     except Exception as exc:
         error_holder[0] = exc
     finally:

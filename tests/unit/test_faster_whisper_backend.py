@@ -13,10 +13,8 @@ import pytest
 
 from macaw._types import STTArchitecture
 from macaw.exceptions import AudioFormatError, ModelLoadError
-from macaw.workers.stt.faster_whisper import (
-    FasterWhisperBackend,
-    _audio_bytes_to_numpy,
-)
+from macaw.workers.audio_utils import pcm_bytes_to_float32
+from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
 
 def _make_fw_segment(
@@ -228,7 +226,7 @@ class TestAudioBytesToNumpy:
     def test_valid_pcm_16bit(self) -> None:
         # 4 bytes = 2 samples of int16
         audio = b"\x00\x00\xff\x7f"  # 0 and 32767
-        result = _audio_bytes_to_numpy(audio)
+        result = pcm_bytes_to_float32(audio)
         assert result.dtype == np.float32
         assert len(result) == 2
         assert abs(result[0]) < 0.01
@@ -236,8 +234,8 @@ class TestAudioBytesToNumpy:
 
     def test_odd_bytes_raises_error(self) -> None:
         with pytest.raises(AudioFormatError, match="numero par"):
-            _audio_bytes_to_numpy(b"\x00\x01\x02")
+            pcm_bytes_to_float32(b"\x00\x01\x02")
 
     def test_empty_audio_returns_empty_array(self) -> None:
-        result = _audio_bytes_to_numpy(b"")
+        result = pcm_bytes_to_float32(b"")
         assert len(result) == 0

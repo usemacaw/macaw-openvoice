@@ -257,6 +257,89 @@ class TestTranscribeStreamErrors:
         assert len(segments) == 0
 
 
+class TestAccumulationThresholdConfig:
+    """Configurable accumulation_threshold_seconds in FasterWhisperBackend."""
+
+    def test_default_threshold_is_five_seconds(self) -> None:
+        backend = FasterWhisperBackend()
+        assert backend._accumulation_threshold_seconds == 5.0
+
+    async def test_custom_threshold_from_config(self) -> None:
+        """Backend reads accumulation_threshold_seconds from engine config."""
+        backend = FasterWhisperBackend()
+        mock_model = MagicMock()
+        segment = _make_fw_segment(text="test")
+        info = _make_fw_info()
+        mock_model.return_value = mock_model
+        mock_model.transcribe.return_value = (iter([segment]), info)
+
+        # Mock WhisperModel constructor
+        import macaw.workers.stt.faster_whisper as fw_mod
+
+        original = fw_mod.WhisperModel
+        fw_mod.WhisperModel = MagicMock(return_value=mock_model)
+        try:
+            await backend.load(
+                "/models/test",
+                {"model_size": "tiny", "accumulation_threshold_seconds": 3.0},
+            )
+            assert backend._accumulation_threshold_seconds == 3.0
+        finally:
+            fw_mod.WhisperModel = original
+
+    async def test_short_threshold_triggers_earlier(self) -> None:
+        """With 2s threshold, 2s of audio triggers inference immediately."""
+        backend = FasterWhisperBackend()
+        backend._accumulation_threshold_seconds = 2.0
+        mock_model = MagicMock()
+
+        call_count = 0
+
+        def transcribe_side_effect(*args: object, **kwargs: object) -> tuple[object, object]:
+            nonlocal call_count
+            seg = _make_fw_segment(text=f"seg {call_count}")
+            info = _make_fw_info()
+            call_count += 1
+            return iter([seg]), info
+
+        mock_model.transcribe.side_effect = transcribe_side_effect
+        backend._model = mock_model  # type: ignore[assignment]
+
+        # 4s of audio in 1s chunks with 2s threshold -> 2 segments + possibly remainder
+        chunks = [_make_pcm16_silence(1.0) for _ in range(4)]
+        chunks.append(b"")
+
+        segments: list[TranscriptSegment] = []
+        async for seg in backend.transcribe_stream(_make_chunk_iterator(chunks)):
+            segments.append(seg)
+
+        assert len(segments) == 2
+        assert segments[0].segment_id == 0
+        assert segments[1].segment_id == 1
+
+    async def test_large_threshold_accumulates_more(self) -> None:
+        """With 10s threshold, 6s of audio is flushed only at stream end."""
+        backend = FasterWhisperBackend()
+        backend._accumulation_threshold_seconds = 10.0
+        backend._model = MagicMock()  # type: ignore[assignment]
+
+        segment = _make_fw_segment(text="all at once")
+        info = _make_fw_info()
+        backend._model.transcribe.return_value = (iter([segment]), info)  # type: ignore[union-attr]
+
+        # 6s of audio: does NOT reach 10s threshold, only flushed at end
+        chunks = [_make_pcm16_silence(2.0) for _ in range(3)]
+        chunks.append(b"")
+
+        segments: list[TranscriptSegment] = []
+        async for seg in backend.transcribe_stream(_make_chunk_iterator(chunks)):
+            segments.append(seg)
+
+        # Only 1 segment (flush at end), not 2
+        assert len(segments) == 1
+        assert segments[0].text == "all at once"
+
+
 class TestTranscribeStreamTimestamps:
     """Testa timestamps e confidence nos segmentos."""
 

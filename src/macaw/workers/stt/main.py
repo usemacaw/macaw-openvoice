@@ -7,17 +7,32 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
-import asyncio
-import signal
-import sys
-from typing import TYPE_CHECKING
+# NB: PYTORCH_CUDA_ALLOC_CONF must be set before importing torch.
+# expandable_segments saves 10x+ GPU memory with small streaming chunks
+# by using dynamically-sized segments instead of fixed allocations.
+# Reference: NeMo speech_to_text_streaming_infer_rnnt.py
+import os as _os
 
-import grpc.aio
+_alloc_conf = _os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+if "expandable_segments" not in _alloc_conf:
+    _new_val = (
+        f"{_alloc_conf},expandable_segments:True" if _alloc_conf else "expandable_segments:True"
+    )
+    _os.environ["PYTORCH_CUDA_ALLOC_CONF"] = _new_val
+del _alloc_conf
 
-from macaw.logging import configure_logging, get_logger
-from macaw.proto import add_STTWorkerServicer_to_server
-from macaw.workers.stt.servicer import STTWorkerServicer
+import argparse  # noqa: E402
+import asyncio  # noqa: E402
+import signal  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+from typing import TYPE_CHECKING  # noqa: E402
+
+import grpc.aio  # noqa: E402
+
+from macaw.logging import configure_logging, get_logger  # noqa: E402
+from macaw.proto import add_STTWorkerServicer_to_server  # noqa: E402
+from macaw.workers.stt.servicer import STTWorkerServicer  # noqa: E402
 
 if TYPE_CHECKING:
     from macaw.workers.stt.interface import STTBackend
@@ -25,6 +40,29 @@ if TYPE_CHECKING:
 logger = get_logger("worker.stt.main")
 
 STOP_GRACE_PERIOD = 5.0
+
+
+def _configure_torch_inference() -> None:
+    """Configure PyTorch for inference-only operation.
+
+    Sets process-wide defaults that eliminate autograd overhead:
+    - set_grad_enabled(False): prevents accidental gradient computation
+    - set_float32_matmul_precision("high"): enables TF32 on Ampere+ GPUs
+
+    Safe to call even if torch is not installed (e.g., CTranslate2-only engines).
+    """
+    try:
+        import torch
+
+        torch.set_grad_enabled(False)
+        torch.set_float32_matmul_precision("high")
+        logger.info(
+            "torch_inference_configured",
+            grad_enabled=False,
+            float32_matmul_precision="high",
+        )
+    except ImportError:
+        pass
 
 
 def _create_backend(engine: str) -> STTBackend:
@@ -61,13 +99,16 @@ async def serve(
         model_path: Path to model files.
         engine_config: Engine configuration (compute_type, device, etc).
     """
+    _configure_torch_inference()
+
     backend = _create_backend(engine)
 
     logger.info("loading_model", engine=engine, model_path=model_path)
     await backend.load(model_path, engine_config)
     logger.info("model_loaded", engine=engine)
 
-    await _warmup_backend(backend)
+    warmup_steps = int(engine_config.get("warmup_steps", 3))  # type: ignore[arg-type]
+    await _warmup_backend(backend, warmup_steps=warmup_steps)
 
     model_name = str(engine_config.get("model_size", "unknown"))
     servicer = STTWorkerServicer(
@@ -108,20 +149,60 @@ async def serve(
     await server.wait_for_termination()
 
 
-async def _warmup_backend(backend: STTBackend) -> None:
-    """Run a dummy inference to warm up GPU caches and JIT.
+_WARMUP_AUDIO_DURATIONS = (1.0, 3.0, 5.0)
+_SAMPLE_RATE = 16000
 
-    First real request would otherwise bear the cost of kernel compilation,
-    memory allocation, and cache priming. A 1s silence transcription takes
-    ~200-500ms but saves that latency from the first user request.
+
+async def _warmup_backend(backend: STTBackend, *, warmup_steps: int = 3) -> None:
+    """Run warmup inference passes to prime GPU caches, JIT, and memory pools.
+
+    Multiple passes with varied audio lengths exercise different CUDA kernel
+    configurations. RTFx is measured on the final pass as a readiness signal.
+
+    Args:
+        backend: Loaded STT backend.
+        warmup_steps: Number of warmup passes (default 3). Set to 0 to skip.
     """
-    # 1 second of silence at 16kHz, 16-bit PCM (2 bytes/sample)
-    silence = b"\x00\x00" * 16000
-    try:
-        await backend.transcribe_file(silence)
-        logger.info("warmup_complete")
-    except Exception as exc:
-        logger.warning("warmup_failed", error=str(exc))
+    if warmup_steps <= 0:
+        logger.info("warmup_skipped", warmup_steps=warmup_steps)
+        return
+
+    rtfx: float | None = None
+
+    for step in range(warmup_steps):
+        duration_s = _WARMUP_AUDIO_DURATIONS[step % len(_WARMUP_AUDIO_DURATIONS)]
+        num_samples = int(duration_s * _SAMPLE_RATE)
+        silence = b"\x00\x00" * num_samples
+
+        is_last = step == warmup_steps - 1
+
+        try:
+            start = time.monotonic()
+            await backend.transcribe_file(silence)
+            elapsed = time.monotonic() - start
+
+            if is_last and elapsed > 0:
+                rtfx = duration_s / elapsed
+
+            logger.info(
+                "warmup_step",
+                step=step + 1,
+                total=warmup_steps,
+                audio_duration_s=duration_s,
+                elapsed_s=round(elapsed, 3),
+            )
+        except Exception as exc:
+            logger.warning("warmup_step_failed", step=step + 1, error=str(exc))
+            return
+
+    if rtfx is not None:
+        if rtfx < 1.0:
+            logger.warning(
+                "warmup_rtfx_below_realtime",
+                rtfx=round(rtfx, 2),
+                message="System cannot keep up with real-time audio input",
+            )
+        logger.info("warmup_complete", rtfx=round(rtfx, 2), warmup_steps=warmup_steps)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

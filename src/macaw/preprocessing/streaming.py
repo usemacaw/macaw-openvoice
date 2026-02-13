@@ -17,6 +17,7 @@ import numpy as np
 
 from macaw.exceptions import AudioFormatError
 from macaw.logging import get_logger
+from macaw.workers.audio_utils import pcm_bytes_to_float32
 
 if TYPE_CHECKING:
     from macaw.preprocessing.stages import AudioStage
@@ -79,11 +80,7 @@ class StreamingPreprocessor:
         if len(raw_bytes) == 0:
             return np.array([], dtype=np.float32)
 
-        # Converter PCM int16 bytes -> numpy float32 normalizado [-1.0, 1.0]
-        int16_array = np.frombuffer(raw_bytes, dtype=np.int16)
-        # In-place division avoids a temporary float32 array per frame.
-        audio = int16_array.astype(np.float32)
-        audio /= 32768.0
+        audio = pcm_bytes_to_float32(raw_bytes)
 
         sample_rate = self._input_sample_rate
 

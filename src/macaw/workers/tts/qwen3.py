@@ -278,39 +278,50 @@ def _synthesize_with_model(
     """Synthesize audio using Qwen3-TTS model (blocking).
 
     Dispatches to the appropriate generate method based on variant.
+    Runs under torch.inference_mode() to eliminate autograd overhead.
 
     Returns:
         16-bit PCM audio as bytes.
     """
-    if variant == "custom_voice":
-        wavs, _sr = model.generate_custom_voice(  # type: ignore[attr-defined]
-            text=text,
-            language=language,
-            speaker=voice,
-            instruct=instruction if instruction else None,
-        )
-    elif variant == "base":
-        if ref_audio is None:
-            msg = "Voice cloning requer ref_audio"
+    try:
+        import torch
+
+        inference_ctx = torch.inference_mode()
+    except ImportError:
+        from contextlib import nullcontext
+
+        inference_ctx = nullcontext()  # type: ignore[assignment]
+
+    with inference_ctx:
+        if variant == "custom_voice":
+            wavs, _sr = model.generate_custom_voice(  # type: ignore[attr-defined]
+                text=text,
+                language=language,
+                speaker=voice,
+                instruct=instruction if instruction else None,
+            )
+        elif variant == "base":
+            if ref_audio is None:
+                msg = "Voice cloning requer ref_audio"
+                raise TTSSynthesisError("qwen3-tts", msg)
+            wavs, _sr = model.generate_voice_clone(  # type: ignore[attr-defined]
+                text=text,
+                language=language,
+                ref_audio=ref_audio,
+                ref_text=ref_text,
+            )
+        elif variant == "voice_design":
+            if not instruction:
+                msg = "Voice design requer instruction"
+                raise TTSSynthesisError("qwen3-tts", msg)
+            wavs, _sr = model.generate_voice_design(  # type: ignore[attr-defined]
+                text=text,
+                language=language,
+                instruct=instruction,
+            )
+        else:
+            msg = f"Variante desconhecida: {variant}"
             raise TTSSynthesisError("qwen3-tts", msg)
-        wavs, _sr = model.generate_voice_clone(  # type: ignore[attr-defined]
-            text=text,
-            language=language,
-            ref_audio=ref_audio,
-            ref_text=ref_text,
-        )
-    elif variant == "voice_design":
-        if not instruction:
-            msg = "Voice design requer instruction"
-            raise TTSSynthesisError("qwen3-tts", msg)
-        wavs, _sr = model.generate_voice_design(  # type: ignore[attr-defined]
-            text=text,
-            language=language,
-            instruct=instruction,
-        )
-    else:
-        msg = f"Variante desconhecida: {variant}"
-        raise TTSSynthesisError("qwen3-tts", msg)
 
     # wavs may be a list (batch) or a single numpy array
     if isinstance(wavs, list):

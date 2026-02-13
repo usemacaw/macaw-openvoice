@@ -10,9 +10,11 @@ from macaw.cli.pull import _install_engine_deps
 class TestInstallEngineDeps:
     def test_install_skipped_when_engine_available(self) -> None:
         """Engine already installed → no subprocess call, returns True."""
-        with patch("macaw.cli.pull.is_engine_available", return_value=True) as mock_avail:
-            with patch("macaw.cli.pull.subprocess.run") as mock_run:
-                result = _install_engine_deps("faster-whisper")
+        with (
+            patch("macaw.cli.pull.is_engine_available", return_value=True) as mock_avail,
+            patch("macaw.cli.pull.subprocess.run") as mock_run,
+        ):
+            result = _install_engine_deps("faster-whisper")
 
         assert result is True
         mock_avail.assert_called_once_with("faster-whisper")
@@ -20,10 +22,12 @@ class TestInstallEngineDeps:
 
     def test_install_runs_pip_when_engine_missing(self) -> None:
         """Engine not installed → runs pip install with correct extra."""
-        with patch("macaw.cli.pull.is_engine_available", return_value=False):
-            with patch("macaw.cli.pull.subprocess.run") as mock_run:
-                mock_run.return_value.returncode = 0
-                result = _install_engine_deps("kokoro")
+        with (
+            patch("macaw.cli.pull.is_engine_available", return_value=False),
+            patch("macaw.cli.pull.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.returncode = 0
+            result = _install_engine_deps("kokoro")
 
         assert result is True
         mock_run.assert_called_once()
@@ -32,10 +36,12 @@ class TestInstallEngineDeps:
 
     def test_install_returns_false_on_pip_failure(self) -> None:
         """pip failure → returns False, does not raise."""
-        with patch("macaw.cli.pull.is_engine_available", return_value=False):
-            with patch("macaw.cli.pull.subprocess.run") as mock_run:
-                mock_run.return_value.returncode = 1
-                result = _install_engine_deps("faster-whisper")
+        with (
+            patch("macaw.cli.pull.is_engine_available", return_value=False),
+            patch("macaw.cli.pull.subprocess.run") as mock_run,
+        ):
+            mock_run.return_value.returncode = 1
+            result = _install_engine_deps("faster-whisper")
 
         assert result is False
 

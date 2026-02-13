@@ -7,17 +7,32 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
-import asyncio
-import signal
-import sys
-from typing import TYPE_CHECKING
+# NB: PYTORCH_CUDA_ALLOC_CONF must be set before importing torch.
+# expandable_segments saves 10x+ GPU memory with small streaming chunks
+# by using dynamically-sized segments instead of fixed allocations.
+# Reference: NeMo speech_to_text_streaming_infer_rnnt.py
+import os as _os
 
-import grpc.aio
+_alloc_conf = _os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+if "expandable_segments" not in _alloc_conf:
+    _new_val = (
+        f"{_alloc_conf},expandable_segments:True" if _alloc_conf else "expandable_segments:True"
+    )
+    _os.environ["PYTORCH_CUDA_ALLOC_CONF"] = _new_val
+del _alloc_conf
 
-from macaw.logging import configure_logging, get_logger
-from macaw.proto import add_TTSWorkerServicer_to_server
-from macaw.workers.tts.servicer import TTSWorkerServicer
+import argparse  # noqa: E402
+import asyncio  # noqa: E402
+import signal  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+from typing import TYPE_CHECKING  # noqa: E402
+
+import grpc.aio  # noqa: E402
+
+from macaw.logging import configure_logging, get_logger  # noqa: E402
+from macaw.proto import add_TTSWorkerServicer_to_server  # noqa: E402
+from macaw.workers.tts.servicer import TTSWorkerServicer  # noqa: E402
 
 if TYPE_CHECKING:
     from macaw.workers.tts.interface import TTSBackend
@@ -25,6 +40,29 @@ if TYPE_CHECKING:
 logger = get_logger("worker.tts.main")
 
 STOP_GRACE_PERIOD = 5.0
+
+
+def _configure_torch_inference() -> None:
+    """Configure PyTorch for inference-only operation.
+
+    Sets process-wide defaults that eliminate autograd overhead:
+    - set_grad_enabled(False): prevents accidental gradient computation
+    - set_float32_matmul_precision("high"): enables TF32 on Ampere+ GPUs
+
+    Safe to call even if torch is not installed (e.g., CTranslate2-only engines).
+    """
+    try:
+        import torch
+
+        torch.set_grad_enabled(False)
+        torch.set_float32_matmul_precision("high")
+        logger.info(
+            "torch_inference_configured",
+            grad_enabled=False,
+            float32_matmul_precision="high",
+        )
+    except ImportError:
+        pass
 
 
 def _create_backend(engine: str) -> TTSBackend:
@@ -61,13 +99,16 @@ async def serve(
         model_path: Path to model files.
         engine_config: Engine configuration (device, etc).
     """
+    _configure_torch_inference()
+
     backend = _create_backend(engine)
 
     logger.info("loading_model", engine=engine, model_path=model_path)
     await backend.load(model_path, engine_config)
     logger.info("model_loaded", engine=engine)
 
-    await _warmup_backend(backend)
+    warmup_steps = int(engine_config.get("warmup_steps", 3))  # type: ignore[arg-type]
+    await _warmup_backend(backend, warmup_steps=warmup_steps)
 
     model_name = str(engine_config.get("model_name", "unknown"))
     servicer = TTSWorkerServicer(
@@ -108,22 +149,68 @@ async def serve(
     await server.wait_for_termination()
 
 
-async def _warmup_backend(backend: TTSBackend) -> None:
-    """Run a dummy synthesis to warm up GPU caches and JIT.
+_WARMUP_TEXTS = (
+    "Hello.",
+    "This is a warmup sentence for the text to speech engine.",
+    "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.",
+)
 
-    First real request would otherwise bear the cost of kernel compilation,
-    memory allocation, and cache priming. Synthesizing a short text takes
-    ~100-300ms but saves that latency from the first user request.
+# PCM 16-bit at 24kHz: 2 bytes per sample
+_TTS_SAMPLE_RATE = 24000
+_TTS_BYTES_PER_SAMPLE = 2
+
+
+async def _warmup_backend(backend: TTSBackend, *, warmup_steps: int = 3) -> None:
+    """Run warmup synthesis passes to prime GPU caches, JIT, and memory pools.
+
+    Multiple passes with varied text lengths exercise different decoder
+    configurations. RTFx is measured on the final pass as a readiness signal.
+
+    Args:
+        backend: Loaded TTS backend.
+        warmup_steps: Number of warmup passes (default 3). Set to 0 to skip.
     """
-    try:
-        # synthesize() is an async generator in concrete backends, but the
-        # ABC declares it as async def -> AsyncIterator (coroutine), causing
-        # a mypy mismatch. At runtime, it returns an async iterable directly.
-        async for _ in backend.synthesize("warmup"):  # type: ignore[attr-defined]
-            break  # First chunk is enough to prime the pipeline
-        logger.info("warmup_complete")
-    except Exception as exc:
-        logger.warning("warmup_failed", error=str(exc))
+    if warmup_steps <= 0:
+        logger.info("warmup_skipped", warmup_steps=warmup_steps)
+        return
+
+    rtfx: float | None = None
+
+    for step in range(warmup_steps):
+        text = _WARMUP_TEXTS[step % len(_WARMUP_TEXTS)]
+        is_last = step == warmup_steps - 1
+
+        try:
+            start = time.monotonic()
+            total_bytes = 0
+            # synthesize() is an async generator in concrete backends
+            async for chunk in backend.synthesize(text):  # type: ignore[attr-defined]
+                total_bytes += len(chunk)
+            elapsed = time.monotonic() - start
+
+            if is_last and elapsed > 0 and total_bytes > 0:
+                audio_duration_s = total_bytes / (_TTS_SAMPLE_RATE * _TTS_BYTES_PER_SAMPLE)
+                rtfx = audio_duration_s / elapsed
+
+            logger.info(
+                "warmup_step",
+                step=step + 1,
+                total=warmup_steps,
+                text_len=len(text),
+                elapsed_s=round(elapsed, 3),
+            )
+        except Exception as exc:
+            logger.warning("warmup_step_failed", step=step + 1, error=str(exc))
+            return
+
+    if rtfx is not None:
+        if rtfx < 1.0:
+            logger.warning(
+                "warmup_rtfx_below_realtime",
+                rtfx=round(rtfx, 2),
+                message="TTS system cannot keep up with real-time synthesis",
+            )
+        logger.info("warmup_complete", rtfx=round(rtfx, 2), warmup_steps=warmup_steps)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

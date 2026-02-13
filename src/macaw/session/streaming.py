@@ -206,6 +206,11 @@ class StreamingSession:
         # Session start timestamp for duration metric
         self._session_start_monotonic = time.monotonic()
 
+        # Pre-allocated int16 buffer for float32->int16 conversion in
+        # _send_frame_to_worker(). Avoids allocating a new int16 array
+        # per frame. Grows on demand if a larger frame arrives.
+        self._int16_buffer = np.empty(1024, dtype=np.int16)
+
         if HAS_METRICS and stt_active_sessions is not None:
             stt_active_sessions.inc()
 
@@ -697,7 +702,14 @@ class StreamingSession:
         # preprocessor creates a new array each call).
         np.multiply(frame, 32767.0, out=frame)
         np.clip(frame, -32768, 32767, out=frame)
-        pcm_bytes = frame.astype(np.int16).tobytes()
+        # Reuse pre-allocated int16 buffer to avoid per-frame allocation.
+        # Grow if needed (rare: only on first oversized frame).
+        frame_len = len(frame)
+        if frame_len > len(self._int16_buffer):
+            self._int16_buffer = np.empty(frame_len, dtype=np.int16)
+        buf = self._int16_buffer[:frame_len]
+        np.copyto(buf, frame, casting="unsafe")
+        pcm_bytes = buf.tobytes()
 
         # Escrever no ring buffer (antes de enviar ao worker, para garantir
         # que os dados estao no buffer mesmo se o worker crashar).
