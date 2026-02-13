@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build da imagem Docker GPU falhava porque `pip` do sistema (Python 3.10) não funciona com Python 3.12 (`distutils` removido) — substituído por `python3.12 -m ensurepip` + `python3.12 -m pip` e removido `python3-pip` do apt (#release-ci)
 - Protobuf runtime passa a ser instalado por padrão para evitar mismatch com stubs gerados (#deps)
 
-## [0.1.4] - 2026-02-12
+## [0.1.5] - 2026-02-12
 
 ### Added
 - Cache de pip no CI para acelerar builds (#release-ci)
