@@ -233,19 +233,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push GPU image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile.gpu
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ghcr.io/usemacaw/macaw-openvoice:${{ steps.tag.outputs.version }}-gpu
-            ghcr.io/usemacaw/macaw-openvoice:latest-gpu
-          labels: |
-            org.opencontainers.image.source=https://github.com/usemacaw/macaw-openvoice
-            org.opencontainers.image.version=${{ steps.tag.outputs.version }}-gpu
-            org.opencontainers.image.description=Macaw OpenVoice - GPU build with CUDA 12.4
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # - name: Build and push GPU image
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     context: .
+      #     file: ./Dockerfile.gpu
+      #     push: true
+      #     platforms: linux/amd64
+      #     tags: |
+      #       ghcr.io/usemacaw/macaw-openvoice:${{ steps.tag.outputs.version }}-gpu
+      #       ghcr.io/usemacaw/macaw-openvoice:latest-gpu
+      #     labels: |
+      #       org.opencontainers.image.source=https://github.com/usemacaw/macaw-openvoice
+      #       org.opencontainers.image.version=${{ steps.tag.outputs.version }}-gpu
+      #       org.opencontainers.image.description=Macaw OpenVoice - GPU build with CUDA 12.4
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
