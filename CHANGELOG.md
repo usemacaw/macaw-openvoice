@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DNS setup guide (`docs/DNS_SETUP.md`) for migrating docs to `docs.usemacaw.io` (#docs)
 
 ### Fixed
+- Qwen3-TTS voice cloning falhava com `TypeError: Unsupported audio input type: <class 'bytes'>` — `ref_audio` bytes (WAV) agora são decodificados para `(np.ndarray, sample_rate)` antes de passar ao modelo, compatível com a API `qwen_tts` (#voice-cloning)
 - WebSocket `/v1/realtime` não processava áudio — `StreamingGRPCClient` nunca era instanciado durante `macaw serve`, fazendo com que todas as sessões streaming descartassem frames silenciosamente. Agora o cliente gRPC streaming é criado e conectado ao worker STT no startup (#streaming)
 - Workers gRPC (STT e TTS) rejeitavam keepalive pings do runtime com `GOAWAY ENHANCE_YOUR_CALM` — servidores gRPC agora aceitam pings a cada 5s, compatível com o intervalo de 10s do cliente streaming (#streaming)
 - Silero VAD exibia mensagem de erro enganosa "requires torch" quando `torchaudio` estava ausente — agora diferencia a falta de `torch` da falta de dependências do Silero e mostra a mensagem correta (#vad)

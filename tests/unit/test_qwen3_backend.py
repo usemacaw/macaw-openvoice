@@ -249,21 +249,38 @@ class TestSynthesize:
         )
 
     async def test_base_voice_clone(self) -> None:
+        import io
+        import wave
+
         backend = self._make_loaded_backend(variant="base")
-        ref_audio_bytes = b"fake_audio_data"
+        # Create valid WAV bytes (qwen_tts expects WAV, not raw bytes)
+        sr = 24000
+        samples = np.zeros(sr, dtype=np.int16)  # 1 second of silence
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sr)
+            wf.writeframes(samples.tobytes())
+        ref_audio_wav = buf.getvalue()
+
         options = {
             "language": "English",
-            "ref_audio": ref_audio_bytes,
+            "ref_audio": ref_audio_wav,
             "ref_text": "This is my voice",
         }
         async for _ in backend.synthesize("Hello", options=options):
             pass
-        backend._model.generate_voice_clone.assert_called_once_with(  # type: ignore[union-attr]
-            text="Hello",
-            language="English",
-            ref_audio=ref_audio_bytes,
-            ref_text="This is my voice",
-        )
+        backend._model.generate_voice_clone.assert_called_once()  # type: ignore[union-attr]
+        call_kwargs = backend._model.generate_voice_clone.call_args[1]  # type: ignore[union-attr]
+        assert call_kwargs["text"] == "Hello"
+        assert call_kwargs["language"] == "English"
+        assert call_kwargs["ref_text"] == "This is my voice"
+        # ref_audio should be decoded to (np.ndarray, sample_rate) tuple
+        ref_decoded = call_kwargs["ref_audio"]
+        assert isinstance(ref_decoded, tuple)
+        assert isinstance(ref_decoded[0], np.ndarray)
+        assert ref_decoded[1] == sr
 
     async def test_base_without_ref_audio_raises(self) -> None:
         backend = self._make_loaded_backend(variant="base")

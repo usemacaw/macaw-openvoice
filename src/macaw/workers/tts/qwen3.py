@@ -264,6 +264,38 @@ def _load_qwen3_model(
     return model, sample_rate
 
 
+def _decode_ref_audio(ref_audio: object) -> tuple[np.ndarray, int]:
+    """Decode reference audio bytes to (waveform, sample_rate).
+
+    Qwen3-TTS expects ref_audio as (np.ndarray, int) or str (path/base64).
+    Our API sends WAV bytes from the gRPC proto. This decodes them.
+    """
+    import io
+    import wave
+
+    if isinstance(ref_audio, (np.ndarray, str)):
+        msg = "ref_audio already in accepted format"
+        raise TypeError(msg)
+
+    raw = bytes(ref_audio) if not isinstance(ref_audio, bytes) else ref_audio
+
+    buf = io.BytesIO(raw)
+    with wave.open(buf, "rb") as wf:
+        sr = wf.getframerate()
+        n_frames = wf.getnframes()
+        pcm_bytes = wf.readframes(n_frames)
+        width = wf.getsampwidth()
+
+    if width == 2:
+        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+    elif width == 4:
+        samples = np.frombuffer(pcm_bytes, dtype=np.int32).astype(np.float32) / 2147483648.0
+    else:
+        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+
+    return samples, sr
+
+
 def _synthesize_with_model(
     *,
     model: object,
@@ -304,10 +336,16 @@ def _synthesize_with_model(
             if ref_audio is None:
                 msg = "Voice cloning requer ref_audio"
                 raise TTSSynthesisError("qwen3-tts", msg)
+            # Decode WAV bytes to (np.ndarray, sample_rate) tuple
+            ref_audio_decoded: object
+            if isinstance(ref_audio, bytes):
+                ref_audio_decoded = _decode_ref_audio(ref_audio)
+            else:
+                ref_audio_decoded = ref_audio
             wavs, _sr = model.generate_voice_clone(  # type: ignore[attr-defined]
                 text=text,
                 language=language,
-                ref_audio=ref_audio,
+                ref_audio=ref_audio_decoded,
                 ref_text=ref_text,
             )
         elif variant == "voice_design":
