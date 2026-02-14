@@ -147,6 +147,76 @@ class TestTranscribeCommand:
         data = call_kwargs.kwargs.get("data", {})
         assert data.get("itn") == "false"
 
+    @patch("httpx.post")
+    def test_transcribe_verbose_json_outputs_full_json(
+        self, mock_post: MagicMock, tmp_path: Path
+    ) -> None:
+        import json
+        import pathlib
+
+        audio_file = pathlib.Path(str(tmp_path)) / "audio.wav"
+        audio_file.write_bytes(b"fake audio data")
+
+        verbose_body = {
+            "text": "O clima hoje",
+            "language": "pt",
+            "duration": 3.5,
+            "segments": [{"text": "O clima hoje", "start": 0.0, "end": 3.5}],
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = verbose_body
+        mock_post.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "transcribe",
+                str(audio_file),
+                "--model",
+                "faster-whisper-tiny",
+                "--format",
+                "verbose_json",
+            ],
+        )
+        assert result.exit_code == 0
+        parsed = json.loads(result.output)
+        assert parsed["text"] == "O clima hoje"
+        assert parsed["language"] == "pt"
+        assert parsed["segments"] is not None
+
+    @patch("httpx.post")
+    def test_transcribe_json_outputs_text_only(
+        self, mock_post: MagicMock, tmp_path: Path
+    ) -> None:
+        import pathlib
+
+        audio_file = pathlib.Path(str(tmp_path)) / "audio.wav"
+        audio_file.write_bytes(b"fake audio data")
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {"content-type": "application/json"}
+        mock_response.json.return_value = {"text": "O clima hoje"}
+        mock_post.return_value = mock_response
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "transcribe",
+                str(audio_file),
+                "--model",
+                "faster-whisper-tiny",
+                "--format",
+                "json",
+            ],
+        )
+        assert result.exit_code == 0
+        assert result.output.strip() == "O clima hoje"
+
     def test_transcribe_help_shows_stream(self) -> None:
         runner = CliRunner()
         result = runner.invoke(cli, ["transcribe", "--help"])

@@ -309,3 +309,31 @@ def test_input_audio_buffer_commit_accepted_without_closing() -> None:
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "client_request"
+
+
+# ---------------------------------------------------------------------------
+# HTTP stub for Swagger documentation
+# ---------------------------------------------------------------------------
+
+
+def test_http_get_returns_426_upgrade_required() -> None:
+    """GET /v1/realtime retorna 426 Upgrade Required com hint de WebSocket."""
+    app = create_app(registry=_make_mock_registry())
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get("/v1/realtime", params={"model": "faster-whisper-tiny"})
+
+    assert response.status_code == 426
+    body = response.json()
+    assert "websocket" in body["error"].lower()
+    assert "faster-whisper-tiny" in body["hint"]
+
+
+def test_http_get_includes_upgrade_header() -> None:
+    """GET /v1/realtime inclui header Upgrade: websocket na resposta."""
+    app = create_app(registry=_make_mock_registry())
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get("/v1/realtime", params={"model": "faster-whisper-tiny"})
+
+    assert response.headers.get("upgrade") == "websocket"

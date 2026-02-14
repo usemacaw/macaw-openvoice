@@ -56,7 +56,7 @@ class FasterWhisperBackend(STTBackend):
             raise ModelLoadError(model_path, msg)
 
         model_size = str(config.get("model_size", model_path))
-        compute_type = str(config.get("compute_type", "float16"))
+        compute_type = str(config.get("compute_type", "auto"))
         device = str(config.get("device", "auto"))
         self._beam_size = int(config.get("beam_size", 5))  # type: ignore[call-overload]
         self._accumulation_threshold_seconds = float(

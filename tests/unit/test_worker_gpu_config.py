@@ -152,6 +152,7 @@ class TestSTTWarmup:
 
         mock_backend = MagicMock()
         mock_backend.transcribe_file = MagicMock(return_value=MagicMock())
+
         # Make transcribe_file a coroutine
         async def _fake_transcribe(audio: bytes, **kwargs: object) -> object:
             return MagicMock()

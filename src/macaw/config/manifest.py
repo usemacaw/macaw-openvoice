@@ -47,7 +47,7 @@ class EngineConfig(BaseModel, extra="allow"):
     model_config = {"protected_namespaces": ()}
 
     model_size: str | None = None
-    compute_type: str = "float16"
+    compute_type: str = "auto"
     device: str = "auto"
     beam_size: int = 5
     vad_filter: bool = False

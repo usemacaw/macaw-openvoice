@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Endpoint HTTP `GET /v1/realtime` retorna 426 Upgrade Required com documentação completa do protocolo WebSocket no Swagger UI — conexão, comandos, eventos, full-duplex e exemplos JSON (#docs)
 - CLI `macaw catalog` para listar modelos disponiveis para download no catalogo, com tabela formatada (NAME, TYPE, ENGINE, DESCRIPTION) (#catalog)
 - `macaw pull` instala automaticamente as dependencias da engine do modelo apos download — engines com extras opcionais (faster-whisper, kokoro, qwen3-tts) sao instaladas via pip sem intervencao manual (#pull)
 - Qwen3-TTS backend com suporte a CustomVoice (9 vozes preset), Base (voice cloning), e VoiceDesign (instrucao em linguagem natural) (#qwen3-tts)
@@ -19,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DNS setup guide (`docs/DNS_SETUP.md`) for migrating docs to `docs.usemacaw.io` (#docs)
 
 ### Fixed
+- CLI `macaw transcribe --format verbose_json` exibia apenas o texto puro em vez do JSON completo com segmentos, timestamps e idioma — agora retorna o objeto JSON completo para `verbose_json` (#cli)
+- Modelos Faster-Whisper no catálogo usavam `compute_type: "float16"` hardcoded, causando crash do worker STT em máquinas sem GPU — alterado para `compute_type: "auto"` que seleciona o tipo ideal automaticamente (float16 em GPU, int8 em CPU) (#catalog)
 - `macaw serve` não tenta mais spawnar workers para engines não instaladas — modelos com dependência opcional ausente são pulados com warning claro indicando o comando de instalação (#serve)
 - Protobuf stubs (`*_pb2.py`) ausentes no wheel PyPI causavam `ModuleNotFoundError` ao rodar `macaw serve` — adicionado hatch build hook que gera os stubs automaticamente durante o build (#build)
 - Kokoro TTS `languages` no catálogo listava apenas 3 idiomas (en, pt, ja) mas o backend suporta 8 — atualizado para en, es, fr, hi, it, ja, pt, zh (#catalog)

@@ -67,7 +67,7 @@ def _post_audio(
     content_type = response.headers.get("content-type", "")
     if "application/json" in content_type:
         body = response.json()
-        if "text" in body:
+        if response_format == "json" and "text" in body:
             click.echo(body["text"])
         else:
             import json

@@ -44,7 +44,7 @@ class TestManifestFromYamlPath:
         manifest = ModelManifest.from_yaml_path(minimal_manifest_path)
         assert manifest.name == "minimal-model"
         assert manifest.capabilities.streaming is False
-        assert manifest.engine_config.compute_type == "float16"
+        assert manifest.engine_config.compute_type == "auto"
 
     def test_invalid_manifest_raises_validation_error(self, invalid_manifest_path: Path) -> None:
         with pytest.raises(ManifestValidationError):

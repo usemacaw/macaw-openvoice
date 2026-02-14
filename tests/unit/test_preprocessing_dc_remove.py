@@ -177,10 +177,7 @@ class TestDCRemoveFilterState:
         # Create 1s of audio split into 30ms frames
         full_audio = _make_sine(frequency=440.0, dc_offset=0.2, duration=1.0)
         frame_size = int(16000 * 0.03)  # 480 samples per 30ms frame
-        frames = [
-            full_audio[i : i + frame_size]
-            for i in range(0, len(full_audio), frame_size)
-        ]
+        frames = [full_audio[i : i + frame_size] for i in range(0, len(full_audio), frame_size)]
 
         # Act -- streaming: process frame-by-frame
         streaming_results = []
@@ -194,7 +191,9 @@ class TestDCRemoveFilterState:
 
         # Assert -- outputs should be identical
         np.testing.assert_allclose(
-            streaming_output, batch_output, atol=1e-6,
+            streaming_output,
+            batch_output,
+            atol=1e-6,
         )
 
     def test_reset_clears_filter_state(self) -> None:

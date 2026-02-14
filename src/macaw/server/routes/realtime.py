@@ -9,7 +9,8 @@ import uuid
 from typing import TYPE_CHECKING
 
 import grpc.aio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 
 from macaw._types import ModelType, STTArchitecture
 from macaw.exceptions import ModelNotFoundError
@@ -55,7 +56,189 @@ if TYPE_CHECKING:
 
 logger = get_logger("server.realtime")
 
-router = APIRouter()
+router = APIRouter(tags=["Realtime"])
+
+
+@router.get(
+    "/v1/realtime",
+    status_code=426,
+    summary="WebSocket Realtime Streaming (STT + TTS full-duplex)",
+    response_description="This endpoint requires a WebSocket connection. "
+    "HTTP requests return 426 Upgrade Required.",
+    responses={
+        426: {
+            "description": "Upgrade Required — connect via WebSocket",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": "This endpoint requires a WebSocket connection",
+                        "hint": "Connect using: ws://<host>/v1/realtime?model=<model_name>",
+                        "protocol": {
+                            "connection": {
+                                "url": "ws://<host>/v1/realtime",
+                                "query_params": {
+                                    "model": "(required) STT model name",
+                                    "language": "(optional) ISO 639-1 code, default: auto-detect",
+                                },
+                            },
+                            "client_to_server": {
+                                "binary_frames": "Raw PCM audio (16kHz, 16-bit, mono)",
+                                "commands": [
+                                    "session.configure",
+                                    "session.cancel",
+                                    "session.close",
+                                    "input_audio_buffer.commit",
+                                    "tts.speak",
+                                    "tts.cancel",
+                                ],
+                            },
+                            "server_to_client": {
+                                "binary_frames": "TTS audio (PCM 24kHz, 16-bit, mono)",
+                                "events": [
+                                    "session.created",
+                                    "vad.speech_start",
+                                    "vad.speech_end",
+                                    "transcript.partial",
+                                    "transcript.final",
+                                    "session.hold",
+                                    "session.rate_limit",
+                                    "session.frames_dropped",
+                                    "tts.speaking_start",
+                                    "tts.speaking_end",
+                                    "error",
+                                    "session.closed",
+                                ],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+)
+async def realtime_docs(
+    model: str = Query(
+        ...,
+        description="Name of the STT model to use (e.g. `faster-whisper-tiny`). "
+        "Must be installed via `macaw pull`.",
+    ),
+    language: str | None = Query(
+        None,
+        description="ISO 639-1 language code (e.g. `en`, `pt`, `es`). "
+        "Omit for automatic language detection.",
+    ),
+) -> JSONResponse:
+    """WebSocket endpoint for real-time streaming STT + TTS full-duplex.
+
+    **This endpoint requires a WebSocket connection.** HTTP requests return `426 Upgrade Required`.
+
+    ---
+
+    ## Connection
+
+    ```
+    ws://<host>/v1/realtime?model=faster-whisper-tiny&language=pt
+    ```
+
+    ## Binary Frames
+
+    | Direction | Content |
+    |-----------|---------|
+    | Client → Server | Raw PCM audio: **16kHz, 16-bit signed integer, mono** |
+    | Server → Client | TTS audio: **24kHz, 16-bit signed integer, mono** (only during `tts.speak`) |
+
+    ---
+
+    ## Client → Server Commands (JSON text frames)
+
+    ### `session.configure` — Update session parameters
+    ```json
+    {
+      "type": "session.configure",
+      "language": "pt",
+      "vad_sensitivity": "high",
+      "silence_timeout_ms": 500,
+      "hold_timeout_ms": 300000,
+      "hot_words": ["Macaw", "OpenVoice"],
+      "enable_itn": true,
+      "enable_partial_transcripts": true,
+      "model_tts": "kokoro-v1"
+    }
+    ```
+
+    ### `input_audio_buffer.commit` — Force commit current audio segment
+    ```json
+    {"type": "input_audio_buffer.commit"}
+    ```
+
+    ### `tts.speak` — Synthesize speech (full-duplex: mutes STT during playback)
+    ```json
+    {
+      "type": "tts.speak",
+      "text": "Hello, how can I help you?",
+      "voice": "af_heart",
+      "request_id": "tts_abc123",
+      "language": "English",
+      "ref_audio": "<base64>",
+      "ref_text": "reference transcript",
+      "instruction": "Speak in a warm, friendly tone"
+    }
+    ```
+    *Note: `language`, `ref_audio`, `ref_text`, `instruction` are for LLM-based TTS engines (e.g. Qwen3-TTS).*
+
+    ### `tts.cancel` — Cancel active TTS synthesis
+    ```json
+    {"type": "tts.cancel"}
+    ```
+
+    ### `session.cancel` — Cancel and close the session
+    ```json
+    {"type": "session.cancel"}
+    ```
+
+    ### `session.close` — Gracefully close the session
+    ```json
+    {"type": "session.close"}
+    ```
+
+    ---
+
+    ## Server → Client Events (JSON text frames)
+
+    | Event | Description |
+    |-------|-------------|
+    | `session.created` | Session established — contains `session_id`, `model`, and `config` |
+    | `vad.speech_start` | Voice Activity Detection: speech started |
+    | `vad.speech_end` | Voice Activity Detection: speech ended |
+    | `transcript.partial` | Intermediate hypothesis (may change) |
+    | `transcript.final` | Confirmed segment (immutable, with word timestamps) |
+    | `session.hold` | Session entered HOLD state (no speech for a while) |
+    | `session.rate_limit` | Client sending audio faster than real-time |
+    | `session.frames_dropped` | Audio frames dropped due to backlog |
+    | `tts.speaking_start` | TTS audio streaming began (STT is muted) |
+    | `tts.speaking_end` | TTS audio streaming ended (STT is unmuted) |
+    | `error` | Error with `code`, `message`, and `recoverable` flag |
+    | `session.closed` | Session ended — contains `reason` and `total_duration_ms` |
+
+    ---
+
+    ## Full-Duplex Behavior
+
+    - When `tts.speak` is active, **STT is automatically muted** (audio frames are discarded)
+    - When TTS finishes or is cancelled, **STT is automatically unmuted**
+    - A new `tts.speak` cancels any previous in-progress synthesis
+    - TTS audio arrives as **binary frames** (server → client)
+    - STT audio is sent as **binary frames** (client → server)
+    """
+    return JSONResponse(
+        status_code=426,
+        content={
+            "error": "This endpoint requires a WebSocket connection",
+            "hint": f"Connect using: ws://<host>/v1/realtime?model={model}",
+        },
+        headers={"Upgrade": "websocket"},
+    )
+
 
 # Defaults (overrideable via app.state para testes com timeouts curtos)
 _DEFAULT_HEARTBEAT_INTERVAL_S = 10.0

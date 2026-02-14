@@ -39,7 +39,7 @@ models:
         load_time_seconds: 8
       engine_config:
         model_size: "large-v3"
-        compute_type: "float16"
+        compute_type: "auto"
         device: "auto"
         beam_size: 5
         vad_filter: false
@@ -74,7 +74,7 @@ models:
         load_time_seconds: 5
       engine_config:
         model_size: "medium"
-        compute_type: "float16"
+        compute_type: "auto"
         device: "auto"
         beam_size: 5
         vad_filter: false
@@ -109,7 +109,7 @@ models:
         load_time_seconds: 3
       engine_config:
         model_size: "small"
-        compute_type: "float16"
+        compute_type: "auto"
         device: "auto"
         beam_size: 5
         vad_filter: false
@@ -144,7 +144,7 @@ models:
         load_time_seconds: 2
       engine_config:
         model_size: "tiny"
-        compute_type: "float16"
+        compute_type: "auto"
         device: "auto"
         beam_size: 5
         vad_filter: false
@@ -179,7 +179,7 @@ models:
         load_time_seconds: 5
       engine_config:
         model_size: "distil-large-v3"
-        compute_type: "float16"
+        compute_type: "auto"
         device: "auto"
         beam_size: 5
         vad_filter: false
