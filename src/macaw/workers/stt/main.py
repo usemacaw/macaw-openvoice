@@ -112,7 +112,10 @@ async def serve(
         engine=engine,
     )
 
-    server = grpc.aio.server()
+    server = grpc.aio.server(options=[
+        ("grpc.http2.min_recv_ping_interval_without_data_ms", 5_000),
+        ("grpc.keepalive_permit_without_calls", 1),
+    ])
     add_STTWorkerServicer_to_server(servicer, server)  # type: ignore[no-untyped-call]
     listen_addr = f"[::]:{port}"
     server.add_insecure_port(listen_addr)

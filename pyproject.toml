@@ -73,6 +73,8 @@ qwen3-tts = [
 stream = [
     "sounddevice>=0.4,<1.0",
     "websockets>=12.0,<14.0",
+    "torch>=2.0",
+    "torchaudio>=2.0",
 ]
 itn = [
     "nemo_text_processing>=1.1,<2.0",

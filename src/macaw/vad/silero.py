@@ -130,19 +130,24 @@ class SileroVADClassifier:
 
             try:
                 import torch
+            except ImportError:
+                msg = "Silero VAD requires torch. Install with: pip install torch"
+                raise ImportError(msg) from None
 
+            try:
                 model, _utils = torch.hub.load(
                     repo_or_dir="snakers4/silero-vad",
                     model="silero_vad",
                     force_reload=False,
                 )
-                self._model = model
-                self._to_tensor = torch.from_numpy
-                self._model_loaded = True
-                logger.info("Silero VAD loaded via PyTorch")
-            except ImportError:
-                msg = "Silero VAD requires torch. Install with: pip install torch"
-                raise ImportError(msg) from None
+            except ImportError as exc:
+                msg = f"Silero VAD failed to load: {exc}. Try: pip install torchaudio"
+                raise ImportError(msg) from exc
+
+            self._model = model
+            self._to_tensor = torch.from_numpy
+            self._model_loaded = True
+            logger.info("Silero VAD loaded via PyTorch")
 
     def get_speech_probability(self, frame: np.ndarray) -> float:
         """Compute speech probability for an audio frame.

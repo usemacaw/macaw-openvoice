@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - DNS setup guide (`docs/DNS_SETUP.md`) for migrating docs to `docs.usemacaw.io` (#docs)
 
 ### Fixed
+- WebSocket `/v1/realtime` não processava áudio — `StreamingGRPCClient` nunca era instanciado durante `macaw serve`, fazendo com que todas as sessões streaming descartassem frames silenciosamente. Agora o cliente gRPC streaming é criado e conectado ao worker STT no startup (#streaming)
+- Workers gRPC (STT e TTS) rejeitavam keepalive pings do runtime com `GOAWAY ENHANCE_YOUR_CALM` — servidores gRPC agora aceitam pings a cada 5s, compatível com o intervalo de 10s do cliente streaming (#streaming)
+- Silero VAD exibia mensagem de erro enganosa "requires torch" quando `torchaudio` estava ausente — agora diferencia a falta de `torch` da falta de dependências do Silero e mostra a mensagem correta (#vad)
 - CLI `macaw transcribe --format verbose_json` exibia apenas o texto puro em vez do JSON completo com segmentos, timestamps e idioma — agora retorna o objeto JSON completo para `verbose_json` (#cli)
 - Modelos Faster-Whisper no catálogo usavam `compute_type: "float16"` hardcoded, causando crash do worker STT em máquinas sem GPU — alterado para `compute_type: "auto"` que seleciona o tipo ideal automaticamente (float16 em GPU, int8 em CPU) (#catalog)
 - `macaw serve` não tenta mais spawnar workers para engines não instaladas — modelos com dependência opcional ausente são pulados com warning claro indicando o comando de instalação (#serve)
@@ -31,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - WeNet STT backend removido — engine, testes, manifesto, dependencia opcional e documentacao (#wenet-removal)
 
 ### Changed
+- Extra `[stream]` agora inclui `torch` e `torchaudio` como dependências — `pip install macaw-openvoice[stream]` instala tudo necessário para streaming via WebSocket, incluindo Silero VAD (#deps)
 - `POST /v1/audio/speech` agora usa `StreamingResponse` — audio chunks são enviados ao cliente conforme chegam do gRPC worker, reduzindo TTFB significativamente (#perf)
 - TTS gRPC channel é reutilizado entre chamadas `tts.speak` na mesma conexão WebSocket — elimina overhead de TCP+HTTP/2 handshake (~5-20ms por request) (#perf)
 - Float32→int16 conversion no audio pipeline usa operações NumPy in-place (`np.multiply(out=)`, `np.clip(out=)`) — reduz alocações de 4 para 2 por frame no hot path (#perf)

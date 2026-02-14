@@ -210,6 +210,17 @@ async def _serve(
         cors_origins=cors_origins,
     )
 
+    # 3.5 Wire StreamingGRPCClient for WebSocket /v1/realtime
+    stt_worker = worker_manager.get_ready_worker(stt_models[0].name) if stt_models else None
+    stt_worker_port = stt_worker.port if stt_worker else (DEFAULT_WORKER_BASE_PORT if stt_models else None)
+    if stt_worker_port is not None:
+        from macaw.scheduler.streaming import StreamingGRPCClient
+
+        streaming_client = StreamingGRPCClient(f"localhost:{stt_worker_port}")
+        await streaming_client.connect()
+        app.state.streaming_grpc_client = streaming_client
+        logger.info("streaming_grpc_connected", worker_port=stt_worker_port)
+
     # 4. Setup shutdown
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -237,6 +248,11 @@ async def _serve(
     if not server_task.done():
         server.should_exit = True
         await server_task
+
+    # Close streaming gRPC client
+    streaming_grpc = getattr(app.state, "streaming_grpc_client", None)
+    if streaming_grpc is not None:
+        await streaming_grpc.close()
 
     logger.info("stopping_workers")
     await worker_manager.stop_all()
