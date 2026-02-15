@@ -509,6 +509,9 @@ class Scheduler:
             if future is not None and not future.done():
                 future.set_exception(exc)
 
+            # Evict stale channel so next request creates a fresh one
+            await self.close_channel(address)
+
         finally:
             self._latency.complete(request.request_id)
             self._in_flight.discard(request.request_id)

@@ -91,7 +91,6 @@ class VADDetector:
         """
         self._energy_pre_filter = energy_pre_filter
         self._silero_classifier = silero_classifier
-        self._sensitivity = sensitivity
         self._sample_rate = sample_rate
         self._min_speech_duration_ms = min_speech_duration_ms
         self._min_silence_duration_ms = min_silence_duration_ms
@@ -147,7 +146,7 @@ class VADDetector:
     def _check_transitions(self, frame_samples: int) -> VADEvent | None:
         """Check whether debounce or max duration triggers a transition."""
         # Timestamp of the CURRENT moment (after processing this frame)
-        current_timestamp_ms = self._compute_timestamp_ms(self._samples_processed + frame_samples)
+        current_timestamp_ms = self._samples_to_ms(self._samples_processed + frame_samples)
 
         if not self._is_speaking:
             return self._check_speech_start(current_timestamp_ms, frame_samples)
@@ -174,7 +173,7 @@ class VADDetector:
     def _check_speech_end(self, timestamp_ms: int, frame_samples: int) -> VADEvent | None:
         """Check if silence debounce or max duration were reached."""
         # Check max speech duration first
-        speech_duration_ms = self._compute_timestamp_ms(
+        speech_duration_ms = self._samples_to_ms(
             self._samples_processed + frame_samples - self._speech_start_sample
         )
 
@@ -204,12 +203,8 @@ class VADDetector:
 
         return None
 
-    def _compute_timestamp_ms(self, total_samples: int) -> int:
-        """Convert total processed samples to milliseconds."""
-        return int(total_samples * 1000 / self._sample_rate)
-
     def _samples_to_ms(self, total_samples: int) -> int:
-        """Convert total accumulated samples to milliseconds."""
+        """Convert a sample count to milliseconds at the configured sample rate."""
         return int(total_samples * 1000 / self._sample_rate)
 
     def reset(self) -> None:

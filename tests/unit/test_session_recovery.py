@@ -350,7 +350,7 @@ async def test_recover_prevents_recursion():
     session._state_machine.transition(SessionState.ACTIVE)
 
     # Simular recovery em andamento
-    session._recovering = True
+    session._recovery._recovering = True
 
     # Act
     result = await session.recover()
@@ -358,10 +358,10 @@ async def test_recover_prevents_recursion():
     # Assert
     assert result is False
     # Flag permanece True (nao foi modificada)
-    assert session._recovering is True
+    assert session._recovery._recovering is True
 
     # Reset para cleanup
-    session._recovering = False
+    session._recovery._recovering = False
     await session.close()
 
 
@@ -429,11 +429,11 @@ async def test_recover_resets_recovering_flag():
     session, _, _ = _create_recovery_session()
     session._state_machine.transition(SessionState.ACTIVE)
 
-    assert session._recovering is False
+    assert session._recovery._recovering is False
 
     result = await session.recover()
     assert result is True
-    assert session._recovering is False
+    assert session._recovery._recovering is False
 
     # Cleanup
     await session.close()
@@ -457,7 +457,7 @@ async def test_recover_resets_recovering_flag_on_failure():
 
     # Assert
     assert result is False
-    assert session._recovering is False
+    assert session._recovery._recovering is False
 
 
 async def test_receiver_crash_triggers_recovery():

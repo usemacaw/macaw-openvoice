@@ -16,9 +16,11 @@ import os
 import subprocess
 import sys
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 from macaw.logging import get_logger
 
@@ -421,10 +423,55 @@ def _spawn_worker_process(
     )
 
 
+async def _check_stt_health(channel: Any, timeout: float) -> dict[str, str]:
+    """Perform STT health check via gRPC."""
+    from macaw.proto import HealthRequest
+    from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
+
+    stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
+    response = await asyncio.wait_for(
+        stub.Health(HealthRequest()),
+        timeout=timeout,
+    )
+    return {
+        "status": response.status,
+        "model_name": response.model_name,
+        "engine": response.engine,
+    }
+
+
+async def _check_tts_health(channel: Any, timeout: float) -> dict[str, str]:
+    """Perform TTS health check via gRPC."""
+    from macaw.proto import TTSHealthRequest, TTSWorkerStub
+
+    stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
+    response = await asyncio.wait_for(
+        stub.Health(TTSHealthRequest()),
+        timeout=timeout,
+    )
+    return {
+        "status": response.status,
+        "model_name": response.model_name,
+        "engine": response.engine,
+    }
+
+
+_HealthChecker = Callable[[Any, float], Coroutine[Any, Any, dict[str, str]]]
+
+# Dispatch table: WorkerType → health check function(channel, timeout) → dict
+_HEALTH_CHECKERS: dict[WorkerType, _HealthChecker] = {
+    WorkerType.STT: _check_stt_health,
+    WorkerType.TTS: _check_tts_health,
+}
+
+
 async def _check_worker_health(
     port: int, timeout: float = 2.0, worker_type: WorkerType = WorkerType.STT
 ) -> dict[str, str]:
     """Check worker health via gRPC Health RPC.
+
+    Uses a dispatch table keyed by WorkerType. Adding a new worker type
+    only requires adding an entry to ``_HEALTH_CHECKERS``.
 
     Args:
         port: Worker gRPC port.
@@ -436,29 +483,9 @@ async def _check_worker_health(
     """
     import grpc.aio
 
+    checker = _HEALTH_CHECKERS[worker_type]
     channel = grpc.aio.insecure_channel(f"localhost:{port}")
     try:
-        if worker_type == WorkerType.TTS:
-            from macaw.proto import TTSHealthRequest, TTSWorkerStub
-
-            tts_stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
-            response = await asyncio.wait_for(
-                tts_stub.Health(TTSHealthRequest()),
-                timeout=timeout,
-            )
-        else:
-            from macaw.proto import HealthRequest
-            from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
-
-            stt_stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
-            response = await asyncio.wait_for(
-                stt_stub.Health(HealthRequest()),
-                timeout=timeout,
-            )
-        return {
-            "status": response.status,
-            "model_name": response.model_name,
-            "engine": response.engine,
-        }
+        return await checker(channel, timeout)
     finally:
         await channel.close()

@@ -242,12 +242,12 @@ class TestCTCForceCommit:
 
         session = _make_session(ring_buffer=rb)
 
-        assert session._force_commit_pending is False
+        assert session._metrics._force_commit_pending is False
 
         # Escrever 901 bytes (>90% de 1000) para disparar force commit
         rb.write(b"\x00" * 901)
 
-        assert session._force_commit_pending is True
+        assert session._metrics._force_commit_pending is True
 
     async def test_ctc_force_commit_pending_consumed_on_process_frame(self) -> None:
         """process_frame() consome _force_commit_pending e executa commit."""
@@ -255,7 +255,7 @@ class TestCTCForceCommit:
         session = _make_session(ring_buffer=rb)
 
         # Setar flag manualmente (como se ring buffer tivesse disparado)
-        session._force_commit_pending = True
+        session._metrics._force_commit_pending = True
 
         # Colocar sessao em ACTIVE (INIT rejeita frame processing com stream)
         session._state_machine.transition(SessionState.ACTIVE)
@@ -265,7 +265,7 @@ class TestCTCForceCommit:
         await session.process_frame(raw_frame)
 
         # Flag consumida
-        assert session._force_commit_pending is False
+        assert session._metrics._force_commit_pending is False
 
 
 # ---------------------------------------------------------------------------

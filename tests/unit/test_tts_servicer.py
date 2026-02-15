@@ -512,7 +512,7 @@ class TestCreateBackend:
         """Engine desconhecida levanta ValueError."""
         from macaw.workers.tts.main import _create_backend
 
-        with pytest.raises(ValueError, match="Engine TTS nao suportada: nonexistent"):
+        with pytest.raises(ValueError, match="Unsupported TTS engine: nonexistent"):
             _create_backend("nonexistent")
 
     def test_kokoro_returns_backend_instance(self) -> None:

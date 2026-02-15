@@ -12,18 +12,18 @@ Cost: ~2ms/frame on CPU.
 from __future__ import annotations
 
 import asyncio
-import logging
 import threading
 from typing import TYPE_CHECKING, Any
 
 from macaw._types import VADSensitivity
+from macaw.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     import numpy as np
 
-logger = logging.getLogger(__name__)
+logger = get_logger("vad.silero")
 
 # Sensitivity mapping to speech probability threshold.
 # HIGH = detects soft speech (whisper), LOW = requires clear speech.

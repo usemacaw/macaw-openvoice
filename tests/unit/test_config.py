@@ -18,18 +18,11 @@ class TestPreprocessingConfig:
         assert config.dc_remove_cutoff_hz == 20
         assert config.gain_normalize is True
         assert config.target_dbfs == -3.0
-        assert config.normalize_window_ms == 500
-        assert config.denoise is False
-        assert config.denoise_engine == "rnnoise"
 
     def test_custom_values(self) -> None:
         config = PreprocessingConfig(
-            denoise=True,
-            denoise_engine="nsnet2",
             target_dbfs=-6.0,
         )
-        assert config.denoise is True
-        assert config.denoise_engine == "nsnet2"
         assert config.target_dbfs == -6.0
 
 

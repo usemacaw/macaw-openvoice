@@ -17,6 +17,3 @@ class PreprocessingConfig(BaseModel):
     dc_remove_cutoff_hz: int = 20
     gain_normalize: bool = True
     target_dbfs: float = -3.0
-    normalize_window_ms: int = 500
-    denoise: bool = False
-    denoise_engine: str = "rnnoise"

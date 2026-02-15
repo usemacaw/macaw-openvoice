@@ -9,8 +9,6 @@ import pytest
 from macaw._types import ResponseFormat
 from macaw.server.models.requests import TranscribeRequest
 from macaw.server.models.responses import (
-    ErrorDetail,
-    ErrorResponse,
     SegmentResponse,
     TranscriptionResponse,
     VerboseTranscriptionResponse,
@@ -120,20 +118,3 @@ class TestVerboseTranscriptionResponse:
             text="Teste",
         )
         assert resp.task == "transcribe"
-
-
-class TestErrorResponse:
-    """Testes do modelo de resposta de erro."""
-
-    def test_error_format(self) -> None:
-        resp = ErrorResponse(
-            error=ErrorDetail(
-                message="Modelo 'inexistente' nao encontrado",
-                type="model_not_found_error",
-                code="model_not_found",
-            )
-        )
-        data = resp.model_dump()
-        assert data["error"]["message"] == "Modelo 'inexistente' nao encontrado"
-        assert data["error"]["type"] == "model_not_found_error"
-        assert data["error"]["code"] == "model_not_found"

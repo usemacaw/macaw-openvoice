@@ -456,7 +456,7 @@ class TestTimestamps:
         # Assert -- samples processados = 100 * 1024 = 102400
         expected_ms = 100 * _FRAME_SIZE * 1000 // _SAMPLE_RATE  # 6400ms
         assert detector._samples_processed == 100 * _FRAME_SIZE
-        assert detector._compute_timestamp_ms(detector._samples_processed) == expected_ms
+        assert detector._samples_to_ms(detector._samples_processed) == expected_ms
 
 
 class TestSpeechSilenceCycles:

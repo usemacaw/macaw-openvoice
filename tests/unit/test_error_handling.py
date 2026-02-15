@@ -162,7 +162,7 @@ async def test_unexpected_error_returns_500_without_stack_trace() -> None:
     assert body["error"]["code"] == "internal_error"
     # Nao deve expor detalhes internos
     assert "algo inesperado" not in body["error"]["message"]
-    assert body["error"]["message"] == "Erro interno do servidor"
+    assert body["error"]["message"] == "Internal server error"
 
 
 async def test_worker_timeout_returns_504() -> None:

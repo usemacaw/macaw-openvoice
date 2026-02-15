@@ -601,7 +601,7 @@ class TestStreamingSessionRingBuffer:
 
         # Apos criar session, callback esta wired
         assert rb._on_force_commit is not None
-        assert rb._on_force_commit == session._on_ring_buffer_force_commit
+        assert rb._on_force_commit == session._metrics.on_ring_buffer_force_commit
 
         await session.close()
 
@@ -620,7 +620,7 @@ class TestStreamingSessionRingBuffer:
         )
 
         # Setar flag manualmente
-        session._force_commit_pending = True
+        session._metrics._force_commit_pending = True
 
         # Chamar commit diretamente (sem stream ativo, e no-op mas reseta flag)
         # Na verdade, commit() nao reseta a flag — e process_frame que faz.

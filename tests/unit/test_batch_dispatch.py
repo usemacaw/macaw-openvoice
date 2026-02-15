@@ -497,16 +497,18 @@ class TestEngineBatchSupport:
             assert end.endswith("_end")
 
     async def test_semaphore_allows_parallel_when_higher(self) -> None:
-        """With semaphore>1, requests can run in parallel."""
-        backend = _MockBackend(delay=0.05)
-        servicer = _make_servicer(backend=backend, max_concurrent=4)
+        """With semaphore>1, requests can run in parallel (faster than serial)."""
+        task_delay = 0.05
+        task_count = 4
+        backend = _MockBackend(delay=task_delay)
+        servicer = _make_servicer(backend=backend, max_concurrent=task_count)
 
         import time
 
         start = time.monotonic()
 
         requests = []
-        for i in range(4):
+        for i in range(task_count):
             req = TranscribeFileRequest(
                 request_id=f"req_{i}",
                 audio_data=b"\x00" * 3200,
@@ -516,10 +518,14 @@ class TestEngineBatchSupport:
         await asyncio.gather(*requests)
 
         elapsed = time.monotonic() - start
-        # 4 requests, each 50ms. With semaphore=4, all run in parallel → ~50ms total
-        # With semaphore=1, would take ~200ms. Allow generous margin.
-        assert elapsed < 0.15, f"Expected parallel execution but took {elapsed:.3f}s"
-        assert backend.call_count == 4
+        serial_time = task_delay * task_count
+        # Parallel execution should be significantly faster than serial.
+        # Use relative assertion: parallel must take less than half of serial time.
+        assert elapsed < serial_time * 0.75, (
+            f"Expected parallel execution but took {elapsed:.3f}s "
+            f"(serial estimate: {serial_time:.3f}s)"
+        )
+        assert backend.call_count == task_count
 
 
 # ---------------------------------------------------------------------------

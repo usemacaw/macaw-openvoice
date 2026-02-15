@@ -21,31 +21,6 @@ class VoiceListResponse(BaseModel):
     data: list[VoiceResponse] = Field(default_factory=list)
 
 
-class CreateVoiceRequest(BaseModel):
-    """Request body for POST /v1/voices (JSON, for designed voices).
-
-    For cloned voices with ref_audio, use multipart/form-data instead.
-    """
-
-    name: str = Field(description="Human-readable name for the voice.")
-    voice_type: str = Field(
-        default="designed",
-        description="Voice type: 'cloned' or 'designed'.",
-    )
-    language: str | None = Field(
-        default=None,
-        description="Target language (e.g., 'en', 'pt').",
-    )
-    ref_text: str | None = Field(
-        default=None,
-        description="Transcript of the reference audio (for cloned voices).",
-    )
-    instruction: str | None = Field(
-        default=None,
-        description="Voice design instruction (for designed voices).",
-    )
-
-
 class SavedVoiceResponse(BaseModel):
     """Response for a saved voice (CRUD operations)."""
 

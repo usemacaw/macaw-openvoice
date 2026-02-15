@@ -1,8 +1,8 @@
-"""Entry point for the STT worker as a gRPC subprocess.
+"""Entry point for the TTS worker as a gRPC subprocess.
 
 Usage:
-    python -m macaw.workers.stt --port 50051 --engine faster-whisper \
-        --model-path /models/large-v3 --model-size large-v3
+    python -m macaw.workers.tts --port 50052 --engine kokoro \
+        --model-path /models/kokoro-v1
 """
 
 from __future__ import annotations
@@ -22,30 +22,35 @@ from typing import TYPE_CHECKING  # noqa: E402
 import grpc.aio  # noqa: E402
 
 from macaw.logging import configure_logging, get_logger  # noqa: E402
-from macaw.proto import add_STTWorkerServicer_to_server  # noqa: E402
-from macaw.workers.stt.servicer import STTWorkerServicer  # noqa: E402
+from macaw.proto import add_TTSWorkerServicer_to_server  # noqa: E402
 from macaw.workers.torch_utils import configure_torch_inference  # noqa: E402
+from macaw.workers.tts.servicer import TTSWorkerServicer  # noqa: E402
 
 if TYPE_CHECKING:
-    from macaw.workers.stt.interface import STTBackend
+    from macaw.workers.tts.interface import TTSBackend
 
-logger = get_logger("worker.stt.main")
+logger = get_logger("worker.tts.main")
 
 STOP_GRACE_PERIOD = 5.0
 
 
-def _create_backend(engine: str) -> STTBackend:
-    """Create an STTBackend instance based on the engine name.
+def _create_backend(engine: str) -> TTSBackend:
+    """Create a TTSBackend instance based on the engine name.
 
     Raises:
         ValueError: If the engine is not supported.
     """
-    if engine == "faster-whisper":
-        from macaw.workers.stt.faster_whisper import FasterWhisperBackend
+    if engine == "kokoro":
+        from macaw.workers.tts.kokoro import KokoroBackend
 
-        return FasterWhisperBackend()
+        return KokoroBackend()
 
-    msg = f"Engine STT nao suportada: {engine}"
+    if engine == "qwen3-tts":
+        from macaw.workers.tts.qwen3 import Qwen3TTSBackend
+
+        return Qwen3TTSBackend()
+
+    msg = f"Unsupported TTS engine: {engine}"
     raise ValueError(msg)
 
 
@@ -55,13 +60,13 @@ async def serve(
     model_path: str,
     engine_config: dict[str, object],
 ) -> None:
-    """Start the gRPC server for the STT worker.
+    """Start the gRPC server for the TTS worker.
 
     Args:
         port: Port to listen on.
-        engine: Engine name (e.g., "faster-whisper").
+        engine: Engine name (e.g., "kokoro").
         model_path: Path to model files.
-        engine_config: Engine configuration (compute_type, device, etc).
+        engine_config: Engine configuration (device, etc).
     """
     configure_torch_inference()
 
@@ -74,8 +79,8 @@ async def serve(
     warmup_steps = int(engine_config.get("warmup_steps", 3))  # type: ignore[call-overload]
     await _warmup_backend(backend, warmup_steps=warmup_steps)
 
-    model_name = str(engine_config.get("model_size", "unknown"))
-    servicer = STTWorkerServicer(
+    model_name = str(engine_config.get("model_name", "unknown"))
+    servicer = TTSWorkerServicer(
         backend=backend,
         model_name=model_name,
         engine=engine,
@@ -87,7 +92,7 @@ async def serve(
             ("grpc.keepalive_permit_without_calls", 1),
         ]
     )
-    add_STTWorkerServicer_to_server(servicer, server)  # type: ignore[no-untyped-call]
+    add_TTSWorkerServicer_to_server(servicer, server)  # type: ignore[no-untyped-call]
     listen_addr = f"[::]:{port}"
     server.add_insecure_port(listen_addr)
 
@@ -118,18 +123,25 @@ async def serve(
     await server.wait_for_termination()
 
 
-_WARMUP_AUDIO_DURATIONS = (1.0, 3.0, 5.0)
-_SAMPLE_RATE = 16000
+_WARMUP_TEXTS = (
+    "Hello.",
+    "This is a warmup sentence for the text to speech engine.",
+    "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.",
+)
+
+# PCM 16-bit at 24kHz: 2 bytes per sample
+_TTS_SAMPLE_RATE = 24000
+_TTS_BYTES_PER_SAMPLE = 2
 
 
-async def _warmup_backend(backend: STTBackend, *, warmup_steps: int = 3) -> None:
-    """Run warmup inference passes to prime GPU caches, JIT, and memory pools.
+async def _warmup_backend(backend: TTSBackend, *, warmup_steps: int = 3) -> None:
+    """Run warmup synthesis passes to prime GPU caches, JIT, and memory pools.
 
-    Multiple passes with varied audio lengths exercise different CUDA kernel
+    Multiple passes with varied text lengths exercise different decoder
     configurations. RTFx is measured on the final pass as a readiness signal.
 
     Args:
-        backend: Loaded STT backend.
+        backend: Loaded TTS backend.
         warmup_steps: Number of warmup passes (default 3). Set to 0 to skip.
     """
     if warmup_steps <= 0:
@@ -139,25 +151,26 @@ async def _warmup_backend(backend: STTBackend, *, warmup_steps: int = 3) -> None
     rtfx: float | None = None
 
     for step in range(warmup_steps):
-        duration_s = _WARMUP_AUDIO_DURATIONS[step % len(_WARMUP_AUDIO_DURATIONS)]
-        num_samples = int(duration_s * _SAMPLE_RATE)
-        silence = b"\x00\x00" * num_samples
-
+        text = _WARMUP_TEXTS[step % len(_WARMUP_TEXTS)]
         is_last = step == warmup_steps - 1
 
         try:
             start = time.monotonic()
-            await backend.transcribe_file(silence)
+            total_bytes = 0
+            # synthesize() is an async generator in concrete backends
+            async for chunk in backend.synthesize(text):  # type: ignore[attr-defined]
+                total_bytes += len(chunk)
             elapsed = time.monotonic() - start
 
-            if is_last and elapsed > 0:
-                rtfx = duration_s / elapsed
+            if is_last and elapsed > 0 and total_bytes > 0:
+                audio_duration_s = total_bytes / (_TTS_SAMPLE_RATE * _TTS_BYTES_PER_SAMPLE)
+                rtfx = audio_duration_s / elapsed
 
             logger.info(
                 "warmup_step",
                 step=step + 1,
                 total=warmup_steps,
-                audio_duration_s=duration_s,
+                text_len=len(text),
                 elapsed_s=round(elapsed, 3),
             )
         except Exception as exc:
@@ -169,17 +182,17 @@ async def _warmup_backend(backend: STTBackend, *, warmup_steps: int = 3) -> None
             logger.warning(
                 "warmup_rtfx_below_realtime",
                 rtfx=round(rtfx, 2),
-                message="System cannot keep up with real-time audio input",
+                message="TTS system cannot keep up with real-time synthesis",
             )
         logger.info("warmup_complete", rtfx=round(rtfx, 2), warmup_steps=warmup_steps)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description="Macaw STT Worker (gRPC)")
-    parser.add_argument("--port", type=int, default=50051, help="gRPC port (default: 50051)")
+    parser = argparse.ArgumentParser(description="Macaw TTS Worker (gRPC)")
+    parser.add_argument("--port", type=int, default=50052, help="gRPC port (default: 50052)")
     parser.add_argument(
-        "--engine", type=str, default="faster-whisper", help="Engine STT (default: faster-whisper)"
+        "--engine", type=str, default="kokoro", help="Engine TTS (default: kokoro)"
     )
     parser.add_argument("--model-path", type=str, required=True, help="Model path")
     parser.add_argument(
@@ -192,7 +205,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Main entry point for the STT worker."""
+    """Main entry point for the TTS worker."""
     import json
 
     configure_logging()
@@ -212,3 +225,7 @@ def main(argv: list[str] | None = None) -> None:
     except KeyboardInterrupt:
         logger.info("worker_interrupted")
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

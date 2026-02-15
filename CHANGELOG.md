@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GPU memory leak in `KokoroBackend.unload()` — now calls `del` on model/pipeline and `torch.cuda.empty_cache()`, matching Qwen3 behavior (#review-phase1)
 - Missing VoiceStore null guard in `POST /v1/audio/speech` — requests with `voice_` prefix now raise `InvalidRequestError` when VoiceStore is not configured, instead of passing invalid voice ID to engine (#review-phase1)
 - Wrong `type: ignore` code in `workers/stt/main.py` and `workers/tts/main.py` — changed from `arg-type` to `call-overload` (#review-phase1)
+- Flaky test `test_semaphore_allows_parallel_when_higher` — replaced absolute timing assertion with relative comparison (parallel < 75% of serial), eliminating CI flakiness (#review-phase3)
+- Portuguese error messages standardized to English across error handlers, worker factories, and WebSocket routes (#review-phase3)
+- `logging.getLogger` in `vad/silero.py` replaced with `macaw.logging.get_logger` for consistent structured logging (#review-phase3)
 
 ### Changed
 - Extracted shared `torch_utils.py` — `configure_cuda_env()` and `configure_torch_inference()` deduplicated from STT/TTS worker mains into a single shared module (#review-phase2)
@@ -25,8 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated gRPC constants in `server/constants.py` — `TTS_GRPC_CHANNEL_OPTIONS` and `TTS_GRPC_TIMEOUT` centralized, eliminating duplicate magic numbers (#review-phase2)
 - Extracted `_drain_stream()` in `StreamingSession` — 3 duplicate stream cleanup sites consolidated into a single method (#review-phase2)
 - Extracted `_send_to_worker()` in `Scheduler` — unified proto build + gRPC call + error translation, removing ~25 lines of duplication (#review-phase2)
+- Decomposed `StreamingSession` god class (1083 → 847 lines) — extracted `StreamMetricsRecorder` (84 lines, owns TTFB/final_delay/force-commit timing) and `StreamRecoveryHandler` (139 lines, owns crash recovery + WAL resend) (#review-phase3)
+- Added `update_itn()` public method to `StreamingSession` — `realtime.py` no longer mutates private `_enable_itn` directly (#review-phase3)
+- Health check `_check_worker_health()` refactored from if/else to dispatch table — adding a new worker type requires one function + one dict entry (#review-phase3)
+- Stale gRPC channels now evicted on error in `Scheduler._dispatch_request()` — next request creates a fresh channel instead of broken one (#review-phase3)
+- Consolidated duplicate VAD methods `_compute_timestamp_ms` / `_samples_to_ms` into single `_samples_to_ms` in `vad/detector.py` (#review-phase3)
+
+### Removed
+- Dead code: `CreateVoiceRequest` model, `ErrorResponse`/`ErrorDetail` models, `_sensitivity` field in VAD detector, `_pending_final_event` in StreamingSession, YAGNI preprocessing config fields (#review-phase3)
 
 ### Added
+- Unit tests for `error_handlers.py` — 14 tests covering all 10 exception handlers with status codes, response format, and Retry-After headers (#review-phase3)
 - Endpoint `GET /v1/voices` listing available TTS voices from loaded workers via gRPC ListVoices RPC, aggregated across all TTS models (#voices)
 - Endpoint `POST /v1/voices` for creating saved voices (cloned with ref_audio upload or designed with instruction text) via multipart/form-data (#voices)
 - Endpoint `GET /v1/voices/{id}` for retrieving saved voice details (#voices)

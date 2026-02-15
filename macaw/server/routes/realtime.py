@@ -908,9 +908,9 @@ async def realtime_endpoint(
                     # Aplicar hot words e ITN settings na session
                     if session is not None:
                         if cmd.hot_words is not None:
-                            session._hot_words = cmd.hot_words
+                            session.update_hot_words(cmd.hot_words)
                         if cmd.enable_itn is not None:
-                            session._enable_itn = cmd.enable_itn
+                            session.update_itn(cmd.enable_itn)
                     # Track modelo TTS para full-duplex
                     if cmd.model_tts is not None:
                         model_tts = cmd.model_tts
@@ -1009,7 +1009,7 @@ async def realtime_endpoint(
         )
         error_event = StreamingErrorEvent(
             code="internal_error",
-            message="Erro interno do servidor",
+            message="Internal server error",
             recoverable=False,
         )
         await _send_event(websocket, error_event, session_id=session_id)

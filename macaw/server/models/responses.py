@@ -42,17 +42,3 @@ class VerboseTranscriptionResponse(BaseModel):
     text: str
     segments: list[SegmentResponse] = []
     words: list[WordResponse] | None = None
-
-
-class ErrorDetail(BaseModel):
-    """Detalhe de um erro."""
-
-    message: str
-    type: str
-    code: str
-
-
-class ErrorResponse(BaseModel):
-    """Resposta de erro (compativel com formato OpenAI)."""
-
-    error: ErrorDetail
