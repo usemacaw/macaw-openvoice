@@ -264,6 +264,38 @@ class Scheduler:
         future = await self.submit(request, RequestPriority.BATCH)
         return await future
 
+    async def _send_to_worker(
+        self,
+        request: TranscribeRequest,
+        channel: grpc.aio.Channel,
+        worker_id: str,
+    ) -> BatchResult:
+        """Build proto, compute timeout, call gRPC, translate errors.
+
+        Shared between ``_transcribe_inline()`` (ephemeral channel) and
+        ``_dispatch_request()`` (pooled channel).  Each caller manages its
+        own channel lifecycle and pre/post actions.
+
+        Raises:
+            WorkerCrashError: Worker returned UNAVAILABLE / CANCELLED / other.
+            WorkerTimeoutError: Worker returned DEADLINE_EXCEEDED.
+        """
+        proto_request = build_proto_request(request)
+
+        audio_duration_estimate = len(request.audio_data) / (16_000 * 2)
+        timeout = max(_MIN_GRPC_TIMEOUT, audio_duration_estimate * _TIMEOUT_FACTOR)
+
+        stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
+        try:
+            proto_response = await stub.TranscribeFile(
+                proto_request,
+                timeout=timeout,
+            )
+        except grpc.aio.AioRpcError as exc:
+            raise _make_domain_error(exc, worker_id, timeout) from exc
+
+        return proto_response_to_batch_result(proto_response)
+
     async def _transcribe_inline(self, request: TranscribeRequest) -> BatchResult:
         """Inline execution without queue (M3 compatibility).
 
@@ -283,31 +315,17 @@ class Scheduler:
             task=request.task,
         )
 
-        proto_request = build_proto_request(request)
-
-        audio_duration_estimate = len(request.audio_data) / (16_000 * 2)
-        timeout = max(_MIN_GRPC_TIMEOUT, audio_duration_estimate * _TIMEOUT_FACTOR)
-
         channel = grpc.aio.insecure_channel(
             f"localhost:{worker.port}",
             options=_GRPC_CHANNEL_OPTIONS,
         )
         try:
-            stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
-            proto_response = await stub.TranscribeFile(
-                proto_request,
-                timeout=timeout,
-            )
-        except grpc.aio.AioRpcError as exc:
-            _translate_grpc_error(exc, worker.worker_id, timeout)
-            raise  # pragma: no cover — _translate_grpc_error sempre levanta
+            result = await self._send_to_worker(request, channel, worker.worker_id)
         finally:
             try:
                 await channel.close()
             except Exception:
                 logger.warning("channel_close_error", worker_id=worker.worker_id)
-
-        result = proto_response_to_batch_result(proto_response)
 
         logger.info(
             "transcribe_done",
@@ -470,24 +488,10 @@ class Scheduler:
         status = "ok"
 
         try:
-            # Send gRPC TranscribeFile to the worker
-            proto_request = build_proto_request(request)
-
-            # Timeout proportional to audio size
-            audio_duration_estimate = len(request.audio_data) / (16_000 * 2)
-            timeout = max(_MIN_GRPC_TIMEOUT, audio_duration_estimate * _TIMEOUT_FACTOR)
-
             channel = self._get_or_create_channel(address)
-            stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
-
             self._latency.grpc_started(request.request_id)
-            proto_response = await stub.TranscribeFile(
-                proto_request,
-                timeout=timeout,
-            )
 
-            # Convert proto -> BatchResult
-            result = proto_response_to_batch_result(proto_response)
+            result = await self._send_to_worker(request, channel, worker.worker_id)
 
             # Resolve future with result
             if future is not None and not future.done():
@@ -499,12 +503,6 @@ class Scheduler:
                 text_length=len(result.text),
                 segments=len(result.segments),
             )
-
-        except grpc.aio.AioRpcError as exc:
-            status = "error"
-            error = _make_domain_error(exc, worker.worker_id, timeout)
-            if future is not None and not future.done():
-                future.set_exception(error)
 
         except Exception as exc:
             status = "error"

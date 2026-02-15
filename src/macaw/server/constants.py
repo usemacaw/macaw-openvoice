@@ -18,3 +18,12 @@ ALLOWED_AUDIO_CONTENT_TYPES = frozenset(
         "application/octet-stream",  # fallback generico
     }
 )
+
+# gRPC channel options for TTS workers (30MB max message size)
+TTS_GRPC_CHANNEL_OPTIONS = [
+    ("grpc.max_send_message_length", 30 * 1024 * 1024),
+    ("grpc.max_receive_message_length", 30 * 1024 * 1024),
+]
+
+# Timeout for the gRPC Synthesize call (seconds)
+TTS_GRPC_TIMEOUT = 60.0

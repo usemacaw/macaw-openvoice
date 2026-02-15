@@ -551,49 +551,49 @@ class TestGetWorkerManagerDependency:
 
 class TestTTSChannelPooling:
     def test_get_or_create_creates_channel_on_first_call(self) -> None:
-        from macaw.server.routes.speech import _get_or_create_tts_channel
+        from macaw.server.grpc_channels import get_or_create_tts_channel
 
         pool: dict[str, object] = {}
-        with patch("macaw.server.routes.speech.grpc.aio.insecure_channel") as mock_create:
+        with patch("macaw.server.grpc_channels.grpc.aio.insecure_channel") as mock_create:
             mock_channel = MagicMock()
             mock_create.return_value = mock_channel
 
-            result = _get_or_create_tts_channel(pool, "localhost:50052")
+            result = get_or_create_tts_channel(pool, "localhost:50052")
 
         assert result is mock_channel
         assert pool["localhost:50052"] is mock_channel
         mock_create.assert_called_once()
 
     def test_get_or_create_reuses_existing_channel(self) -> None:
-        from macaw.server.routes.speech import _get_or_create_tts_channel
+        from macaw.server.grpc_channels import get_or_create_tts_channel
 
         existing_channel = MagicMock()
         pool: dict[str, object] = {"localhost:50052": existing_channel}
 
-        with patch("macaw.server.routes.speech.grpc.aio.insecure_channel") as mock_create:
-            result = _get_or_create_tts_channel(pool, "localhost:50052")
+        with patch("macaw.server.grpc_channels.grpc.aio.insecure_channel") as mock_create:
+            result = get_or_create_tts_channel(pool, "localhost:50052")
 
         assert result is existing_channel
         mock_create.assert_not_called()
 
     def test_get_or_create_different_addresses_get_different_channels(self) -> None:
-        from macaw.server.routes.speech import _get_or_create_tts_channel
+        from macaw.server.grpc_channels import get_or_create_tts_channel
 
         pool: dict[str, object] = {}
-        with patch("macaw.server.routes.speech.grpc.aio.insecure_channel") as mock_create:
+        with patch("macaw.server.grpc_channels.grpc.aio.insecure_channel") as mock_create:
             ch1 = MagicMock()
             ch2 = MagicMock()
             mock_create.side_effect = [ch1, ch2]
 
-            result1 = _get_or_create_tts_channel(pool, "localhost:50052")
-            result2 = _get_or_create_tts_channel(pool, "localhost:50053")
+            result1 = get_or_create_tts_channel(pool, "localhost:50052")
+            result2 = get_or_create_tts_channel(pool, "localhost:50053")
 
         assert result1 is ch1
         assert result2 is ch2
         assert len(pool) == 2
 
     async def test_close_tts_channels_closes_all(self) -> None:
-        from macaw.server.routes.speech import close_tts_channels
+        from macaw.server.grpc_channels import close_tts_channels
 
         ch1 = AsyncMock()
         ch2 = AsyncMock()
@@ -606,7 +606,7 @@ class TestTTSChannelPooling:
         assert len(pool) == 0
 
     async def test_close_tts_channels_handles_close_error(self) -> None:
-        from macaw.server.routes.speech import close_tts_channels
+        from macaw.server.grpc_channels import close_tts_channels
 
         ch1 = AsyncMock()
         ch1.close.side_effect = RuntimeError("close failed")

@@ -7,19 +7,10 @@ Usage:
 
 from __future__ import annotations
 
-# NB: PYTORCH_CUDA_ALLOC_CONF must be set before importing torch.
-# expandable_segments saves 10x+ GPU memory with small streaming chunks
-# by using dynamically-sized segments instead of fixed allocations.
-# Reference: NeMo speech_to_text_streaming_infer_rnnt.py
-import os as _os
+# NB: CUDA env must be configured before importing torch.
+from macaw.workers.torch_utils import configure_cuda_env
 
-_alloc_conf = _os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
-if "expandable_segments" not in _alloc_conf:
-    _new_val = (
-        f"{_alloc_conf},expandable_segments:True" if _alloc_conf else "expandable_segments:True"
-    )
-    _os.environ["PYTORCH_CUDA_ALLOC_CONF"] = _new_val
-del _alloc_conf
+configure_cuda_env()
 
 import argparse  # noqa: E402
 import asyncio  # noqa: E402
@@ -32,6 +23,7 @@ import grpc.aio  # noqa: E402
 
 from macaw.logging import configure_logging, get_logger  # noqa: E402
 from macaw.proto import add_TTSWorkerServicer_to_server  # noqa: E402
+from macaw.workers.torch_utils import configure_torch_inference  # noqa: E402
 from macaw.workers.tts.servicer import TTSWorkerServicer  # noqa: E402
 
 if TYPE_CHECKING:
@@ -40,29 +32,6 @@ if TYPE_CHECKING:
 logger = get_logger("worker.tts.main")
 
 STOP_GRACE_PERIOD = 5.0
-
-
-def _configure_torch_inference() -> None:
-    """Configure PyTorch for inference-only operation.
-
-    Sets process-wide defaults that eliminate autograd overhead:
-    - set_grad_enabled(False): prevents accidental gradient computation
-    - set_float32_matmul_precision("high"): enables TF32 on Ampere+ GPUs
-
-    Safe to call even if torch is not installed (e.g., CTranslate2-only engines).
-    """
-    try:
-        import torch
-
-        torch.set_grad_enabled(False)
-        torch.set_float32_matmul_precision("high")
-        logger.info(
-            "torch_inference_configured",
-            grad_enabled=False,
-            float32_matmul_precision="high",
-        )
-    except ImportError:
-        pass
 
 
 def _create_backend(engine: str) -> TTSBackend:
@@ -99,7 +68,7 @@ async def serve(
         model_path: Path to model files.
         engine_config: Engine configuration (device, etc).
     """
-    _configure_torch_inference()
+    configure_torch_inference()
 
     backend = _create_backend(engine)
 

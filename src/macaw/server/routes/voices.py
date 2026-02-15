@@ -14,6 +14,7 @@ from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2 import ListVoicesRequest
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
 from macaw.server.dependencies import get_registry, get_voice_store, get_worker_manager
+from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.voices import (
     SavedVoiceResponse,
     VoiceListResponse,
@@ -29,12 +30,7 @@ router = APIRouter()
 
 logger = get_logger("server.routes.voices")
 
-# gRPC channel options (reuse same settings as speech route)
-_GRPC_CHANNEL_OPTIONS = [
-    ("grpc.max_send_message_length", 30 * 1024 * 1024),
-    ("grpc.max_receive_message_length", 30 * 1024 * 1024),
-]
-
+# Timeout for the ListVoices RPC (shorter than synthesis)
 _GRPC_TIMEOUT = 10.0
 
 # Allowed voice types
@@ -71,10 +67,7 @@ async def list_voices(
         worker_address = f"localhost:{worker.port}"
         try:
             tts_channels: dict[str, grpc.aio.Channel] = request.app.state.tts_channels
-            channel = tts_channels.get(worker_address)
-            if channel is None:
-                channel = grpc.aio.insecure_channel(worker_address, options=_GRPC_CHANNEL_OPTIONS)
-                tts_channels[worker_address] = channel
+            channel = get_or_create_tts_channel(tts_channels, worker_address)
 
             stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
             response = await stub.ListVoices(ListVoicesRequest(), timeout=_GRPC_TIMEOUT)

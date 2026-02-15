@@ -26,6 +26,7 @@ from macaw._types import (
 from macaw.proto.stt_worker_pb2 import TranscribeFileRequest
 from macaw.workers.manager import (
     WorkerManager,
+    WorkerType,
     _build_worker_cmd,
 )
 from macaw.workers.stt.interface import STTBackend
@@ -418,7 +419,7 @@ class TestFix5TasksAwaitedAfterCancel:
                 "faster-whisper",
                 "/models/test",
                 {"device": "cpu"},
-                worker_type="stt",
+                worker_type=WorkerType.STT,
             )
 
             await manager.stop_all()

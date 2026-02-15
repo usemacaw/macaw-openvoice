@@ -12,8 +12,8 @@ import grpc.aio
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
-from macaw._types import ModelType, STTArchitecture
-from macaw.exceptions import ModelNotFoundError
+from macaw._types import STTArchitecture
+from macaw.exceptions import ModelNotFoundError, WorkerUnavailableError
 from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
 from macaw.scheduler.tts_converters import build_tts_proto_request
@@ -24,6 +24,7 @@ from macaw.scheduler.tts_metrics import (
     tts_synthesis_duration_seconds,
     tts_ttfb_seconds,
 )
+from macaw.server.constants import TTS_GRPC_CHANNEL_OPTIONS, TTS_GRPC_TIMEOUT
 from macaw.server.models.events import (
     InputAudioBufferCommitCommand,
     SessionCancelCommand,
@@ -40,6 +41,7 @@ from macaw.server.models.events import (
     TTSSpeakingEndEvent,
     TTSSpeakingStartEvent,
 )
+from macaw.server.tts_service import find_default_tts_model, resolve_tts_resources
 from macaw.server.ws_protocol import (
     AudioFrameResult,
     CommandResult,
@@ -427,11 +429,6 @@ def _create_streaming_session(
 # ---------------------------------------------------------------------------
 
 _TTS_SAMPLE_RATE = 24000
-_TTS_GRPC_TIMEOUT = 60.0
-_TTS_GRPC_CHANNEL_OPTIONS = [
-    ("grpc.max_send_message_length", 30 * 1024 * 1024),
-    ("grpc.max_receive_message_length", 30 * 1024 * 1024),
-]
 
 
 async def _tts_speak_task(
@@ -488,7 +485,7 @@ async def _tts_speak_task(
     first_chunk_sent = False
 
     try:
-        # 1. Resolve modelo TTS
+        # 1. Resolve modelo TTS + worker
         state = websocket.app.state
         registry = getattr(state, "registry", None)
         worker_manager = getattr(state, "worker_manager", None)
@@ -504,11 +501,7 @@ async def _tts_speak_task(
             return
 
         if model_tts is None:
-            # Procurar qualquer modelo TTS registrado
-            for m in registry.list_models():
-                if m.model_type == ModelType.TTS:
-                    model_tts = m.name
-                    break
+            model_tts = find_default_tts_model(registry)
             if model_tts is None:
                 await send_event(
                     StreamingErrorEvent(
@@ -520,9 +513,9 @@ async def _tts_speak_task(
                 return
 
         try:
-            manifest = registry.get_manifest(model_tts)
-            if manifest.model_type != ModelType.TTS:
-                raise ModelNotFoundError(model_tts)
+            _manifest, _worker, worker_address = resolve_tts_resources(
+                registry, worker_manager, model_tts
+            )
         except ModelNotFoundError:
             await send_event(
                 StreamingErrorEvent(
@@ -532,10 +525,7 @@ async def _tts_speak_task(
                 )
             )
             return
-
-        # 2. Resolve worker TTS
-        worker = worker_manager.get_ready_worker(model_tts)
-        if worker is None:
+        except WorkerUnavailableError:
             await send_event(
                 StreamingErrorEvent(
                     code="worker_unavailable",
@@ -580,7 +570,6 @@ async def _tts_speak_task(
         )
 
         # 4. Open gRPC stream (reuse channel if same worker address)
-        worker_address = f"localhost:{worker.port}"
         cached = tts_channel_ref[0]
         if cached is not None and cached[0] == worker_address:
             channel = cached[1]
@@ -591,11 +580,11 @@ async def _tts_speak_task(
                     await cached[1].close()
             channel = grpc.aio.insecure_channel(
                 worker_address,
-                options=_TTS_GRPC_CHANNEL_OPTIONS,
+                options=TTS_GRPC_CHANNEL_OPTIONS,
             )
             tts_channel_ref[0] = (worker_address, channel)
         stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
-        response_stream = stub.Synthesize(proto_request, timeout=_TTS_GRPC_TIMEOUT)
+        response_stream = stub.Synthesize(proto_request, timeout=TTS_GRPC_TIMEOUT)
 
         # 5. Stream chunks to client
         async for chunk in response_stream:

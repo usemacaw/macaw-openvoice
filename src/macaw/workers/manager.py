@@ -34,6 +34,13 @@ STOP_GRACE_PERIOD = 5.0
 MONITOR_INTERVAL = 1.0
 
 
+class WorkerType(Enum):
+    """Worker type — STT or TTS."""
+
+    STT = "stt"
+    TTS = "tts"
+
+
 class WorkerState(Enum):
     """Worker state in the lifecycle."""
 
@@ -60,7 +67,7 @@ class WorkerHandle:
     last_started_at: float = field(default_factory=time.monotonic)
     model_path: str = ""
     engine_config: dict[str, object] = field(default_factory=dict)
-    worker_type: str = "stt"
+    worker_type: WorkerType = WorkerType.STT
 
 
 class WorkerManager:
@@ -81,7 +88,7 @@ class WorkerManager:
         engine: str,
         model_path: str,
         engine_config: dict[str, object],
-        worker_type: str = "stt",
+        worker_type: WorkerType | str = WorkerType.STT,
     ) -> WorkerHandle:
         """Start a new worker as a subprocess.
 
@@ -91,11 +98,14 @@ class WorkerManager:
             engine: Engine name (e.g., "faster-whisper", "kokoro").
             model_path: Path to model files.
             engine_config: Engine configuration.
-            worker_type: Worker type ("stt" or "tts").
+            worker_type: Worker type (WorkerType enum or "stt"/"tts" string).
 
         Returns:
             WorkerHandle with worker information.
         """
+        if isinstance(worker_type, str):
+            worker_type = WorkerType(worker_type)
+
         worker_id = f"{engine}-{port}"
 
         logger.info(
@@ -103,7 +113,7 @@ class WorkerManager:
             worker_id=worker_id,
             port=port,
             engine=engine,
-            worker_type=worker_type,
+            worker_type=worker_type.value,
         )
 
         process = _spawn_worker_process(
@@ -342,7 +352,7 @@ def _build_worker_cmd(
     engine: str,
     model_path: str,
     engine_config: dict[str, object],
-    worker_type: str = "stt",
+    worker_type: WorkerType = WorkerType.STT,
 ) -> list[str]:
     """Build CLI command to start a worker as a subprocess.
 
@@ -351,14 +361,14 @@ def _build_worker_cmd(
         engine: Engine name (e.g., "faster-whisper", "kokoro").
         model_path: Path to model files.
         engine_config: Engine configuration.
-        worker_type: Worker type ("stt" or "tts").
+        worker_type: Worker type (WorkerType enum).
 
     Returns:
         List of arguments for subprocess.Popen.
     """
     import json
 
-    module = "macaw.workers.tts" if worker_type == "tts" else "macaw.workers.stt"
+    module = f"macaw.workers.{worker_type.value}"
     cmd = [
         sys.executable,
         "-m",
@@ -381,7 +391,7 @@ def _spawn_worker_process(
     engine: str,
     model_path: str,
     engine_config: dict[str, object],
-    worker_type: str = "stt",
+    worker_type: WorkerType = WorkerType.STT,
 ) -> subprocess.Popen[bytes]:
     """Create worker subprocess.
 
@@ -390,7 +400,7 @@ def _spawn_worker_process(
         engine: Engine name.
         model_path: Path to model files.
         engine_config: Engine configuration.
-        worker_type: Worker type ("stt" or "tts").
+        worker_type: Worker type (WorkerType enum).
 
     Returns:
         Popen handle for the created process.
@@ -412,14 +422,14 @@ def _spawn_worker_process(
 
 
 async def _check_worker_health(
-    port: int, timeout: float = 2.0, worker_type: str = "stt"
+    port: int, timeout: float = 2.0, worker_type: WorkerType = WorkerType.STT
 ) -> dict[str, str]:
     """Check worker health via gRPC Health RPC.
 
     Args:
         port: Worker gRPC port.
         timeout: Timeout in seconds.
-        worker_type: Worker type ("stt" or "tts").
+        worker_type: Worker type (WorkerType enum).
 
     Returns:
         Dict with worker status.
@@ -428,7 +438,7 @@ async def _check_worker_health(
 
     channel = grpc.aio.insecure_channel(f"localhost:{port}")
     try:
-        if worker_type == "tts":
+        if worker_type == WorkerType.TTS:
             from macaw.proto import TTSHealthRequest, TTSWorkerStub
 
             tts_stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]

@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Missing VoiceStore null guard in `POST /v1/audio/speech` — requests with `voice_` prefix now raise `InvalidRequestError` when VoiceStore is not configured, instead of passing invalid voice ID to engine (#review-phase1)
 - Wrong `type: ignore` code in `workers/stt/main.py` and `workers/tts/main.py` — changed from `arg-type` to `call-overload` (#review-phase1)
 
+### Changed
+- Extracted shared `torch_utils.py` — `configure_cuda_env()` and `configure_torch_inference()` deduplicated from STT/TTS worker mains into a single shared module (#review-phase2)
+- Extracted shared `proto_utils.py` — `build_health_response()` deduplicated from STT/TTS converters (#review-phase2)
+- Introduced `WorkerType` enum in `workers/manager.py` — replaced primitive string obsession (`"stt"`, `"tts"`) with a proper enum for type safety (#review-phase2)
+- Extracted TTS service facade (`tts_service.py`) — `resolve_tts_resources()` and `find_default_tts_model()` consolidated from `speech.py` and `realtime.py` (#review-phase2)
+- Extracted gRPC channel management (`grpc_channels.py`) — `get_or_create_tts_channel()` and `close_tts_channels()` moved from `speech.py` route module (#review-phase2)
+- Consolidated gRPC constants in `server/constants.py` — `TTS_GRPC_CHANNEL_OPTIONS` and `TTS_GRPC_TIMEOUT` centralized, eliminating duplicate magic numbers (#review-phase2)
+- Extracted `_drain_stream()` in `StreamingSession` — 3 duplicate stream cleanup sites consolidated into a single method (#review-phase2)
+- Extracted `_send_to_worker()` in `Scheduler` — unified proto build + gRPC call + error translation, removing ~25 lines of duplication (#review-phase2)
+
 ### Added
 - Endpoint `GET /v1/voices` listing available TTS voices from loaded workers via gRPC ListVoices RPC, aggregated across all TTS models (#voices)
 - Endpoint `POST /v1/voices` for creating saved voices (cloned with ref_audio upload or designed with instruction text) via multipart/form-data (#voices)

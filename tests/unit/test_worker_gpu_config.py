@@ -107,27 +107,27 @@ class TestConfigureTorchInference:
     """_configure_torch_inference() sets grad_enabled=False and matmul precision."""
 
     def test_stt_configure_calls_torch_settings(self) -> None:
-        """STT _configure_torch_inference calls set_grad_enabled and set_float32_matmul_precision."""
+        """configure_torch_inference calls set_grad_enabled and set_float32_matmul_precision."""
         mock_torch = MagicMock()
         with patch.dict("sys.modules", {"torch": mock_torch}):
-            from macaw.workers.stt.main import _configure_torch_inference
+            from macaw.workers.torch_utils import configure_torch_inference
 
-            _configure_torch_inference()
+            configure_torch_inference()
             mock_torch.set_grad_enabled.assert_called_once_with(False)
             mock_torch.set_float32_matmul_precision.assert_called_once_with("high")
 
     def test_tts_configure_calls_torch_settings(self) -> None:
-        """TTS _configure_torch_inference calls set_grad_enabled and set_float32_matmul_precision."""
+        """configure_torch_inference calls set_grad_enabled and set_float32_matmul_precision."""
         mock_torch = MagicMock()
         with patch.dict("sys.modules", {"torch": mock_torch}):
-            from macaw.workers.tts.main import _configure_torch_inference
+            from macaw.workers.torch_utils import configure_torch_inference
 
-            _configure_torch_inference()
+            configure_torch_inference()
             mock_torch.set_grad_enabled.assert_called_once_with(False)
             mock_torch.set_float32_matmul_precision.assert_called_once_with("high")
 
     def test_stt_configure_survives_missing_torch(self) -> None:
-        """_configure_torch_inference does not raise when torch is absent."""
+        """configure_torch_inference does not raise when torch is absent."""
         import builtins
 
         original_import = builtins.__import__
@@ -138,10 +138,10 @@ class TestConfigureTorchInference:
             return original_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=_import_no_torch):
-            from macaw.workers.stt.main import _configure_torch_inference
+            from macaw.workers.torch_utils import configure_torch_inference
 
             # Should not raise
-            _configure_torch_inference()
+            configure_torch_inference()
 
 
 class TestSTTWarmup:

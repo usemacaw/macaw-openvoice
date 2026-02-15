@@ -14,6 +14,7 @@ from macaw.proto.tts_worker_pb2 import (
     SynthesizeChunk,
     VoiceInfoProto,
 )
+from macaw.workers.proto_utils import build_health_response
 
 if TYPE_CHECKING:
     from macaw._types import VoiceInfo
@@ -100,8 +101,4 @@ def health_dict_to_proto_response(
     engine: str,
 ) -> HealthResponse:
     """Convert backend health dict to HealthResponse protobuf."""
-    return HealthResponse(
-        status=health.get("status", "unknown"),
-        model_name=model_name,
-        engine=engine,
-    )
+    return build_health_response(HealthResponse, health, model_name, engine)  # type: ignore[no-any-return]

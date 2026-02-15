@@ -51,7 +51,7 @@ def create_app(
         # Shutdown: close pooled TTS gRPC channels
         tts_channels = getattr(app.state, "tts_channels", None)
         if tts_channels:
-            from macaw.server.routes.speech import close_tts_channels
+            from macaw.server.grpc_channels import close_tts_channels
 
             await close_tts_channels(tts_channels)
 

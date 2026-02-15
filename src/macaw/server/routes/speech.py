@@ -12,10 +12,8 @@ import grpc.aio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 
-from macaw._types import ModelType
 from macaw.exceptions import (
     InvalidRequestError,
-    ModelNotFoundError,
     VoiceNotFoundError,
     WorkerCrashError,
     WorkerTimeoutError,
@@ -25,8 +23,11 @@ from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
 from macaw.registry.registry import ModelRegistry  # noqa: TC001
 from macaw.scheduler.tts_converters import build_tts_proto_request
+from macaw.server.constants import TTS_GRPC_TIMEOUT
 from macaw.server.dependencies import get_registry, get_worker_manager
+from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.speech import SpeechRequest  # noqa: TC001
+from macaw.server.tts_service import resolve_tts_resources
 from macaw.workers.manager import WorkerManager  # noqa: TC001
 
 if TYPE_CHECKING:
@@ -41,43 +42,8 @@ logger = get_logger("server.routes.speech")
 # Default sample rate for TTS (24kHz is the default for most TTS engines)
 _DEFAULT_SAMPLE_RATE = 24000
 
-# Timeout for the gRPC Synthesize call (seconds)
-_TTS_GRPC_TIMEOUT = 60.0
-
 # Supported response formats
 _SUPPORTED_FORMATS = frozenset({"wav", "pcm"})
-
-# gRPC channel options
-_GRPC_CHANNEL_OPTIONS = [
-    ("grpc.max_send_message_length", 30 * 1024 * 1024),
-    ("grpc.max_receive_message_length", 30 * 1024 * 1024),
-]
-
-
-def _get_or_create_tts_channel(
-    tts_channels: dict[str, grpc.aio.Channel],
-    address: str,
-) -> grpc.aio.Channel:
-    """Return a pooled gRPC channel for the TTS worker address, creating if needed.
-
-    Channels are reused across requests to avoid TCP+HTTP/2 handshake
-    overhead (~5-20ms per request).
-    """
-    channel = tts_channels.get(address)
-    if channel is None:
-        channel = grpc.aio.insecure_channel(address, options=_GRPC_CHANNEL_OPTIONS)
-        tts_channels[address] = channel
-    return channel
-
-
-async def close_tts_channels(tts_channels: dict[str, grpc.aio.Channel]) -> None:
-    """Close all pooled TTS gRPC channels. Called on server shutdown."""
-    for address, channel in tts_channels.items():
-        try:
-            await channel.close()
-        except Exception:
-            logger.warning("tts_channel_close_error", address=address)
-    tts_channels.clear()
 
 
 @router.post("/v1/audio/speech")
@@ -118,15 +84,8 @@ async def create_speech(
             f"Invalid response_format '{body.response_format}'. Accepted values: {valid}"
         )
 
-    # Validate that the model exists and is of type TTS
-    manifest = registry.get_manifest(body.model)
-    if manifest.model_type != ModelType.TTS:
-        raise ModelNotFoundError(body.model)
-
-    # Find a ready TTS worker
-    worker = worker_manager.get_ready_worker(body.model)
-    if worker is None:
-        raise WorkerUnavailableError(body.model)
+    # Resolve TTS model + worker
+    _manifest, worker, worker_address = resolve_tts_resources(registry, worker_manager, body.model)
 
     # Decode base64 ref_audio if present
     ref_audio_bytes: bytes | None = None
@@ -185,11 +144,9 @@ async def create_speech(
         instruction=instruction,
     )
 
-    worker_address = f"localhost:{worker.port}"
-
     # Get pooled TTS channel (reused across requests)
     tts_channels: dict[str, grpc.aio.Channel] = request.app.state.tts_channels
-    channel = _get_or_create_tts_channel(tts_channels, worker_address)
+    channel = get_or_create_tts_channel(tts_channels, worker_address)
 
     # Pre-flight: open gRPC stream and fetch first audio chunk.
     # This validates the connection and request params BEFORE starting
@@ -234,7 +191,7 @@ async def _open_tts_stream(
     """
     try:
         stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
-        response_stream = stub.Synthesize(proto_request, timeout=_TTS_GRPC_TIMEOUT)
+        response_stream = stub.Synthesize(proto_request, timeout=TTS_GRPC_TIMEOUT)
 
         # Read chunks until we get one with audio_data (pre-flight)
         first_audio_chunk = b""
@@ -250,7 +207,7 @@ async def _open_tts_stream(
     except grpc.aio.AioRpcError as exc:
         code = exc.code()
         if code == grpc.StatusCode.DEADLINE_EXCEEDED:
-            raise WorkerTimeoutError(worker_id, _TTS_GRPC_TIMEOUT) from exc
+            raise WorkerTimeoutError(worker_id, TTS_GRPC_TIMEOUT) from exc
         if code == grpc.StatusCode.UNAVAILABLE:
             raise WorkerUnavailableError("tts") from exc
         if code == grpc.StatusCode.INVALID_ARGUMENT:

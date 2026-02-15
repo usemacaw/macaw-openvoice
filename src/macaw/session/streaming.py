@@ -318,6 +318,58 @@ class StreamingSession:
             self._force_commit_pending = False
             await self.commit()
 
+    async def _drain_stream(self, timeout: float) -> bool:
+        """Close the gRPC send stream and await the receiver task.
+
+        Shared pattern used by commit(), _handle_speech_end(), and
+        _flush_and_close(). Closes the send direction (is_last=True),
+        waits for the receiver task to finish within ``timeout``, cancels
+        it if the timeout is exceeded, and clears both handles.
+
+        NOT used by close() — close() performs an abrupt cancel, not a
+        graceful drain.
+
+        Args:
+            timeout: Max seconds to wait for the receiver task.
+
+        Returns:
+            True if the receiver completed within the timeout, False if
+            it was cancelled or had already been cancelled.
+        """
+        # 1. Close gRPC send stream (sends is_last=True for flush)
+        if self._stream_handle is not None and not self._stream_handle.is_closed:
+            try:
+                await self._stream_handle.close()
+            except WorkerCrashError:
+                logger.warning(
+                    "drain_stream_close_worker_crash",
+                    session_id=self._session_id,
+                )
+
+        # 2. Await receiver task (worker returns transcript.final)
+        receiver_ok = True
+        if self._receiver_task is not None and not self._receiver_task.done():
+            try:
+                await asyncio.wait_for(self._receiver_task, timeout=timeout)
+            except asyncio.TimeoutError:  # noqa: UP041
+                logger.warning(
+                    "drain_receiver_task_timeout",
+                    session_id=self._session_id,
+                    timeout=timeout,
+                )
+                self._receiver_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self._receiver_task
+                receiver_ok = False
+            except asyncio.CancelledError:
+                receiver_ok = False
+
+        # 3. Clear handles
+        self._receiver_task = None
+        self._stream_handle = None
+
+        return receiver_ok
+
     async def commit(self) -> None:
         """Force commit do segmento atual (manual commit).
 
@@ -333,38 +385,12 @@ class StreamingSession:
         if self._stream_handle is None:
             return
 
-        # 1. Fechar stream gRPC (envia is_last=True para flush)
-        if not self._stream_handle.is_closed:
-            try:
-                await self._stream_handle.close()
-            except WorkerCrashError:
-                logger.warning(
-                    "commit_stream_close_worker_crash",
-                    session_id=self._session_id,
-                )
+        await self._drain_stream(timeout=5.0)
 
-        # 2. Aguardar receiver task finalizar (worker retorna transcript.final)
-        if self._receiver_task is not None and not self._receiver_task.done():
-            try:
-                await asyncio.wait_for(self._receiver_task, timeout=5.0)
-            except asyncio.TimeoutError:  # noqa: UP041
-                logger.warning(
-                    "commit_receiver_task_timeout",
-                    session_id=self._session_id,
-                )
-                self._receiver_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._receiver_task
-            except asyncio.CancelledError:
-                pass
-
-        self._receiver_task = None
-        self._stream_handle = None
-
-        # 3. Incrementar segment_id para proximo segmento
+        # Incrementar segment_id para proximo segmento
         self._segment_id += 1
 
-        # 4. Resetar flag de hot words para que sejam enviados no proximo stream
+        # Resetar flag de hot words para que sejam enviados no proximo stream
         self._hot_words_sent_for_segment = False
 
         logger.debug(
@@ -629,36 +655,9 @@ class StreamingSession:
         if HAS_METRICS and stt_vad_events_total is not None:
             stt_vad_events_total.labels(event_type="speech_end").inc()
 
-        # Fechar stream gRPC (envia is_last=True)
-        if self._stream_handle is not None and not self._stream_handle.is_closed:
-            try:
-                await self._stream_handle.close()
-            except WorkerCrashError:
-                logger.warning(
-                    "stream_close_worker_crash",
-                    session_id=self._session_id,
-                )
-
-        # Aguardar receiver task finalizar (com timeout para nao travar).
-        # Isso garante que transcript.final seja emitido ANTES de vad.speech_end.
-        receiver_ok = True
-        if self._receiver_task is not None and not self._receiver_task.done():
-            try:
-                await asyncio.wait_for(self._receiver_task, timeout=5.0)
-            except asyncio.TimeoutError:  # noqa: UP041
-                logger.warning(
-                    "receiver_task_timeout",
-                    session_id=self._session_id,
-                )
-                self._receiver_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._receiver_task
-                receiver_ok = False
-            except asyncio.CancelledError:
-                receiver_ok = False
-
-        self._receiver_task = None
-        self._stream_handle = None
+        # Drain stream: close gRPC send + await receiver task.
+        # Guarantees transcript.final is emitted BEFORE vad.speech_end.
+        receiver_ok = await self._drain_stream(timeout=5.0)
 
         # Emitir vad.speech_end SOMENTE apos receiver task completar.
         # Se receiver falhou (timeout/cancel), ainda emitimos speech_end
@@ -1013,29 +1012,7 @@ class StreamingSession:
 
     async def _flush_and_close(self) -> None:
         """Flush de pendentes durante CLOSING e transita para CLOSED."""
-        # Fechar stream gRPC se aberto
-        if self._stream_handle is not None and not self._stream_handle.is_closed:
-            try:
-                await self._stream_handle.close()
-            except WorkerCrashError:
-                logger.warning(
-                    "flush_stream_close_worker_crash",
-                    session_id=self._session_id,
-                )
-
-        # Aguardar receiver task
-        if self._receiver_task is not None and not self._receiver_task.done():
-            try:
-                await asyncio.wait_for(self._receiver_task, timeout=2.0)
-            except asyncio.TimeoutError:  # noqa: UP041
-                self._receiver_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._receiver_task
-            except asyncio.CancelledError:
-                pass
-
-        self._receiver_task = None
-        self._stream_handle = None
+        await self._drain_stream(timeout=2.0)
 
     def _record_ttfb(self) -> None:
         """Registra TTFB (Time to First Byte) para o segmento atual.
