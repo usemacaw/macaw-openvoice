@@ -179,3 +179,69 @@ class TestSileroVADClassifier:
 
         # Assert -- exatamente no threshold nao e fala (> e estrito)
         assert result is False
+
+
+class TestSileroSubFramePadding:
+    """Tests for trailing sub-frame zero-padding (M-33 fix)."""
+
+    def test_trailing_subframe_is_padded_not_dropped(self) -> None:
+        """Frame with trailing sub-frame < 512 is zero-padded and processed.
+
+        Before the fix, a 700-sample frame would only process the first
+        512 samples and silently drop the last 188. Now it pads them to 512.
+        """
+        # Arrange
+        classifier = _make_classifier_with_mock(
+            sensitivity=VADSensitivity.NORMAL,
+            return_prob=0.8,
+        )
+        # 700 samples = 512 (full chunk) + 188 (trailing, needs padding)
+        frame = np.zeros(700, dtype=np.float32)
+
+        # Act
+        prob = classifier.get_speech_probability(frame)
+
+        # Assert -- model should be called twice (512 + 188 padded to 512)
+        assert classifier._model.call_count == 2  # type: ignore[union-attr]
+        assert prob == pytest.approx(0.8)
+
+    def test_exact_chunk_multiple_no_padding(self) -> None:
+        """Frame that is exact multiple of 512 does not trigger padding."""
+        # Arrange
+        classifier = _make_classifier_with_mock(
+            sensitivity=VADSensitivity.NORMAL,
+            return_prob=0.6,
+        )
+        # 1024 samples = 2 * 512, no trailing sub-frame
+        frame = np.zeros(1024, dtype=np.float32)
+
+        # Act
+        prob = classifier.get_speech_probability(frame)
+
+        # Assert -- model called exactly twice
+        assert classifier._model.call_count == 2  # type: ignore[union-attr]
+        assert prob == pytest.approx(0.6)
+
+    def test_padded_subframe_uses_zeros(self) -> None:
+        """Trailing sub-frame is padded with zeros (not garbage)."""
+        # Arrange
+        classifier = _make_classifier_with_mock(
+            sensitivity=VADSensitivity.NORMAL,
+            return_prob=0.5,
+        )
+        classifier._to_tensor = lambda x: x  # Pass numpy arrays through
+
+        # 600 samples: first 512 processed, last 88 padded to 512
+        frame = np.ones(600, dtype=np.float32) * 0.3
+
+        # Act
+        classifier.get_speech_probability(frame)
+
+        # Assert -- second call should have a 512-sample tensor
+        calls = classifier._model.call_args_list  # type: ignore[union-attr]
+        assert len(calls) == 2
+        second_tensor = calls[1][0][0]
+        assert len(second_tensor) == 512
+        # First 88 samples should be 0.3, rest should be 0.0
+        np.testing.assert_allclose(second_tensor[:88], 0.3, atol=1e-6)
+        np.testing.assert_allclose(second_tensor[88:], 0.0, atol=1e-6)

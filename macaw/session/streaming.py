@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from macaw._types import SessionState, STTArchitecture
+from macaw._types import SessionState, STTArchitecture, TranscriptSegment
 from macaw.exceptions import InvalidTransitionError, WorkerCrashError
 from macaw.logging import get_logger
 from macaw.server.models.events import (
@@ -59,6 +59,7 @@ from macaw.session.metrics import (
     stt_vad_events_total,
     stt_worker_recoveries_total,
 )
+from macaw.session.mute import MuteController
 from macaw.session.state_machine import SessionStateMachine, SessionTimeouts
 from macaw.session.wal import SessionWAL
 from macaw.vad.detector import VADEventType
@@ -143,6 +144,17 @@ class StreamMetricsRecorder:
         delay = time.monotonic() - self._speech_end_monotonic
         stt_final_delay_seconds.observe(delay)
 
+    def consume_force_commit(self) -> bool:
+        """Check and consume the force-commit flag (test-and-clear).
+
+        Returns True if a force commit was pending, and clears the flag.
+        Called by process_frame() to decide whether to execute commit().
+        """
+        if not self._force_commit_pending:
+            return False
+        self._force_commit_pending = False
+        return True
+
     def on_ring_buffer_force_commit(self, _total_written: int) -> None:
         """Synchronous callback invoked by RingBuffer when >90% full.
 
@@ -201,7 +213,7 @@ class StreamRecoveryHandler:
         if self._recovering:
             logger.warning(
                 "recovery_already_in_progress",
-                session_id=self._session._session_id,
+                session_id=self._session.session_id,
             )
             return False
 
@@ -226,9 +238,9 @@ class StreamRecoveryHandler:
         s = self._session
         logger.info(
             "recovery_starting",
-            session_id=s._session_id,
-            last_segment_id=s._wal.last_committed_segment_id,
-            last_buffer_offset=s._wal.last_committed_buffer_offset,
+            session_id=s.session_id,
+            last_segment_id=s.wal.last_committed_segment_id,
+            last_buffer_offset=s.wal.last_committed_buffer_offset,
         )
 
         # 1. Clean up previous stream and receiver task
@@ -237,31 +249,30 @@ class StreamRecoveryHandler:
         # 2. Open new gRPC stream with timeout
         try:
             s._stream_handle = await asyncio.wait_for(
-                s._grpc_client.open_stream(s._session_id),
+                s.grpc_client.open_stream(s.session_id),
                 timeout=self._recovery_timeout_s,
             )
         except (asyncio.TimeoutError, WorkerCrashError) as exc:  # noqa: UP041
             logger.error(
                 "recovery_open_stream_failed",
-                session_id=s._session_id,
+                session_id=s.session_id,
                 error=str(exc),
             )
             s._stream_handle = None
 
             # Transition to CLOSED — recovery failed
             with contextlib.suppress(InvalidTransitionError):
-                if s._state_machine.state != SessionState.CLOSING:
-                    s._state_machine.transition(SessionState.CLOSING)
+                if s.state_machine.state != SessionState.CLOSING:
+                    s.state_machine.transition(SessionState.CLOSING)
             with contextlib.suppress(InvalidTransitionError):
-                s._state_machine.transition(SessionState.CLOSED)
+                s.state_machine.transition(SessionState.CLOSED)
 
             return False
 
         # 3. Resend uncommitted ring buffer data (if any)
-        if s._ring_buffer is not None and s._ring_buffer.uncommitted_bytes > 0:
-            uncommitted_data = s._ring_buffer.read_from_offset(
-                s._ring_buffer.read_fence,
-            )
+        rb = s.ring_buffer
+        if rb is not None and rb.uncommitted_bytes > 0:
+            uncommitted_data = rb.read_from_offset(rb.read_fence)
             if uncommitted_data:
                 try:
                     await s._stream_handle.send_frame(
@@ -269,19 +280,19 @@ class StreamRecoveryHandler:
                     )
                     logger.info(
                         "recovery_resent_uncommitted",
-                        session_id=s._session_id,
+                        session_id=s.session_id,
                         bytes_resent=len(uncommitted_data),
                     )
                 except WorkerCrashError:
                     logger.error(
                         "recovery_resend_failed",
-                        session_id=s._session_id,
+                        session_id=s.session_id,
                     )
                     s._stream_handle = None
                     return False
 
         # 4. Restore segment_id from WAL
-        s._segment_id = s._wal.last_committed_segment_id + 1
+        s._segment_id = s.wal.last_committed_segment_id + 1
 
         # 5. Start new receiver task
         s._receiver_task = asyncio.create_task(
@@ -293,7 +304,7 @@ class StreamRecoveryHandler:
 
         logger.info(
             "recovery_complete",
-            session_id=s._session_id,
+            session_id=s.session_id,
             segment_id=s._segment_id,
         )
 
@@ -413,9 +424,8 @@ class StreamingSession:
         # Timestamp of current speech segment start (ms)
         self._speech_start_ms: int | None = None
 
-        # Mute-on-speak (M9): when True, frames are dropped
-        # without preprocessing, VAD, or worker send.
-        self._muted = False
+        # Mute-on-speak (M9): delegates to MuteController
+        self._mute_controller = MuteController(session_id=session_id)
 
         # Session start timestamp for duration metric
         self._session_start_monotonic = time.monotonic()
@@ -451,26 +461,35 @@ class StreamingSession:
     @property
     def is_muted(self) -> bool:
         """True se STT esta silenciado (mute-on-speak ativo)."""
-        return self._muted
+        return self._mute_controller.is_muted
 
     def mute(self) -> None:
         """Silencia o STT (mute-on-speak). Idempotente."""
-        if self._muted:
-            return
-        self._muted = True
-        logger.debug("session_muted", session_id=self._session_id)
+        self._mute_controller.mute()
 
     def unmute(self) -> None:
         """Retoma o STT apos mute-on-speak. Idempotente."""
-        if not self._muted:
-            return
-        self._muted = False
-        logger.debug("session_unmuted", session_id=self._session_id)
+        self._mute_controller.unmute()
 
     @property
     def wal(self) -> SessionWAL:
         """WAL da sessao para consulta de checkpoints (usado em recovery)."""
         return self._wal
+
+    @property
+    def ring_buffer(self) -> RingBuffer | None:
+        """Ring buffer (read-only access for recovery handler)."""
+        return self._ring_buffer
+
+    @property
+    def grpc_client(self) -> StreamingGRPCClient:
+        """gRPC streaming client (read-only access for recovery handler)."""
+        return self._grpc_client
+
+    @property
+    def state_machine(self) -> SessionStateMachine:
+        """State machine (read-only access for recovery handler)."""
+        return self._state_machine
 
     def update_hot_words(self, hot_words: list[str] | None) -> None:
         """Atualiza hot words para a sessao (chamado via session.configure).
@@ -522,7 +541,7 @@ class StreamingSession:
             return
 
         # Mute-on-speak: descartar frame sem processar (TTS ativo)
-        if self._muted:
+        if self._mute_controller.is_muted:
             if HAS_METRICS and stt_muted_frames_total is not None:
                 stt_muted_frames_total.inc()
             return
@@ -559,8 +578,7 @@ class StreamingSession:
         #    O callback on_force_commit do ring buffer e sincrono (chamado de
         #    dentro de write()), entao ele seta a flag. Aqui, no contexto
         #    async, consumimos a flag e fazemos o commit real.
-        if self._metrics._force_commit_pending:
-            self._metrics._force_commit_pending = False
+        if self._metrics.consume_force_commit():
             await self.commit()
 
     async def _drain_stream(self, timeout: float) -> bool:
@@ -694,14 +712,14 @@ class StreamingSession:
         )
 
     def check_inactivity(self) -> bool:
-        """Verifica se a sessao expirou por timeout da state machine.
+        """Check whether the session expired by state machine timeout.
 
-        Verifica o timeout do estado atual via state machine. Se expirou,
-        executa a transicao correspondente e retorna True se a sessao
-        foi fechada (CLOSED).
+        Thin wrapper over check_timeout() that returns a boolean instead
+        of the new state. Kept for backward compatibility with callers
+        that only need "should I close this session?".
 
         Returns:
-            True se a sessao deve ser fechada (transitou para CLOSED).
+            True if the session transitioned to CLOSED, False otherwise.
         """
         if self._state_machine.state == SessionState.CLOSED:
             return False
@@ -710,13 +728,11 @@ class StreamingSession:
         if target is None:
             return False
 
-        # Executar a transicao indicada pelo timeout
         try:
             self._state_machine.transition(target)
         except InvalidTransitionError:
             return False
 
-        # Se transitou para CLOSED, a sessao deve ser fechada
         return self.is_closed
 
     async def check_timeout(self) -> SessionState | None:
@@ -1018,87 +1034,12 @@ class StreamingSession:
                 if self._state_machine.state == SessionState.CLOSED:
                     break
 
-                # Registrar TTFB no primeiro transcript (partial ou final)
                 self._metrics.record_ttfb()
 
                 if segment.is_final:
-                    # Registrar final_delay se speech_end ja ocorreu
-                    self._metrics.record_final_delay()
-
-                    # Aplicar post-processing (ITN) em finals
-                    text = segment.text
-                    if self._enable_itn and self._postprocessor is not None:
-                        text = self._postprocessor.process(text)
-
-                    # Converter word timestamps
-                    words: list[WordEvent] | None = None
-                    if segment.words:
-                        words = [
-                            WordEvent(
-                                word=w.word,
-                                start=w.start,
-                                end=w.end,
-                            )
-                            for w in segment.words
-                        ]
-
-                    await self._on_event(
-                        TranscriptFinalEvent(
-                            text=text,
-                            segment_id=self._segment_id,
-                            start_ms=segment.start_ms or 0,
-                            end_ms=segment.end_ms or 0,
-                            language=segment.language,
-                            confidence=segment.confidence,
-                            words=words,
-                        ),
-                    )
-
-                    # Registrar confidence do transcript.final
-                    if (
-                        HAS_METRICS
-                        and stt_confidence_avg is not None
-                        and segment.confidence is not None
-                    ):
-                        stt_confidence_avg.observe(segment.confidence)
-
-                    # Avancar read fence do ring buffer: dados ate aqui
-                    # estao confirmados (transcript.final emitido ao cliente).
-                    if self._ring_buffer is not None:
-                        self._ring_buffer.commit(
-                            self._ring_buffer.total_written,
-                        )
-
-                    # WAL (M6-06): registrar checkpoint apos transcript.final.
-                    # Usa total_written do ring buffer como buffer_offset (posicao
-                    # no momento do commit). Se nao ha ring buffer, offset = 0.
-                    self._wal.record_checkpoint(
-                        segment_id=self._segment_id,
-                        buffer_offset=(
-                            self._ring_buffer.total_written if self._ring_buffer is not None else 0
-                        ),
-                        timestamp_ms=int(time.monotonic() * 1000),
-                    )
-
-                    # Cross-segment context (M6-09): armazenar texto do
-                    # transcript.final para usar como initial_prompt no
-                    # proximo segmento. Usa texto pos-processado (ITN).
-                    # Apenas para engines que suportam initial_prompt
-                    # (encoder-decoder). CTC nao suporta conditioning.
-                    if (
-                        self._cross_segment_context is not None
-                        and self._architecture != STTArchitecture.CTC
-                    ):
-                        self._cross_segment_context.update(text)
+                    await self._handle_final_event(segment)
                 else:
-                    # Partial: emitir sem post-processing
-                    await self._on_event(
-                        TranscriptPartialEvent(
-                            text=segment.text,
-                            segment_id=self._segment_id,
-                            timestamp_ms=segment.start_ms or 0,
-                        ),
-                    )
+                    await self._handle_partial_event(segment)
         except WorkerCrashError:
             if not self._recovery.is_recovering:
                 resume_segment = self._wal.last_committed_segment_id + 1
@@ -1127,6 +1068,81 @@ class StreamingSession:
                 message=f"Unexpected error: {exc}",
                 recoverable=False,
             )
+
+    async def _handle_final_event(self, segment: TranscriptSegment) -> None:
+        """Handle a transcript.final event from the worker.
+
+        Applies ITN post-processing, emits the event, advances ring buffer
+        read fence, records WAL checkpoint, and updates cross-segment context.
+        """
+        self._metrics.record_final_delay()
+
+        # Apply post-processing (ITN) on finals
+        text = segment.text
+        if self._enable_itn and self._postprocessor is not None:
+            text = self._postprocessor.process(text)
+
+        # Convert word timestamps
+        words: list[WordEvent] | None = None
+        if segment.words:
+            words = [
+                WordEvent(word=w.word, start=w.start, end=w.end)
+                for w in segment.words
+            ]
+
+        await self._on_event(
+            TranscriptFinalEvent(
+                text=text,
+                segment_id=self._segment_id,
+                start_ms=segment.start_ms or 0,
+                end_ms=segment.end_ms or 0,
+                language=segment.language,
+                confidence=segment.confidence,
+                words=words,
+            ),
+        )
+
+        # Record confidence metric
+        if (
+            HAS_METRICS
+            and stt_confidence_avg is not None
+            and segment.confidence is not None
+        ):
+            stt_confidence_avg.observe(segment.confidence)
+
+        # Advance ring buffer read fence
+        if self._ring_buffer is not None:
+            self._ring_buffer.commit(self._ring_buffer.total_written)
+
+        # WAL checkpoint
+        self._wal.record_checkpoint(
+            segment_id=self._segment_id,
+            buffer_offset=(
+                self._ring_buffer.total_written if self._ring_buffer is not None else 0
+            ),
+            timestamp_ms=int(time.monotonic() * 1000),
+        )
+
+        # Cross-segment context (encoder-decoder only, not CTC)
+        if (
+            self._cross_segment_context is not None
+            and self._architecture != STTArchitecture.CTC
+        ):
+            self._cross_segment_context.update(text)
+
+    async def _handle_partial_event(self, segment: TranscriptSegment) -> None:
+        """Handle a transcript.partial event from the worker.
+
+        Emits the partial without post-processing (ITN is never applied
+        to partials — they are unstable and would produce confusing output).
+        """
+        await self._on_event(
+            TranscriptPartialEvent(
+                text=segment.text,
+                segment_id=self._segment_id,
+                timestamp_ms=segment.start_ms or 0,
+            ),
+        )
 
     async def _flush_and_close(self) -> None:
         """Flush de pendentes durante CLOSING e transita para CLOSED."""

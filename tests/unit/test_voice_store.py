@@ -8,6 +8,7 @@ Validates:
 - List voices with and without type filter
 - Delete voice removes from disk
 - Delete non-existent returns False
+- Path traversal prevention (C-02)
 """
 
 from __future__ import annotations
@@ -15,6 +16,9 @@ from __future__ import annotations
 import json
 import os
 
+import pytest
+
+from macaw.exceptions import InvalidRequestError
 from macaw.server.voice_store import FileSystemVoiceStore
 
 
@@ -188,3 +192,73 @@ class TestFileSystemVoiceStoreDelete:
         result = await store.get("v1")
 
         assert result is None
+
+
+# ─── Path Traversal Prevention (C-02) ───
+
+
+class TestVoiceStorePathTraversal:
+    """Validates that path traversal attacks are blocked by voice_id validation."""
+
+    @pytest.mark.parametrize(
+        "malicious_id",
+        [
+            "../../../etc/passwd",
+            "..%2F..%2Fetc%2Fpasswd",
+            "voice/../../../secret",
+            "/absolute/path",
+            "voice id with spaces",
+            "voice;rm -rf /",
+            "voice\x00null",
+            "",
+        ],
+    )
+    async def test_save_rejects_malicious_voice_id(
+        self, tmp_path: object, malicious_id: str
+    ) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+
+        with pytest.raises(InvalidRequestError, match="Invalid voice_id"):
+            await store.save(
+                voice_id=malicious_id,
+                name="Evil",
+                voice_type="designed",
+                instruction="test",
+            )
+
+    @pytest.mark.parametrize(
+        "malicious_id",
+        ["../secret", "../../etc/passwd", "voice/../data"],
+    )
+    async def test_get_rejects_malicious_voice_id(
+        self, tmp_path: object, malicious_id: str
+    ) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+
+        with pytest.raises(InvalidRequestError, match="Invalid voice_id"):
+            await store.get(malicious_id)
+
+    @pytest.mark.parametrize(
+        "malicious_id",
+        ["../secret", "../../etc/passwd", "voice/../data"],
+    )
+    async def test_delete_rejects_malicious_voice_id(
+        self, tmp_path: object, malicious_id: str
+    ) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+
+        with pytest.raises(InvalidRequestError, match="Invalid voice_id"):
+            await store.delete(malicious_id)
+
+    async def test_valid_voice_id_formats_accepted(self, tmp_path: object) -> None:
+        """Legitimate voice IDs with alphanumeric, hyphens, underscores are accepted."""
+        store = FileSystemVoiceStore(str(tmp_path))
+
+        for valid_id in ["abc", "voice-1", "my_voice", "A123-B456_C"]:
+            saved = await store.save(
+                voice_id=valid_id,
+                name="Test",
+                voice_type="designed",
+                instruction="test",
+            )
+            assert saved.voice_id == valid_id

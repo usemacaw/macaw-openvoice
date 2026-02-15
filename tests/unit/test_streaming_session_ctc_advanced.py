@@ -234,7 +234,7 @@ class TestCTCForceCommit:
     """CTC: force commit disparado quando ring buffer atinge 90%."""
 
     def test_ctc_force_commit_flag_set_at_90_percent(self) -> None:
-        """Flag _force_commit_pending setada quando buffer > 90% uncommitted."""
+        """Force commit pending when buffer > 90% uncommitted."""
         # Ring buffer pequeno para facilitar teste (1000 bytes)
         rb = RingBuffer(duration_s=0.03125, sample_rate=16000, bytes_per_sample=2)
         # capacity = 0.03125 * 16000 * 2 = 1000 bytes
@@ -242,20 +242,24 @@ class TestCTCForceCommit:
 
         session = _make_session(ring_buffer=rb)
 
-        assert session._metrics._force_commit_pending is False
+        # No pending force commit initially
+        assert session._metrics.consume_force_commit() is False
 
         # Escrever 901 bytes (>90% de 1000) para disparar force commit
         rb.write(b"\x00" * 901)
 
-        assert session._metrics._force_commit_pending is True
+        # Force commit should now be pending
+        assert session._metrics.consume_force_commit() is True
+        # Consumed — second call returns False
+        assert session._metrics.consume_force_commit() is False
 
     async def test_ctc_force_commit_pending_consumed_on_process_frame(self) -> None:
-        """process_frame() consome _force_commit_pending e executa commit."""
+        """process_frame() consumes force_commit_pending and executes commit."""
         rb = RingBuffer(duration_s=0.03125, sample_rate=16000, bytes_per_sample=2)
         session = _make_session(ring_buffer=rb)
 
-        # Setar flag manualmente (como se ring buffer tivesse disparado)
-        session._metrics._force_commit_pending = True
+        # Trigger force commit via ring buffer callback
+        session._metrics.on_ring_buffer_force_commit(0)
 
         # Colocar sessao em ACTIVE (INIT rejeita frame processing com stream)
         session._state_machine.transition(SessionState.ACTIVE)
@@ -264,8 +268,8 @@ class TestCTCForceCommit:
         raw_frame = np.zeros(320, dtype=np.int16).tobytes()
         await session.process_frame(raw_frame)
 
-        # Flag consumida
-        assert session._metrics._force_commit_pending is False
+        # Flag consumed by process_frame
+        assert session._metrics.consume_force_commit() is False
 
 
 # ---------------------------------------------------------------------------

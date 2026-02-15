@@ -133,7 +133,7 @@ class TestStreamingPreprocessor:
         stages = [ResampleStage(target_sample_rate=16000)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
 
-        with pytest.raises(AudioFormatError, match="numero par de bytes"):
+        with pytest.raises(AudioFormatError, match="even number of bytes"):
             preprocessor.process_frame(b"\x00\x01\x02")
 
     def test_set_input_sample_rate(self) -> None:

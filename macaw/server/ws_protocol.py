@@ -10,6 +10,8 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import pydantic
+
 from macaw.logging import get_logger
 from macaw.server.models.events import (
     InputAudioBufferCommitCommand,
@@ -157,7 +159,7 @@ def _parse_command(raw_text: str) -> CommandResult | ErrorResult:
     # 4. Validate with Pydantic model
     try:
         command = command_class.model_validate(data)
-    except Exception as exc:
+    except pydantic.ValidationError as exc:
         logger.warning(
             "command_validation_error",
             command_type=command_type,

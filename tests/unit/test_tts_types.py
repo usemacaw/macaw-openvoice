@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from macaw._types import TTSSpeechResult, VoiceInfo
+from macaw._types import TTSEngineCapabilities, TTSSpeechResult, VoiceInfo
 from macaw.exceptions import MacawError, TTSError, TTSSynthesisError
 from macaw.workers.tts.interface import TTSBackend
 
@@ -48,6 +48,46 @@ class TestVoiceInfo:
         updated = dataclasses.replace(voice, language="pt")
         assert updated.language == "pt"
         assert voice.language == "en"
+
+
+# --- TTSEngineCapabilities ---
+
+
+class TestTTSEngineCapabilities:
+    def test_defaults(self) -> None:
+        caps = TTSEngineCapabilities()
+        assert caps.supports_streaming is False
+        assert caps.supports_voice_cloning is False
+        assert caps.supports_instruct is False
+        assert caps.max_text_length is None
+
+    def test_custom_values(self) -> None:
+        caps = TTSEngineCapabilities(
+            supports_streaming=True,
+            supports_voice_cloning=True,
+            supports_instruct=True,
+            max_text_length=500,
+        )
+        assert caps.supports_streaming is True
+        assert caps.supports_voice_cloning is True
+        assert caps.supports_instruct is True
+        assert caps.max_text_length == 500
+
+    def test_frozen(self) -> None:
+        caps = TTSEngineCapabilities()
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            caps.supports_streaming = True  # type: ignore[misc]
+
+    def test_slots(self) -> None:
+        caps = TTSEngineCapabilities()
+        assert not hasattr(caps, "__dict__")
+
+    def test_replace(self) -> None:
+        caps = TTSEngineCapabilities()
+        updated = dataclasses.replace(caps, supports_streaming=True, max_text_length=1000)
+        assert updated.supports_streaming is True
+        assert updated.max_text_length == 1000
+        assert caps.supports_streaming is False
 
 
 # --- TTSSpeechResult ---
@@ -116,6 +156,9 @@ class TestTTSBackendABC:
         class _ConcreteTTS(TTSBackend):
             async def load(self, model_path: str, config: dict[str, object]) -> None: ...
 
+            async def capabilities(self) -> TTSEngineCapabilities:
+                return TTSEngineCapabilities()
+
             async def synthesize(
                 self,
                 text: str,
@@ -148,8 +191,8 @@ class TestTTSBackendABC:
         with pytest.raises(TypeError, match="abstract"):
             _IncompleteTTS()  # type: ignore[abstract]
 
-    def test_has_five_abstract_methods(self) -> None:
+    def test_has_six_abstract_methods(self) -> None:
         abstract_methods = TTSBackend.__abstractmethods__
-        assert len(abstract_methods) == 5
-        expected = {"load", "synthesize", "voices", "unload", "health"}
+        assert len(abstract_methods) == 6
+        expected = {"load", "capabilities", "synthesize", "voices", "unload", "health"}
         assert abstract_methods == expected

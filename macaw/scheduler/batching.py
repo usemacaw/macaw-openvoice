@@ -181,7 +181,7 @@ class BatchAccumulator:
             # Schedule on_flush as a task (timer callback is synchronous)
             task = asyncio.create_task(self._on_flush(batch))
             self._flush_tasks.add(task)
-            task.add_done_callback(self._flush_tasks.discard)
+            task.add_done_callback(self._on_flush_done)
 
     def _schedule_flush_now(self) -> None:
         """Schedule immediate flush via call_soon (does not block add()).
@@ -192,4 +192,17 @@ class BatchAccumulator:
         if batch:
             task = asyncio.create_task(self._on_flush(batch))
             self._flush_tasks.add(task)
-            task.add_done_callback(self._flush_tasks.discard)
+            task.add_done_callback(self._on_flush_done)
+
+    def _on_flush_done(self, task: asyncio.Task[None]) -> None:
+        """Done callback for flush tasks: log exceptions, remove from set."""
+        self._flush_tasks.discard(task)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.error(
+                "batch_flush_exception",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )

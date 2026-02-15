@@ -6,12 +6,20 @@ import asyncio
 import signal
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
 from macaw.cli.main import cli
 from macaw.engines import is_engine_available
 from macaw.logging import configure_logging, get_logger
+
+if TYPE_CHECKING:
+    from macaw.config.manifest import ModelManifest
+    from macaw.postprocessing.pipeline import PostProcessingPipeline
+    from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
+    from macaw.registry.registry import ModelRegistry
+    from macaw.workers.manager import WorkerManager
 
 logger = get_logger("cli.serve")
 
@@ -63,38 +71,20 @@ def serve(
     asyncio.run(_serve(host, port, models_dir, cors_origins=origins))
 
 
-async def _serve(
-    host: str,
-    port: int,
-    models_dir: str,
-    *,
-    cors_origins: list[str] | None = None,
-) -> None:
-    """Main async flow for serve."""
-    import uvicorn
+async def _spawn_all_workers(
+    registry: ModelRegistry,
+    worker_manager: WorkerManager,
+    models: list[ModelManifest],
+    base_port: int,
+) -> tuple[list[ModelManifest], list[ModelManifest]]:
+    """Spawn gRPC workers for all discovered models.
 
+    Returns (stt_models, tts_models) manifests that were processed.
+    """
     from macaw._types import ModelType
-    from macaw.registry.registry import ModelRegistry
-    from macaw.scheduler.scheduler import Scheduler
-    from macaw.server.app import create_app
-    from macaw.workers.manager import WorkerManager
 
-    models_path = Path(models_dir).expanduser()
-
-    # 1. Scan registry
-    registry = ModelRegistry(models_path)
-    await registry.scan()
-
-    models = registry.list_models()
-    if not models:
-        logger.error("no_models_found", models_dir=str(models_path))
-        click.echo(f"Error: no models found in {models_path}", err=True)
-        click.echo("Run 'macaw pull <model>' to install a model.", err=True)
-        sys.exit(1)
-
-    # 2. Spawn workers for STT models
-    worker_manager = WorkerManager()
-    port_counter = DEFAULT_WORKER_BASE_PORT
+    # TODO: Consider OS-assigned ports (port=0) for dynamic allocation
+    port_counter = base_port
 
     stt_models = [m for m in models if m.model_type == ModelType.STT]
     for manifest in stt_models:
@@ -154,6 +144,81 @@ async def _serve(
         )
         port_counter += 1
 
+    return stt_models, tts_models
+
+
+def _build_pipelines() -> tuple[AudioPreprocessingPipeline, PostProcessingPipeline]:
+    """Build preprocessing and postprocessing pipelines from default config."""
+    from macaw.config.postprocessing import PostProcessingConfig
+    from macaw.config.preprocessing import PreprocessingConfig
+    from macaw.postprocessing.itn import ITNStage
+    from macaw.postprocessing.pipeline import PostProcessingPipeline as PostPipeline
+    from macaw.postprocessing.stages import TextStage  # noqa: TC001
+    from macaw.preprocessing.dc_remove import DCRemoveStage
+    from macaw.preprocessing.gain_normalize import GainNormalizeStage
+    from macaw.preprocessing.pipeline import AudioPreprocessingPipeline as PrePipeline
+    from macaw.preprocessing.resample import ResampleStage
+    from macaw.preprocessing.stages import AudioStage  # noqa: TC001
+
+    pre_config = PreprocessingConfig()
+    pre_stages: list[AudioStage] = []
+    if pre_config.resample:
+        pre_stages.append(ResampleStage(pre_config.target_sample_rate))
+    if pre_config.dc_remove:
+        pre_stages.append(DCRemoveStage(pre_config.dc_remove_cutoff_hz))
+    if pre_config.gain_normalize:
+        pre_stages.append(GainNormalizeStage(pre_config.target_dbfs))
+    preprocessing = PrePipeline(pre_config, pre_stages)
+
+    post_config = PostProcessingConfig()
+    post_stages: list[TextStage] = []
+    if post_config.itn.enabled:
+        post_stages.append(ITNStage(post_config.itn.language))
+    postprocessing = PostPipeline(post_config, post_stages)
+
+    logger.info(
+        "pipelines_configured",
+        preprocessing_stages=[s.name for s in pre_stages],
+        postprocessing_stages=[s.name for s in post_stages],
+    )
+
+    return preprocessing, postprocessing
+
+
+async def _serve(
+    host: str,
+    port: int,
+    models_dir: str,
+    *,
+    cors_origins: list[str] | None = None,
+) -> None:
+    """Main async flow for serve."""
+    import uvicorn
+
+    from macaw.registry.registry import ModelRegistry
+    from macaw.scheduler.scheduler import Scheduler
+    from macaw.server.app import create_app
+    from macaw.workers.manager import WorkerManager
+
+    models_path = Path(models_dir).expanduser()
+
+    # 1. Scan registry
+    registry = ModelRegistry(models_path)
+    await registry.scan()
+
+    models = registry.list_models()
+    if not models:
+        logger.error("no_models_found", models_dir=str(models_path))
+        click.echo(f"Error: no models found in {models_path}", err=True)
+        click.echo("Run 'macaw pull <model>' to install a model.", err=True)
+        sys.exit(1)
+
+    # 2. Spawn workers
+    worker_manager = WorkerManager()
+    stt_models, tts_models = await _spawn_all_workers(
+        registry, worker_manager, models, DEFAULT_WORKER_BASE_PORT
+    )
+
     if worker_manager.worker_summary()["total"] == 0:
         logger.warning("no_workers_spawned", hint="Install engine packages. See: macaw list")
 
@@ -166,41 +231,10 @@ async def _serve(
         tts_workers=len(tts_models),
     )
 
-    # 2.5 Build pipelines
-    from macaw.config.postprocessing import PostProcessingConfig
-    from macaw.config.preprocessing import PreprocessingConfig
-    from macaw.postprocessing.itn import ITNStage
-    from macaw.postprocessing.pipeline import PostProcessingPipeline
-    from macaw.postprocessing.stages import TextStage  # noqa: TC001
-    from macaw.preprocessing.dc_remove import DCRemoveStage
-    from macaw.preprocessing.gain_normalize import GainNormalizeStage
-    from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
-    from macaw.preprocessing.resample import ResampleStage
-    from macaw.preprocessing.stages import AudioStage  # noqa: TC001
+    # 3. Build pipelines
+    preprocessing_pipeline, postprocessing_pipeline = _build_pipelines()
 
-    pre_config = PreprocessingConfig()
-    pre_stages: list[AudioStage] = []
-    if pre_config.resample:
-        pre_stages.append(ResampleStage(pre_config.target_sample_rate))
-    if pre_config.dc_remove:
-        pre_stages.append(DCRemoveStage(pre_config.dc_remove_cutoff_hz))
-    if pre_config.gain_normalize:
-        pre_stages.append(GainNormalizeStage(pre_config.target_dbfs))
-    preprocessing_pipeline = AudioPreprocessingPipeline(pre_config, pre_stages)
-
-    post_config = PostProcessingConfig()
-    post_stages: list[TextStage] = []
-    if post_config.itn.enabled:
-        post_stages.append(ITNStage(post_config.itn.language))
-    postprocessing_pipeline = PostProcessingPipeline(post_config, post_stages)
-
-    logger.info(
-        "pipelines_configured",
-        preprocessing_stages=[s.name for s in pre_stages],
-        postprocessing_stages=[s.name for s in post_stages],
-    )
-
-    # 3. Create app
+    # 4. Create app
     scheduler = Scheduler(worker_manager, registry)
     app = create_app(
         registry=registry,
@@ -211,7 +245,8 @@ async def _serve(
         cors_origins=cors_origins,
     )
 
-    # 3.5 Wire StreamingGRPCClient for WebSocket /v1/realtime
+    # 4.5 Wire StreamingGRPCClient for WebSocket /v1/realtime
+    # NOTE: Only the first STT model gets WebSocket streaming support
     stt_worker = worker_manager.get_ready_worker(stt_models[0].name) if stt_models else None
     stt_worker_port = (
         stt_worker.port if stt_worker else (DEFAULT_WORKER_BASE_PORT if stt_models else None)
@@ -224,7 +259,7 @@ async def _serve(
         app.state.streaming_grpc_client = streaming_client
         logger.info("streaming_grpc_connected", worker_port=stt_worker_port)
 
-    # 4. Setup shutdown
+    # 5. Setup shutdown
     shutdown_event = asyncio.Event()
     loop = asyncio.get_running_loop()
 
@@ -235,7 +270,7 @@ async def _serve(
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _handle_signal, sig)
 
-    # 5. Run uvicorn
+    # 6. Run uvicorn
     config = uvicorn.Config(app, host=host, port=port, log_level="warning")
     server = uvicorn.Server(config)
 
@@ -247,7 +282,7 @@ async def _serve(
         return_when=asyncio.FIRST_COMPLETED,
     )
 
-    # 6. Graceful shutdown
+    # 7. Graceful shutdown
     if not server_task.done():
         server.should_exit = True
         await server_task

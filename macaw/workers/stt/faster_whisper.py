@@ -23,6 +23,7 @@ from macaw.exceptions import AudioFormatError, ModelLoadError
 from macaw.logging import get_logger
 from macaw.workers.audio_utils import pcm_bytes_to_float32
 from macaw.workers.stt.interface import STTBackend
+from macaw.workers.torch_utils import release_gpu_memory
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -52,7 +53,7 @@ class FasterWhisperBackend(STTBackend):
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if WhisperModel is None:
-            msg = "faster-whisper nao esta instalado. Instale com: pip install macaw-openvoice[faster-whisper]"
+            msg = "faster-whisper is not installed. Install with: pip install macaw-openvoice[faster-whisper]"
             raise ModelLoadError(model_path, msg)
 
         model_size = str(config.get("model_size", model_path))
@@ -104,11 +105,11 @@ class FasterWhisperBackend(STTBackend):
         word_timestamps: bool = False,
     ) -> BatchResult:
         if self._model is None:
-            msg = "Modelo nao carregado. Chame load() primeiro."
+            msg = "Model not loaded. Call load() first."
             raise ModelLoadError("unknown", msg)
 
         if not audio_data:
-            msg = "Audio vazio"
+            msg = "Empty audio"
             raise AudioFormatError(msg)
 
         audio_array = pcm_bytes_to_float32(audio_data)
@@ -157,6 +158,8 @@ class FasterWhisperBackend(STTBackend):
             words=words,
         )
 
+    # AsyncGenerator is a subtype of AsyncIterator but mypy doesn't recognize
+    # yield-based overrides. See docs/ADDING_ENGINE.md.
     async def transcribe_stream(  # type: ignore[override, misc]
         self,
         audio_chunks: AsyncIterator[bytes],
@@ -187,7 +190,7 @@ class FasterWhisperBackend(STTBackend):
             TranscriptSegment with is_final=True for each transcribed buffer.
         """
         if self._model is None:
-            msg = "Modelo nao carregado. Chame load() primeiro."
+            msg = "Model not loaded. Call load() first."
             raise ModelLoadError("unknown", msg)
 
         sample_rate = 16000
@@ -280,7 +283,10 @@ class FasterWhisperBackend(STTBackend):
         )
 
     async def unload(self) -> None:
-        self._model = None
+        if self._model is not None:
+            del self._model
+            self._model = None
+            release_gpu_memory()
         logger.info("model_unloaded")
 
     async def health(self) -> dict[str, str]:

@@ -53,7 +53,8 @@ class GainNormalizeStage(AudioStage):
             return audio, sample_rate
 
         gain = self._target_linear / peak
-        normalized = audio * gain
-        normalized = np.clip(normalized, -1.0, 1.0)
+        # In-place multiply and clip to avoid allocating intermediate arrays.
+        np.multiply(audio, gain, out=audio)
+        np.clip(audio, -1.0, 1.0, out=audio)
 
-        return normalized.astype(np.float32), sample_rate
+        return audio, sample_rate

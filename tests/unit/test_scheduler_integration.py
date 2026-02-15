@@ -484,12 +484,7 @@ class TestLatencyTracking:
                 assert result.text == "Ola mundo"
 
                 # LatencyTracker should have completed the entry
-                summary = scheduler.latency.get_summary("lat_req")
-                assert summary is not None
-                assert summary.request_id == "lat_req"
-                assert summary.queue_wait >= 0.0
-                assert summary.grpc_time >= 0.0
-                assert summary.total_time >= 0.0
-                assert summary.total_time >= summary.queue_wait
+                # (complete() removes it from active tracking)
+                assert scheduler.latency.active_count == 0
             finally:
                 await scheduler.stop()

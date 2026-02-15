@@ -42,3 +42,10 @@ class VerboseTranscriptionResponse(BaseModel):
     text: str
     segments: list[SegmentResponse] = []
     words: list[WordResponse] | None = None
+
+
+class CancelResponse(BaseModel):
+    """Response for POST /v1/audio/transcriptions/{request_id}/cancel."""
+
+    request_id: str
+    cancelled: bool

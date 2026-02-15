@@ -86,15 +86,13 @@ class SessionTimeouts:
 
     def get_timeout_for_state(self, state: SessionState) -> float | None:
         """Return the timeout in seconds for the state, or None if no timeout."""
-        if state == SessionState.INIT:
-            return self.init_timeout_s
-        if state == SessionState.SILENCE:
-            return self.silence_timeout_s
-        if state == SessionState.HOLD:
-            return self.hold_timeout_s
-        if state == SessionState.CLOSING:
-            return self.closing_timeout_s
-        return None
+        state_timeout_map = {
+            SessionState.INIT: self.init_timeout_s,
+            SessionState.SILENCE: self.silence_timeout_s,
+            SessionState.HOLD: self.hold_timeout_s,
+            SessionState.CLOSING: self.closing_timeout_s,
+        }
+        return state_timeout_map.get(state)
 
 
 def timeouts_from_configure_command(
@@ -102,7 +100,6 @@ def timeouts_from_configure_command(
     *,
     silence_timeout_ms: int | None = None,
     hold_timeout_ms: int | None = None,
-    max_segment_duration_ms: int | None = None,
 ) -> SessionTimeouts:
     """Create updated SessionTimeouts from SessionConfigureCommand fields.
 
@@ -113,8 +110,6 @@ def timeouts_from_configure_command(
         current: Current timeouts.
         silence_timeout_ms: Silence timeout in ms (None = keep current).
         hold_timeout_ms: Hold timeout in ms (None = keep current).
-        max_segment_duration_ms: Does not affect state machine timeouts (reserved for
-            max segment duration in the Ring Buffer). Accepted but ignored.
 
     Returns:
         New SessionTimeouts with updated values.

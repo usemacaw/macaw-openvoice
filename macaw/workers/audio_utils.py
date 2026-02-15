@@ -10,6 +10,10 @@ import numpy as np
 
 from macaw.exceptions import AudioFormatError
 
+# Maximum absolute value for signed PCM integer formats.
+PCM_INT16_MAX = 32768.0
+PCM_INT32_MAX = 2147483648.0
+
 
 def pcm_bytes_to_float32(audio_data: bytes) -> np.ndarray:
     """Convert 16-bit PCM bytes to normalized float32 numpy array.
@@ -26,10 +30,10 @@ def pcm_bytes_to_float32(audio_data: bytes) -> np.ndarray:
         AudioFormatError: If the byte length is not even (16-bit PCM = 2 bytes/sample).
     """
     if len(audio_data) % 2 != 0:
-        msg = "Audio PCM 16-bit deve ter numero par de bytes"
+        msg = "PCM 16-bit audio must have an even number of bytes"
         raise AudioFormatError(msg)
 
     int16_array = np.frombuffer(audio_data, dtype=np.int16)
     audio = int16_array.astype(np.float32)
-    audio /= 32768.0
+    audio /= PCM_INT16_MAX
     return audio

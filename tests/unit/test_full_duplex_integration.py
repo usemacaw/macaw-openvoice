@@ -13,6 +13,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from macaw.server.routes.realtime import (
+    SessionContext,
     _cancel_active_tts,
     _tts_speak_task,
 )
@@ -48,6 +49,23 @@ def _setup_tts_env(
     ws.app.state.worker_manager = wm
 
     return ws, session, registry, wm
+
+
+def _make_session_context(
+    *,
+    tts_task: asyncio.Task[None] | None = None,
+    tts_cancel_event: asyncio.Event | None = None,
+) -> SessionContext:
+    """Build a minimal SessionContext for _cancel_active_tts tests."""
+    ws = _make_mock_websocket()
+    ctx = SessionContext(
+        session_id="sess_test",
+        session_start=0.0,
+        websocket=ws,
+    )
+    ctx.tts_task = tts_task
+    ctx.tts_cancel_event = tts_cancel_event
+    return ctx
 
 
 async def _run_tts_speak(
@@ -226,15 +244,14 @@ class TestFullDuplexSequential:
                 first_cancelled.set()
 
         task1 = asyncio.create_task(_slow_first())
-        tts_task_ref: list[asyncio.Task[None] | None] = [task1]
-        tts_cancel_ref: list[asyncio.Event | None] = [cancel1]
+        ctx = _make_session_context(tts_task=task1, tts_cancel_event=cancel1)
 
         # Cancelar primeiro (simulando chegada do segundo speak)
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
 
         assert first_cancelled.is_set()
-        assert tts_task_ref[0] is None
-        assert tts_cancel_ref[0] is None
+        assert ctx.tts_task is None
+        assert ctx.tts_cancel_event is None
 
         # Executar segundo speak normalmente
         send_event2, events2 = _make_send_event()
@@ -257,9 +274,8 @@ class TestFullDuplexSequential:
         assert session.is_muted is False
 
         # Cancel (noop — primeiro ja completou)
-        tts_task_ref: list[asyncio.Task[None] | None] = [None]
-        tts_cancel_ref: list[asyncio.Event | None] = [None]
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        ctx = _make_session_context(tts_task=None, tts_cancel_event=None)
+        await _cancel_active_tts(ctx)
 
         # Segundo speak
         send2, events2 = _make_send_event()
@@ -282,12 +298,11 @@ class TestFullDuplexSequential:
         await _run_tts_speak(ws, session, send_event, cancel)
 
         # Task ja completou, cancel e noop
-        task_ref: list[asyncio.Task[None] | None] = [None]
-        cancel_ref: list[asyncio.Event | None] = [cancel]
-        await _cancel_active_tts(task_ref, cancel_ref)
+        ctx = _make_session_context(tts_task=None, tts_cancel_event=cancel)
+        await _cancel_active_tts(ctx)
 
-        assert task_ref[0] is None
-        assert cancel_ref[0] is None
+        assert ctx.tts_task is None
+        assert ctx.tts_cancel_event is None
         assert session.is_muted is False
 
 
@@ -567,11 +582,10 @@ class TestFullDuplexEdgeCases:
                 completed.set()
 
         task1 = asyncio.create_task(_slow_tts())
-        tts_task_ref: list[asyncio.Task[None] | None] = [task1]
-        tts_cancel_ref: list[asyncio.Event | None] = [cancel1]
+        ctx = _make_session_context(tts_task=task1, tts_cancel_event=cancel1)
 
         # Cancelar
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
         assert completed.is_set()
 
         # Novo speak completa normalmente
@@ -592,17 +606,14 @@ class TestFullDuplexEdgeCases:
             await asyncio.wait_for(cancel.wait(), timeout=10.0)
 
         task = asyncio.create_task(_waiter())
-        tts_task_ref: list[asyncio.Task[None] | None] = [task]
-        tts_cancel_ref: list[asyncio.Event | None] = [cancel]
+        ctx1 = _make_session_context(tts_task=task, tts_cancel_event=cancel)
+        ctx2 = _make_session_context(tts_task=None, tts_cancel_event=None)
 
         # Dois cancels concorrentes
         await asyncio.gather(
-            _cancel_active_tts(tts_task_ref, tts_cancel_ref),
-            _cancel_active_tts(
-                [None],  # Segundo ja vazia (simula race condition)
-                [None],
-            ),
+            _cancel_active_tts(ctx1),
+            _cancel_active_tts(ctx2),  # Segundo sem task (simula race condition)
         )
 
-        assert tts_task_ref[0] is None
-        assert tts_cancel_ref[0] is None
+        assert ctx1.tts_task is None
+        assert ctx1.tts_cancel_event is None

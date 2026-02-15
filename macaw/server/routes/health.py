@@ -47,22 +47,23 @@ async def health(request: Request) -> dict[str, Any]:
 async def list_models(request: Request) -> dict[str, Any]:
     """List models loaded on the server.
 
+    Returns OpenAI-compatible format with ``object: "list"`` and ``data`` array.
     Used by the `macaw ps` command.
     """
     registry = getattr(request.app.state, "registry", None)
     if registry is None:
-        return {"models": []}
+        return {"object": "list", "data": []}
 
     manifests = registry.list_models()
-    models: list[dict[str, Any]] = []
+    data: list[dict[str, Any]] = []
     for m in manifests:
-        models.append(
+        data.append(
             {
-                "name": m.name,
-                "type": m.model_type.value,
-                "engine": m.engine,
-                "status": "loaded",
+                "id": m.name,
+                "object": "model",
+                "owned_by": "macaw",
+                "created": 0,
             }
         )
 
-    return {"models": models}
+    return {"object": "list", "data": data}

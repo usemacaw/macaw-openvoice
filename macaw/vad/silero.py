@@ -15,13 +15,13 @@ import asyncio
 import threading
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from macaw._types import VADSensitivity
 from macaw.logging import get_logger
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    import numpy as np
 
 logger = get_logger("vad.silero")
 
@@ -174,7 +174,7 @@ class SileroVADClassifier:
         for offset in range(0, len(frame), chunk_size):
             sub_frame = frame[offset : offset + chunk_size]
             if len(sub_frame) < chunk_size:
-                break
+                sub_frame = np.pad(sub_frame, (0, chunk_size - len(sub_frame)))
             tensor = self._to_tensor(sub_frame) if self._to_tensor is not None else sub_frame
             prob = self._model(tensor, self._sample_rate)  # type: ignore[misc, operator]
             max_prob = max(max_prob, float(prob.item()))

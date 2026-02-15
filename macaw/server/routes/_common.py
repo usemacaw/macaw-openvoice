@@ -60,7 +60,8 @@ async def handle_audio_request(
     request_id = str(uuid.uuid4())
 
     logger.info(
-        f"{task}_request",
+        "audio_request",
+        task=task,
         request_id=request_id,
         model=model,
         language=language,
@@ -73,14 +74,14 @@ async def handle_audio_request(
     except ValueError:
         valid = ", ".join(e.value for e in ResponseFormat)
         raise InvalidRequestError(
-            f"response_format '{response_format}' invalido. Valores aceitos: {valid}"
+            f"Invalid response_format '{response_format}'. Accepted values: {valid}"
         ) from None
 
     # Validar content-type do arquivo
     if file.content_type and file.content_type not in ALLOWED_AUDIO_CONTENT_TYPES:
         raise AudioFormatError(
-            f"Content-type '{file.content_type}' nao suportado. "
-            "Formatos aceitos: WAV, MP3, FLAC, OGG, WebM"
+            f"Unsupported content-type '{file.content_type}'. "
+            "Accepted formats: WAV, MP3, FLAC, OGG, WebM"
         )
 
     # Validar tamanho (pre-leitura se disponivel)

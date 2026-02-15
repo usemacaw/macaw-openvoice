@@ -40,6 +40,7 @@ def _create_backend(engine: str) -> STTBackend:
     Raises:
         ValueError: If the engine is not supported.
     """
+    # TODO: Refactor to dispatch dict when 3rd engine is added
     if engine == "faster-whisper":
         from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
@@ -108,6 +109,7 @@ async def serve(
     def _signal_handler() -> None:
         nonlocal shutdown_task
         shutdown_task = asyncio.ensure_future(_shutdown())
+        shutdown_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, _signal_handler)

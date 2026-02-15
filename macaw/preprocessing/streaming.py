@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from macaw.exceptions import AudioFormatError
 from macaw.logging import get_logger
 from macaw.workers.audio_utils import pcm_bytes_to_float32
 
@@ -74,9 +73,6 @@ class StreamingPreprocessor:
             AudioFormatError: Se os bytes nao tem tamanho par
                 (PCM 16-bit = 2 bytes/sample).
         """
-        if len(raw_bytes) % 2 != 0:
-            raise AudioFormatError("Audio PCM 16-bit deve ter numero par de bytes")
-
         if len(raw_bytes) == 0:
             return np.array([], dtype=np.float32)
 

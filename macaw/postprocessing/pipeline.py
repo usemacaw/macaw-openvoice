@@ -31,7 +31,6 @@ class PostProcessingPipeline:
         config: PostProcessingConfig,
         stages: list[TextStage] | None = None,
     ) -> None:
-        self._config = config
         self._stages: list[TextStage] = stages if stages is not None else []
 
     @property

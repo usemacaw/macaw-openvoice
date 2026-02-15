@@ -7,11 +7,17 @@ enabling reuse of cloned voices without re-uploading reference audio.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+
+from macaw.exceptions import InvalidRequestError
+
+_SAFE_VOICE_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,16 +101,22 @@ class FileSystemVoiceStore(VoiceStore):
         self._base_dir = base_dir
         self._voices_dir = os.path.join(base_dir, "voices")
 
-    async def save(
+    @staticmethod
+    def _validate_voice_id(voice_id: str) -> None:
+        """Validate voice_id to prevent path traversal attacks."""
+        if not _SAFE_VOICE_ID.match(voice_id):
+            raise InvalidRequestError(f"Invalid voice_id format: {voice_id!r}")
+
+    def _save_sync(
         self,
         voice_id: str,
         name: str,
         voice_type: str,
-        ref_audio: bytes | None = None,
+        ref_audio: bytes | None,
         *,
-        language: str | None = None,
-        ref_text: str | None = None,
-        instruction: str | None = None,
+        language: str | None,
+        ref_text: str | None,
+        instruction: str | None,
     ) -> SavedVoice:
         voice_dir = os.path.join(self._voices_dir, voice_id)
         os.makedirs(voice_dir, exist_ok=True)
@@ -142,7 +154,30 @@ class FileSystemVoiceStore(VoiceStore):
             created_at=created_at,
         )
 
-    async def get(self, voice_id: str) -> SavedVoice | None:
+    async def save(
+        self,
+        voice_id: str,
+        name: str,
+        voice_type: str,
+        ref_audio: bytes | None = None,
+        *,
+        language: str | None = None,
+        ref_text: str | None = None,
+        instruction: str | None = None,
+    ) -> SavedVoice:
+        self._validate_voice_id(voice_id)
+        return await asyncio.to_thread(
+            self._save_sync,
+            voice_id,
+            name,
+            voice_type,
+            ref_audio,
+            language=language,
+            ref_text=ref_text,
+            instruction=instruction,
+        )
+
+    def _get_sync(self, voice_id: str) -> SavedVoice | None:
         metadata_path = os.path.join(self._voices_dir, voice_id, "metadata.json")
         if not os.path.isfile(metadata_path):
             return None
@@ -167,12 +202,14 @@ class FileSystemVoiceStore(VoiceStore):
             created_at=metadata.get("created_at", 0.0),
         )
 
-    async def list_voices(self, type_filter: str | None = None) -> list[SavedVoice]:
-        if not os.path.isdir(self._voices_dir):
-            return []
+    async def get(self, voice_id: str) -> SavedVoice | None:
+        self._validate_voice_id(voice_id)
+        return await asyncio.to_thread(self._get_sync, voice_id)
 
+    async def list_voices(self, type_filter: str | None = None) -> list[SavedVoice]:
+        entries = await asyncio.to_thread(self._list_entries)
         result: list[SavedVoice] = []
-        for entry in sorted(os.listdir(self._voices_dir)):
+        for entry in entries:
             voice = await self.get(entry)
             if voice is None:
                 continue
@@ -181,7 +218,12 @@ class FileSystemVoiceStore(VoiceStore):
             result.append(voice)
         return result
 
-    async def delete(self, voice_id: str) -> bool:
+    def _list_entries(self) -> list[str]:
+        if not os.path.isdir(self._voices_dir):
+            return []
+        return sorted(os.listdir(self._voices_dir))
+
+    def _delete_sync(self, voice_id: str) -> bool:
         voice_dir = os.path.join(self._voices_dir, voice_id)
         if not os.path.isdir(voice_dir):
             return False
@@ -190,3 +232,7 @@ class FileSystemVoiceStore(VoiceStore):
 
         shutil.rmtree(voice_dir)
         return True
+
+    async def delete(self, voice_id: str) -> bool:
+        self._validate_voice_id(voice_id)
+        return await asyncio.to_thread(self._delete_sync, voice_id)

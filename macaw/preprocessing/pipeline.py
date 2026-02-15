@@ -6,6 +6,7 @@ Cada stage e toggleavel via PreprocessingConfig.
 
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING
 
 from macaw.logging import get_logger
@@ -47,6 +48,18 @@ class AudioPreprocessingPipeline:
     def stages(self) -> list[AudioStage]:
         """Lista de stages do pipeline."""
         return list(self._stages)
+
+    def create_stages(self) -> list[AudioStage]:
+        """Create fresh, independent stage instances for a new session.
+
+        Returns deep copies of the template stages so each session gets
+        its own filter state (e.g. DCRemoveStage zi). Resets each copy
+        to ensure clean initial conditions.
+        """
+        fresh = [copy.deepcopy(stage) for stage in self._stages]
+        for stage in fresh:
+            stage.reset()
+        return fresh
 
     def process(self, audio_bytes: bytes) -> bytes:
         """Processa audio atraves de todos os stages do pipeline.

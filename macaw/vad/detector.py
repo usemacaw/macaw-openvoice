@@ -89,6 +89,10 @@ class VADDetector:
             max_speech_duration_ms: Maximum continuous speech duration before
                                     forcing SPEECH_END (default: 30000ms).
         """
+        if sample_rate != 16000:
+            msg = f"Only 16kHz supported, got {sample_rate}"
+            raise ValueError(msg)
+
         self._energy_pre_filter = energy_pre_filter
         self._silero_classifier = silero_classifier
         self._sample_rate = sample_rate

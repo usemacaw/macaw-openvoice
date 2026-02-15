@@ -21,9 +21,11 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from macaw._types import VoiceInfo
+from macaw._types import TTSEngineCapabilities, VoiceInfo
 from macaw.exceptions import ModelLoadError, TTSSynthesisError
 from macaw.logging import get_logger
+from macaw.workers.audio_utils import PCM_INT16_MAX, PCM_INT32_MAX
+from macaw.workers.torch_utils import release_gpu_memory, resolve_device
 from macaw.workers.tts.audio_utils import CHUNK_SIZE_BYTES, float32_to_pcm16_bytes
 from macaw.workers.tts.interface import TTSBackend
 
@@ -63,6 +65,9 @@ class Qwen3TTSBackend(TTSBackend):
     - custom_voice: preset speakers with optional style instruct
     - base: 3-second voice cloning from reference audio
     - voice_design: natural language-driven voice design
+
+    Note: This backend synthesizes the complete audio before chunking.
+    TTFB equals total synthesis time. For low-latency streaming, use Kokoro.
     """
 
     def __init__(self) -> None:
@@ -73,10 +78,17 @@ class Qwen3TTSBackend(TTSBackend):
         self._default_language: str = "English"
         self._sample_rate: int = 24000
 
+    async def capabilities(self) -> TTSEngineCapabilities:
+        return TTSEngineCapabilities(
+            supports_streaming=False,
+            supports_voice_cloning=self._variant == "base",
+            supports_instruct=self._variant in ("custom_voice", "voice_design"),
+        )
+
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if _Qwen3TTSModel is None:
             msg = (
-                "qwen-tts nao esta instalado. Instale com: pip install macaw-openvoice[qwen3-tts]"
+                "qwen-tts is not installed. Install with: pip install macaw-openvoice[qwen3-tts]"
             )
             raise ModelLoadError(model_path, msg)
 
@@ -86,14 +98,14 @@ class Qwen3TTSBackend(TTSBackend):
         variant = str(config.get("variant", "custom_voice"))
 
         if variant not in _VALID_VARIANTS:
-            msg = f"Variante invalida: {variant}. Validos: {', '.join(sorted(_VALID_VARIANTS))}"
+            msg = f"Invalid variant: {variant}. Valid: {', '.join(sorted(_VALID_VARIANTS))}"
             raise ModelLoadError(model_path, msg)
 
         self._variant = variant
         self._default_voice = str(config.get("default_voice", "Chelsie"))
         self._default_language = str(config.get("default_language", "English"))
 
-        device = _resolve_device(device_str)
+        device = resolve_device(device_str)
 
         loop = asyncio.get_running_loop()
         try:
@@ -119,6 +131,10 @@ class Qwen3TTSBackend(TTSBackend):
             sample_rate=sample_rate,
         )
 
+    _DEFAULT_SAMPLE_RATE = 24000
+
+    # AsyncGenerator is a subtype of AsyncIterator but mypy doesn't recognize
+    # yield-based overrides. See docs/ADDING_ENGINE.md.
     async def synthesize(  # type: ignore[override, misc]
         self,
         text: str,
@@ -129,11 +145,18 @@ class Qwen3TTSBackend(TTSBackend):
         options: dict[str, object] | None = None,
     ) -> AsyncIterator[bytes]:
         if self._model is None:
-            msg = "Modelo nao carregado. Chame load() primeiro."
+            msg = "Model not loaded. Call load() first."
             raise ModelLoadError("unknown", msg)
 
         if not text.strip():
-            raise TTSSynthesisError(self._model_path, "Texto vazio")
+            raise TTSSynthesisError(self._model_path, "Empty text")
+
+        if sample_rate != self._sample_rate:
+            logger.warning(
+                "sample_rate=%d ignored; engine outputs at %dHz",
+                sample_rate,
+                self._sample_rate,
+            )
 
         # Extract options
         language = (
@@ -169,7 +192,7 @@ class Qwen3TTSBackend(TTSBackend):
             raise TTSSynthesisError(self._model_path, str(exc)) from exc
 
         if len(audio_data) == 0:
-            msg = "Sintese retornou audio vazio"
+            msg = "Synthesis returned empty audio"
             raise TTSSynthesisError(self._model_path, msg)
 
         for i in range(0, len(audio_data), CHUNK_SIZE_BYTES):
@@ -195,14 +218,7 @@ class Qwen3TTSBackend(TTSBackend):
         if self._model is not None:
             del self._model
             self._model = None
-            # Best-effort GPU memory cleanup
-            try:
-                import torch
-
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
+            release_gpu_memory()
         self._model_path = ""
         logger.info("model_unloaded")
 
@@ -213,20 +229,6 @@ class Qwen3TTSBackend(TTSBackend):
 
 
 # --- Pure helper functions ---
-
-
-def _resolve_device(device_str: str) -> str:
-    """Resolve device string. 'auto' detects CUDA availability."""
-    if device_str == "auto":
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                return "cuda:0"
-        except ImportError:
-            pass
-        return "cpu"
-    return device_str
 
 
 def _get_torch_dtype(dtype_str: str) -> object:
@@ -265,22 +267,14 @@ def _load_qwen3_model(
     return model, sample_rate
 
 
-def _decode_ref_audio(ref_audio: object) -> tuple[np.ndarray, int]:
-    """Decode reference audio bytes to (waveform, sample_rate).
+def _decode_ref_audio(ref_audio: bytes | bytearray | memoryview) -> tuple[np.ndarray, int]:
+    """Decode WAV reference audio bytes to (waveform, sample_rate).
 
     Qwen3-TTS expects ref_audio as (np.ndarray, int) or str (path/base64).
     Our API sends WAV bytes from the gRPC proto. This decodes them.
     """
     import io
     import wave
-
-    if isinstance(ref_audio, (np.ndarray, str)):
-        msg = "ref_audio already in accepted format"
-        raise TypeError(msg)
-
-    if not isinstance(ref_audio, (bytes, bytearray, memoryview)):
-        msg = f"ref_audio must be bytes-like, got {type(ref_audio).__name__}"
-        raise TypeError(msg)
 
     raw = bytes(ref_audio)
 
@@ -292,11 +286,11 @@ def _decode_ref_audio(ref_audio: object) -> tuple[np.ndarray, int]:
         width = wf.getsampwidth()
 
     if width == 2:
-        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / PCM_INT16_MAX
     elif width == 4:
-        samples = np.frombuffer(pcm_bytes, dtype=np.int32).astype(np.float32) / 2147483648.0
+        samples = np.frombuffer(pcm_bytes, dtype=np.int32).astype(np.float32) / PCM_INT32_MAX
     else:
-        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / PCM_INT16_MAX
 
     return samples, sr
 
@@ -341,7 +335,7 @@ def _synthesize_with_model(
             )
         elif variant == "base":
             if ref_audio is None:
-                msg = "Voice cloning requer ref_audio"
+                msg = "Voice cloning requires ref_audio"
                 raise TTSSynthesisError("qwen3-tts", msg)
             # Decode WAV bytes to (np.ndarray, sample_rate) tuple
             ref_audio_decoded: object
@@ -357,7 +351,7 @@ def _synthesize_with_model(
             )
         elif variant == "voice_design":
             if not instruction:
-                msg = "Voice design requer instruction"
+                msg = "Voice design requires instruction"
                 raise TTSSynthesisError("qwen3-tts", msg)
             wavs, _sr = model.generate_voice_design(  # type: ignore[attr-defined]
                 text=text,
@@ -365,7 +359,7 @@ def _synthesize_with_model(
                 instruct=instruction,
             )
         else:
-            msg = f"Variante desconhecida: {variant}"
+            msg = f"Unknown variant: {variant}"
             raise TTSSynthesisError("qwen3-tts", msg)
 
     # wavs may be a list (batch) or a single numpy array

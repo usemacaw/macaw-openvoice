@@ -54,6 +54,16 @@ def get_voice_store(request: Request) -> VoiceStore | None:
     return request.app.state.voice_store  # type: ignore[no-any-return]
 
 
+def require_voice_store(request: Request) -> VoiceStore:
+    """Return the VoiceStore, raising InvalidRequestError if not configured."""
+    from macaw.exceptions import InvalidRequestError
+
+    store = request.app.state.voice_store
+    if store is None:
+        raise InvalidRequestError("VoiceStore not configured on this server.")
+    return store  # type: ignore[no-any-return]
+
+
 def get_worker_manager(request: Request) -> WorkerManager:
     """Retorna o WorkerManager do app state.
 

@@ -541,6 +541,36 @@ class TestSpeechSilenceCycles:
         assert all_events == []
 
 
+class TestVADDetectorValidation:
+    """Tests for VADDetector input validation."""
+
+    def test_invalid_sample_rate_raises_value_error(self) -> None:
+        """VADDetector rejects sample rates other than 16000."""
+        import pytest
+
+        energy_mock = _make_energy_mock(is_silence=False)
+        silero_mock = _make_silero_mock(is_speech=False)
+
+        with pytest.raises(ValueError, match="Only 16kHz supported"):
+            VADDetector(
+                energy_pre_filter=energy_mock,
+                silero_classifier=silero_mock,
+                sample_rate=8000,
+            )
+
+    def test_valid_sample_rate_16000_accepted(self) -> None:
+        """VADDetector accepts sample_rate=16000 without error."""
+        energy_mock = _make_energy_mock(is_silence=False)
+        silero_mock = _make_silero_mock(is_speech=False)
+
+        detector = VADDetector(
+            energy_pre_filter=energy_mock,
+            silero_classifier=silero_mock,
+            sample_rate=16000,
+        )
+        assert detector._sample_rate == 16000
+
+
 class TestVADEventDataclass:
     """Testa propriedades do dataclass VADEvent."""
 

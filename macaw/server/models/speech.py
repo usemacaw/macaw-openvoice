@@ -12,7 +12,7 @@ class SpeechRequest(BaseModel):
     """
 
     model: str = Field(description="Nome do modelo TTS no registry.")
-    input: str = Field(description="Texto a ser sintetizado.")
+    input: str = Field(max_length=4096, description="Texto a ser sintetizado.")
     voice: str = Field(
         default="default",
         description="Identificador da voz.",

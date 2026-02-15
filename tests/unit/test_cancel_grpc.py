@@ -427,7 +427,7 @@ class TestSchedulerCancelInFlight:
                 # Wait for dispatch loop to pick up and mark in-flight
                 for _ in range(50):
                     await asyncio.sleep(0.01)
-                    if "req_inflight" in scheduler._in_flight:
+                    if scheduler.cancellation.get_worker_address("req_inflight") is not None:
                         break
 
                 # Now cancel the in-flight request
@@ -498,7 +498,7 @@ class TestSchedulerCancelInFlight:
                 # Wait for in-flight
                 for _ in range(50):
                     await asyncio.sleep(0.01)
-                    if "req_pool" in scheduler._in_flight:
+                    if scheduler.cancellation.get_worker_address("req_pool") is not None:
                         break
 
                 scheduler.cancel("req_pool")

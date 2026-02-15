@@ -28,7 +28,14 @@ if TYPE_CHECKING:
 logger = get_logger("server.errors")
 
 
-def _error_response(status_code: int, message: str, error_type: str, code: str) -> JSONResponse:
+def _error_response(
+    status_code: int,
+    message: str,
+    error_type: str,
+    code: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
     """Create an error response in the OpenAI-compatible format."""
     return JSONResponse(
         status_code=status_code,
@@ -39,6 +46,7 @@ def _error_response(status_code: int, message: str, error_type: str, code: str) 
                 "code": code,
             }
         },
+        headers=headers,
     )
 
 
@@ -101,15 +109,11 @@ async def _handle_worker_unavailable(
         model_name=exc.model_name,
         request_id=_get_request_id(request),
     )
-    return JSONResponse(
-        status_code=503,
-        content={
-            "error": {
-                "message": str(exc),
-                "type": "worker_unavailable_error",
-                "code": "service_unavailable",
-            }
-        },
+    return _error_response(
+        503,
+        str(exc),
+        "worker_unavailable_error",
+        "service_unavailable",
         headers={"Retry-After": "5"},
     )
 
@@ -136,15 +140,11 @@ async def _handle_worker_crash(request: Request, exc: WorkerCrashError) -> JSONR
         exit_code=exc.exit_code,
         request_id=_get_request_id(request),
     )
-    return JSONResponse(
-        status_code=502,
-        content={
-            "error": {
-                "message": "Inference worker failed. Try again.",
-                "type": "worker_crash_error",
-                "code": "bad_gateway",
-            }
-        },
+    return _error_response(
+        502,
+        "Inference worker failed. Try again.",
+        "worker_crash_error",
+        "bad_gateway",
         headers={"Retry-After": "5"},
     )
 

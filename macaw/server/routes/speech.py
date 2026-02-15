@@ -6,7 +6,7 @@ import base64
 import io
 import struct
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import grpc.aio
 from fastapi import APIRouter, Depends, Request
@@ -75,7 +75,7 @@ async def create_speech(
 
     # Validate non-empty text
     if not body.input.strip():
-        raise InvalidRequestError("O campo 'input' nao pode estar vazio.")
+        raise InvalidRequestError("The 'input' field cannot be empty.")
 
     # Validate response format
     if body.response_format not in _SUPPORTED_FORMATS:
@@ -178,7 +178,7 @@ async def _open_tts_stream(
     channel: grpc.aio.Channel,
     proto_request: SynthesizeRequest,
     worker_id: str,
-) -> tuple[object, bytes]:
+) -> tuple[grpc.aio.UnaryStreamCall[Any, Any], bytes]:
     """Open gRPC stream and fetch first audio chunk (pre-flight validation).
 
     Uses a pooled channel (not closed on error — gRPC channels handle
@@ -218,7 +218,7 @@ async def _open_tts_stream(
 
 async def _stream_tts_audio(
     *,
-    response_stream: object,
+    response_stream: grpc.aio.UnaryStreamCall[Any, Any],
     first_audio_chunk: bytes,
     is_wav: bool,
     sample_rate: int,
@@ -244,7 +244,7 @@ async def _stream_tts_audio(
             yield first_audio_chunk
 
         # Stream remaining chunks
-        async for chunk in response_stream:  # type: ignore[attr-defined]
+        async for chunk in response_stream:
             if chunk.audio_data:
                 total_audio_bytes += len(chunk.audio_data)
                 yield chunk.audio_data
@@ -308,31 +308,3 @@ def _wav_streaming_header(sample_rate: int) -> bytes:
     return buf.getvalue()
 
 
-def _pcm_to_wav(pcm_data: bytes, sample_rate: int) -> bytes:
-    """Convert 16-bit mono PCM audio to WAV format with exact size."""
-    num_channels = 1
-    bits_per_sample = 16
-    byte_rate = sample_rate * num_channels * bits_per_sample // 8
-    block_align = num_channels * bits_per_sample // 8
-    data_size = len(pcm_data)
-
-    buf = io.BytesIO()
-    # RIFF header
-    buf.write(b"RIFF")
-    buf.write(struct.pack("<I", 36 + data_size))
-    buf.write(b"WAVE")
-    # fmt subchunk
-    buf.write(b"fmt ")
-    buf.write(struct.pack("<I", 16))
-    buf.write(struct.pack("<H", 1))  # PCM format
-    buf.write(struct.pack("<H", num_channels))
-    buf.write(struct.pack("<I", sample_rate))
-    buf.write(struct.pack("<I", byte_rate))
-    buf.write(struct.pack("<H", block_align))
-    buf.write(struct.pack("<H", bits_per_sample))
-    # data subchunk
-    buf.write(b"data")
-    buf.write(struct.pack("<I", data_size))
-    buf.write(pcm_data)
-
-    return buf.getvalue()

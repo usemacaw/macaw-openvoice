@@ -6,7 +6,6 @@ Converte entre bytes (formatos de arquivo) e arrays numpy float32.
 from __future__ import annotations
 
 import io
-import struct
 import wave
 
 import numpy as np
@@ -14,6 +13,9 @@ import soundfile as sf
 
 from macaw.exceptions import AudioFormatError
 from macaw.logging import get_logger
+
+# Maximum absolute value for PCM 16-bit signed integers.
+PCM_INT16_MAX = 32768.0
 
 logger = get_logger("preprocessing.audio_io")
 
@@ -89,13 +91,11 @@ def _decode_wav_stdlib(audio_bytes: bytes) -> tuple[np.ndarray, int]:
         raise AudioFormatError(f"Arquivo WAV invalido: {err}") from err
 
     if sampwidth == 2:
-        # PCM 16-bit
-        samples = struct.unpack(f"<{len(raw_data) // 2}h", raw_data)
-        data = np.array(samples, dtype=np.float32) / 32768.0
+        # PCM 16-bit — zero-copy via np.frombuffer + single float32 cast
+        data = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32) / PCM_INT16_MAX
     elif sampwidth == 1:
-        # PCM 8-bit (unsigned)
-        samples = struct.unpack(f"{len(raw_data)}B", raw_data)
-        data = (np.array(samples, dtype=np.float32) - 128.0) / 128.0
+        # PCM 8-bit (unsigned) — zero-copy via np.frombuffer
+        data = np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) / 128.0 - 1.0
     else:
         raise AudioFormatError(f"Sample width {sampwidth} bytes nao suportado (esperado 1 ou 2)")
 
@@ -121,7 +121,7 @@ def encode_pcm16(audio: np.ndarray, sample_rate: int) -> bytes:
     audio_clamped = np.clip(audio, -1.0, 1.0)
 
     # Converter float32 para int16
-    pcm_data = (audio_clamped * 32767.0).astype(np.int16)
+    pcm_data = (audio_clamped * (PCM_INT16_MAX - 1)).astype(np.int16)
 
     # Escrever WAV
     buffer = io.BytesIO()

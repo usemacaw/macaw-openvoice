@@ -606,7 +606,7 @@ class TestStreamingSessionRingBuffer:
         await session.close()
 
     async def test_force_commit_flag_reset_after_commit(self) -> None:
-        """Flag _force_commit_pending e resetada apos commit ser executado."""
+        """Force commit flag is consumed after process_frame executes commit."""
         rb = RingBuffer(duration_s=0.01, sample_rate=16000, bytes_per_sample=2)
 
         session = StreamingSession(
@@ -619,12 +619,9 @@ class TestStreamingSessionRingBuffer:
             ring_buffer=rb,
         )
 
-        # Setar flag manualmente
-        session._metrics._force_commit_pending = True
+        # Trigger force commit via callback
+        session._metrics.on_ring_buffer_force_commit(0)
 
-        # Chamar commit diretamente (sem stream ativo, e no-op mas reseta flag)
-        # Na verdade, commit() nao reseta a flag — e process_frame que faz.
-        # Vamos verificar via process_frame.
         vad = session._vad
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
@@ -632,12 +629,10 @@ class TestStreamingSessionRingBuffer:
         )
         vad.is_speaking = True
 
-        # process_frame vai: preprocessar, VAD, enviar ao worker, checar flag
+        # process_frame will: preprocess, VAD, send to worker, check flag
         await session.process_frame(_make_raw_bytes())
 
-        # A flag deve ter sido consumida pelo process_frame.
-        # (Pode ter sido setada novamente pelo ring buffer write se > 90%,
-        # e entao consumida novamente pelo commit no final de process_frame)
-        # O importante e que o ciclo funciona sem deadlock.
+        # Flag consumed by process_frame via consume_force_commit()
+        assert session._metrics.consume_force_commit() is False
 
         await session.close()

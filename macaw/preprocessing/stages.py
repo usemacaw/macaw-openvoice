@@ -34,3 +34,10 @@ class AudioStage(ABC):
             Tupla (audio processado, novo sample rate).
         """
         ...
+
+    def reset(self) -> None:  # noqa: B027
+        """Reset internal state for a new streaming session.
+
+        Override in stateful stages (e.g. DCRemoveStage) to clear
+        filter state. Default implementation is a no-op.
+        """

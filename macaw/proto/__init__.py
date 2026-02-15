@@ -1,9 +1,8 @@
-"""Protobuf gRPC definitions para comunicacao runtime <-> worker.
+"""Protobuf gRPC definitions for runtime <-> worker communication.
 
-Use relative imports so the package works correctly when installed or
-imported from a development checkout (src/ layout). Absolute imports
-(`from macaw.proto...`) can fail during import time depending on
-sys.path ordering; relative imports are more robust here.
+Re-exports all generated protobuf types (STT + TTS) so callers import
+from ``macaw.proto`` instead of the individual ``_pb2`` modules.
+Uses relative imports for robustness across install and development layouts.
 """
 
 from .stt_worker_pb2 import (

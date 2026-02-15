@@ -33,6 +33,26 @@ _MIN_SAMPLES_FOR_FFT = 2
 _EPSILON = 1e-10
 
 
+def _spectral_flatness(magnitude: np.ndarray) -> float:
+    """Compute spectral flatness (Wiener entropy) from magnitude spectrum.
+
+    Spectral flatness = geometric_mean / arithmetic_mean.
+    Values close to 1.0 indicate flat spectrum (noise/silence).
+    Values close to 0.0 indicate tonal content (speech).
+
+    Args:
+        magnitude: Magnitude spectrum (must be clamped above epsilon).
+
+    Returns:
+        Spectral flatness in [0.0, 1.0].
+    """
+    np.maximum(magnitude, _EPSILON, out=magnitude)
+    arithmetic_mean = np.mean(magnitude)
+    np.log(magnitude, out=magnitude)
+    geometric_mean = np.exp(np.mean(magnitude))
+    return float(geometric_mean / arithmetic_mean)
+
+
 class EnergyPreFilter:
     """Energy-based pre-filter to reduce calls to Silero VAD.
 
@@ -74,13 +94,6 @@ class EnergyPreFilter:
             return False
 
         magnitude = np.abs(np.fft.rfft(frame))
-        np.maximum(magnitude, _EPSILON, out=magnitude)
+        flatness = _spectral_flatness(magnitude)
 
-        # Compute arithmetic mean before in-place log overwrites magnitude.
-        arithmetic_mean = np.mean(magnitude)
-        np.log(magnitude, out=magnitude)
-        geometric_mean = np.exp(np.mean(magnitude))
-
-        spectral_flatness = geometric_mean / arithmetic_mean
-
-        return bool(spectral_flatness > _SPECTRAL_FLATNESS_THRESHOLD)
+        return bool(flatness > _SPECTRAL_FLATNESS_THRESHOLD)

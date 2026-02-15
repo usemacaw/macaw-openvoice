@@ -34,17 +34,6 @@ class RequestPriority(IntEnum):
     BATCH = 1
 
 
-# Monotonic counter to break ties within same (priority, enqueued_at).
-# Ensures strict FIFO even if two requests have identical enqueued_at.
-_sequence_counter: int = 0
-
-
-def _next_sequence() -> int:
-    global _sequence_counter
-    _sequence_counter += 1
-    return _sequence_counter
-
-
 @dataclass(slots=True)
 class ScheduledRequest:
     """Enqueued request with scheduling metadata.
@@ -61,7 +50,7 @@ class ScheduledRequest:
     enqueued_at: float = field(default_factory=time.monotonic)
     cancel_event: asyncio.Event = field(default_factory=asyncio.Event)
     result_future: asyncio.Future[BatchResult] | None = field(default=None)
-    _sequence: int = field(default_factory=_next_sequence)
+    _sequence: int = field(default=0)
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, ScheduledRequest):
@@ -85,6 +74,7 @@ class SchedulerQueue:
         self._queue: asyncio.PriorityQueue[ScheduledRequest] = asyncio.PriorityQueue()
         self._pending: dict[str, ScheduledRequest] = {}
         self._aging_threshold_s = aging_threshold_s
+        self._sequence_counter: int = 0
 
     async def submit(
         self,
@@ -101,10 +91,12 @@ class SchedulerQueue:
             Future that will be resolved with BatchResult when the worker completes.
         """
         loop = asyncio.get_running_loop()
+        self._sequence_counter += 1
         scheduled = ScheduledRequest(
             request=request,
             priority=priority,
             result_future=loop.create_future(),
+            _sequence=self._sequence_counter,
         )
         self._pending[request.request_id] = scheduled
         await self._queue.put(scheduled)
@@ -175,6 +167,8 @@ class SchedulerQueue:
         Args:
             scheduled: Request to re-enqueue.
         """
+        self._sequence_counter += 1
+        scheduled._sequence = self._sequence_counter
         self._pending[scheduled.request.request_id] = scheduled
         await self._queue.put(scheduled)
 

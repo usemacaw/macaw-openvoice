@@ -3,8 +3,9 @@
 M8-07: Records timestamps for each batch request pipeline phase
 and calculates latency metrics (queue_wait, grpc_time, total_time).
 
-Used by the Scheduler for instrumentation. Entries are automatically
-removed after complete() or after a 60s TTL to prevent memory leaks.
+Used by the Scheduler for instrumentation. ``complete()`` returns the
+``LatencySummary`` directly — the caller is responsible for logging or
+observing it. Incomplete entries are removed after TTL via ``cleanup()``.
 """
 
 from __future__ import annotations
@@ -74,7 +75,6 @@ class LatencyTracker:
             raise ValueError(msg)
         self._ttl_s = ttl_s
         self._entries: dict[str, _RequestTimestamps] = {}
-        self._summaries: dict[str, LatencySummary] = {}
 
     @property
     def active_count(self) -> int:
@@ -115,7 +115,8 @@ class LatencyTracker:
         """Record complete_time and compute summary.
 
         Called when the gRPC response is received (success or error).
-        Removes the active entry and stores the summary for retrieval.
+        Removes the active entry and returns the summary directly.
+        The caller is responsible for logging or observing the summary.
 
         Returns:
             LatencySummary if the request was tracked, None otherwise.
@@ -140,8 +141,6 @@ class LatencyTracker:
             complete_time=entry.complete_time,
         )
 
-        self._summaries[request_id] = summary
-
         logger.debug(
             "latency_complete",
             request_id=request_id,
@@ -152,23 +151,12 @@ class LatencyTracker:
 
         return summary
 
-    def get_summary(self, request_id: str) -> LatencySummary | None:
-        """Return summary for a completed request.
-
-        Removes the summary after returning (one-shot read).
-
-        Returns:
-            LatencySummary if available, None otherwise.
-        """
-        return self._summaries.pop(request_id, None)
-
     def discard(self, request_id: str) -> None:
         """Remove a request from the tracker without completing.
 
         Used for cancelled requests that never reach complete().
         """
         self._entries.pop(request_id, None)
-        self._summaries.pop(request_id, None)
 
     def cleanup(self) -> int:
         """Remove entries older than TTL.
@@ -188,18 +176,6 @@ class LatencyTracker:
             self._entries.pop(rid, None)
             logger.debug("latency_ttl_expired", request_id=rid)
 
-        # Cleanup unconsumed summaries as well
-        expired_summaries = [
-            rid for rid, summary in self._summaries.items() if summary.enqueue_time < cutoff
-        ]
-        for rid in expired_summaries:
-            self._summaries.pop(rid, None)
-
-        total_removed = len(expired) + len(expired_summaries)
-        if total_removed > 0:
-            logger.debug(
-                "latency_cleanup",
-                entries_removed=len(expired),
-                summaries_removed=len(expired_summaries),
-            )
-        return total_removed
+        if expired:
+            logger.debug("latency_cleanup", entries_removed=len(expired))
+        return len(expired)

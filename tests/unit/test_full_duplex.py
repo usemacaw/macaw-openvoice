@@ -19,6 +19,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from macaw.server.routes.realtime import (
+    SessionContext,
     _cancel_active_tts,
     _tts_speak_task,
 )
@@ -103,6 +104,23 @@ def _make_send_event() -> tuple[AsyncMock, list[Any]]:
         events.append(event)
 
     return AsyncMock(side_effect=_send), events
+
+
+def _make_cancel_ctx(
+    *,
+    tts_task: asyncio.Task[None] | None = None,
+    tts_cancel_event: asyncio.Event | None = None,
+) -> SessionContext:
+    """Build a minimal SessionContext for _cancel_active_tts tests."""
+    ws = _make_mock_websocket()
+    ctx = SessionContext(
+        session_id="sess_test",
+        session_start=0.0,
+        websocket=ws,
+    )
+    ctx.tts_task = tts_task
+    ctx.tts_cancel_event = tts_cancel_event
+    return ctx
 
 
 def _make_mock_grpc_stream(chunks: list[MagicMock] | None = None) -> Any:
@@ -796,25 +814,23 @@ class TestCancelActiveTTS:
                 done.set()
 
         task = asyncio.create_task(_fake_task())
-        tts_task_ref: list[asyncio.Task[None] | None] = [task]
-        tts_cancel_ref: list[asyncio.Event | None] = [cancel_event]
+        ctx = _make_cancel_ctx(tts_task=task, tts_cancel_event=cancel_event)
 
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
 
-        assert tts_task_ref[0] is None
-        assert tts_cancel_ref[0] is None
+        assert ctx.tts_task is None
+        assert ctx.tts_cancel_event is None
         assert done.is_set()
 
     async def test_noop_when_no_task(self) -> None:
         """_cancel_active_tts is noop when refs are None."""
-        tts_task_ref: list[asyncio.Task[None] | None] = [None]
-        tts_cancel_ref: list[asyncio.Event | None] = [None]
+        ctx = _make_cancel_ctx(tts_task=None, tts_cancel_event=None)
 
         # Should not raise
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
 
-        assert tts_task_ref[0] is None
-        assert tts_cancel_ref[0] is None
+        assert ctx.tts_task is None
+        assert ctx.tts_cancel_event is None
 
     async def test_noop_when_task_already_done(self) -> None:
         """_cancel_active_tts handles already-completed tasks."""
@@ -826,13 +842,12 @@ class TestCancelActiveTTS:
         task = asyncio.create_task(_quick_task())
         await task  # Let it complete
 
-        tts_task_ref: list[asyncio.Task[None] | None] = [task]
-        tts_cancel_ref: list[asyncio.Event | None] = [cancel_event]
+        ctx = _make_cancel_ctx(tts_task=task, tts_cancel_event=cancel_event)
 
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
 
-        assert tts_task_ref[0] is None
-        assert tts_cancel_ref[0] is None
+        assert ctx.tts_task is None
+        assert ctx.tts_cancel_event is None
 
 
 # ---------------------------------------------------------------------------
@@ -854,14 +869,13 @@ class TestSequentialSpeaks:
                 first_cancelled.set()
 
         task1 = asyncio.create_task(_first_task())
-        tts_task_ref: list[asyncio.Task[None] | None] = [task1]
-        tts_cancel_ref: list[asyncio.Event | None] = [cancel1]
+        ctx = _make_cancel_ctx(tts_task=task1, tts_cancel_event=cancel1)
 
         # "Second speak" cancels first
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
 
         assert first_cancelled.is_set()
-        assert tts_task_ref[0] is None
+        assert ctx.tts_task is None
 
     async def test_cancel_clears_refs(self) -> None:
         """After cancel, task and event refs are cleared."""
@@ -871,13 +885,12 @@ class TestSequentialSpeaks:
             await asyncio.wait_for(cancel.wait(), timeout=10.0)
 
         task = asyncio.create_task(_task())
-        tts_task_ref: list[asyncio.Task[None] | None] = [task]
-        tts_cancel_ref: list[asyncio.Event | None] = [cancel]
+        ctx = _make_cancel_ctx(tts_task=task, tts_cancel_event=cancel)
 
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
 
-        assert tts_task_ref[0] is None
-        assert tts_cancel_ref[0] is None
+        assert ctx.tts_task is None
+        assert ctx.tts_cancel_event is None
 
 
 # ---------------------------------------------------------------------------
@@ -964,3 +977,56 @@ class TestTTSSpeakTaskChannelReuse:
         assert tts_channel_ref[0] is not None
         assert tts_channel_ref[0][1] is mock_channel
         mock_channel.close.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Tests: SessionContext (H-05)
+# ---------------------------------------------------------------------------
+
+
+class TestSessionContext:
+    """Validates the SessionContext dataclass introduced in H-05."""
+
+    def test_default_fields(self) -> None:
+        ws = _make_mock_websocket()
+        ctx = SessionContext(
+            session_id="sess_test",
+            session_start=100.0,
+            websocket=ws,
+        )
+        assert ctx.session is None
+        assert ctx.tts_task is None
+        assert ctx.tts_cancel_event is None
+        assert ctx.tts_channel is None
+        assert ctx.model_tts is None
+        assert ctx.closed_reason == "client_disconnect"
+        assert ctx.last_audio_time == 0.0
+
+    def test_mutable_fields(self) -> None:
+        ws = _make_mock_websocket()
+        ctx = SessionContext(
+            session_id="sess_test",
+            session_start=100.0,
+            websocket=ws,
+        )
+        ctx.model_tts = "kokoro-v1"
+        ctx.closed_reason = "cancelled"
+        assert ctx.model_tts == "kokoro-v1"
+        assert ctx.closed_reason == "cancelled"
+
+    async def test_send_event_delegates_to_websocket(self) -> None:
+        ws = _make_mock_websocket()
+        ctx = SessionContext(
+            session_id="sess_test",
+            session_start=100.0,
+            websocket=ws,
+        )
+        from macaw.server.models.events import StreamingErrorEvent
+
+        event = StreamingErrorEvent(
+            code="test",
+            message="Test error",
+            recoverable=True,
+        )
+        await ctx.send_event(event)
+        ws.send_json.assert_awaited_once()

@@ -13,7 +13,7 @@ from macaw.exceptions import InvalidRequestError, VoiceNotFoundError
 from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2 import ListVoicesRequest
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
-from macaw.server.dependencies import get_registry, get_voice_store, get_worker_manager
+from macaw.server.dependencies import get_registry, get_worker_manager, require_voice_store
 from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.voices import (
     SavedVoiceResponse,
@@ -108,7 +108,7 @@ async def create_voice(
     ref_text: str | None = Form(default=None),
     instruction: str | None = Form(default=None),
     ref_audio: UploadFile | None = None,
-    voice_store: VoiceStore | None = Depends(get_voice_store),  # noqa: B008
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
 ) -> SavedVoiceResponse:
     """Create a saved voice for reuse in speech requests.
 
@@ -117,8 +117,6 @@ async def create_voice(
 
     The returned ``voice_id`` can be used as ``voice_{id}`` in POST /v1/audio/speech.
     """
-    if voice_store is None:
-        raise InvalidRequestError("VoiceStore not configured on this server.")
 
     if voice_type not in _ALLOWED_VOICE_TYPES:
         allowed = ", ".join(sorted(_ALLOWED_VOICE_TYPES))
@@ -169,11 +167,9 @@ async def create_voice(
 @router.get("/v1/voices/{voice_id}", response_model=SavedVoiceResponse)
 async def get_voice(
     voice_id: str,
-    voice_store: VoiceStore | None = Depends(get_voice_store),  # noqa: B008
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
 ) -> SavedVoiceResponse:
     """Get a saved voice by ID."""
-    if voice_store is None:
-        raise InvalidRequestError("VoiceStore not configured on this server.")
 
     saved = await voice_store.get(voice_id)
     if saved is None:
@@ -194,11 +190,9 @@ async def get_voice(
 @router.delete("/v1/voices/{voice_id}", status_code=204)
 async def delete_voice(
     voice_id: str,
-    voice_store: VoiceStore | None = Depends(get_voice_store),  # noqa: B008
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
 ) -> None:
     """Delete a saved voice."""
-    if voice_store is None:
-        raise InvalidRequestError("VoiceStore not configured on this server.")
 
     deleted = await voice_store.delete(voice_id)
     if not deleted:

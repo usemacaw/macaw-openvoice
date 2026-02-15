@@ -145,6 +145,20 @@ class EngineCapabilities:
 
 
 @dataclass(frozen=True, slots=True)
+class TTSEngineCapabilities:
+    """Capabilities reported by the TTS engine at runtime.
+
+    Used for runtime decision-making (e.g., whether to offer voice cloning,
+    enforce text length limits, or enable streaming mode).
+    """
+
+    supports_streaming: bool = False
+    supports_voice_cloning: bool = False
+    supports_instruct: bool = False
+    max_text_length: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class VoiceInfo:
     """Information about an available voice in the TTS backend."""
 

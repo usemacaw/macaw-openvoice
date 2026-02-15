@@ -136,12 +136,6 @@ class TestTimeoutsFromConfigureCommand:
         assert updated.silence_timeout_s == 10.0
         assert updated.hold_timeout_s == 180.0
 
-    def test_max_segment_duration_ms_is_ignored(self) -> None:
-        """max_segment_duration_ms e aceito mas nao afeta timeouts da state machine."""
-        current = SessionTimeouts()
-        updated = timeouts_from_configure_command(current, max_segment_duration_ms=60000)
-        assert updated == current
-
     def test_init_and_closing_timeouts_preserved(self) -> None:
         """init e closing timeouts nao sao afetados por configure command."""
         current = SessionTimeouts(init_timeout_s=10.0, closing_timeout_s=3.0)

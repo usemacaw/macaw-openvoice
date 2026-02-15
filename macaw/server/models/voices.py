@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -18,6 +20,7 @@ class VoiceResponse(BaseModel):
 class VoiceListResponse(BaseModel):
     """Response for GET /v1/voices — follows OpenAI list convention."""
 
+    object: Literal["list"] = "list"
     data: list[VoiceResponse] = Field(default_factory=list)
 
 

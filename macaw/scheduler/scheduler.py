@@ -97,7 +97,6 @@ class Scheduler:
         self._channels: dict[str, grpc.aio.Channel] = {}
         self._dispatch_task: asyncio.Task[None] | None = None
         self._running = False
-        self._in_flight: set[str] = set()
         self._in_flight_tasks: set[asyncio.Task[Any]] = set()
         self._cancellation = CancellationManager()
         self._batch_accumulator = BatchAccumulator(
@@ -324,7 +323,7 @@ class Scheduler:
         finally:
             try:
                 await channel.close()
-            except Exception:
+            except (OSError, grpc.aio.AioRpcError):
                 logger.warning("channel_close_error", worker_id=worker.worker_id)
 
         logger.info(
@@ -472,7 +471,6 @@ class Scheduler:
 
         # Mark as in-flight
         address = f"localhost:{worker.port}"
-        self._in_flight.add(request.request_id)
         self._cancellation.mark_in_flight(request.request_id, address)
 
         logger.info(
@@ -514,7 +512,6 @@ class Scheduler:
 
         finally:
             self._latency.complete(request.request_id)
-            self._in_flight.discard(request.request_id)
             self._cancellation.unregister(request.request_id)
 
             # Observe gRPC metrics and status
@@ -581,7 +578,7 @@ class Scheduler:
         if channel is not None:
             try:
                 await channel.close()
-            except Exception:
+            except (OSError, grpc.aio.AioRpcError):
                 logger.warning("channel_close_error", address=address)
 
 
@@ -610,17 +607,3 @@ def _make_domain_error(
         grpc_details=exc.details(),
     )
     return WorkerCrashError(worker_id)
-
-
-# Backward compat: re-export for existing code that imports _translate_grpc_error
-def _translate_grpc_error(
-    exc: grpc.aio.AioRpcError,
-    worker_id: str,
-    timeout: float,
-) -> None:
-    """Translate gRPC errors into Macaw domain exceptions.
-
-    Always raises — never returns normally.
-    Kept for backward compatibility with existing tests.
-    """
-    raise _make_domain_error(exc, worker_id, timeout) from exc

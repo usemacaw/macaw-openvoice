@@ -240,7 +240,7 @@ class TestTranscribeStreamErrors:
         """Sem modelo carregado levanta ModelLoadError."""
         backend = FasterWhisperBackend()
 
-        with pytest.raises(ModelLoadError, match="nao carregado"):
+        with pytest.raises(ModelLoadError, match="not loaded"):
             async for _ in backend.transcribe_stream(
                 _make_chunk_iterator([_make_pcm16_silence(1.0)]),
             ):

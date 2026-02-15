@@ -188,13 +188,14 @@ class TestCancellationManagerIsCancelled:
         cm = CancellationManager()
         cm.register("req_1", asyncio.Event(), None)
         cm.cancel("req_1")
-        # After cancel, entry is removed → is_cancelled returns True
-        assert cm.is_cancelled("req_1") is True
+        # After cancel, entry is removed → is_cancelled returns False
+        # (unknown/unregistered requests are not considered cancelled)
+        assert cm.is_cancelled("req_1") is False
 
-    def test_cancelled_for_unknown(self) -> None:
+    def test_not_cancelled_for_unknown(self) -> None:
         cm = CancellationManager()
-        # Unknown request treated as cancelled/completed
-        assert cm.is_cancelled("nonexistent") is True
+        # Unknown request is NOT considered cancelled
+        assert cm.is_cancelled("nonexistent") is False
 
 
 # ---------------------------------------------------------------------------

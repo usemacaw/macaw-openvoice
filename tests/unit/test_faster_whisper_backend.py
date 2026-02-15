@@ -99,7 +99,7 @@ class TestLoad:
         fw_mod.WhisperModel = None  # type: ignore[assignment]
         try:
             backend = FasterWhisperBackend()
-            with pytest.raises(ModelLoadError, match="nao esta instalado"):
+            with pytest.raises(ModelLoadError, match="is not installed"):
                 await backend.load("/models/test", {})
         finally:
             fw_mod.WhisperModel = original  # type: ignore[assignment]
@@ -155,12 +155,12 @@ class TestTranscribeFile:
     async def test_empty_audio_raises_error(self) -> None:
         backend = FasterWhisperBackend()
         backend._model = MagicMock()  # type: ignore[assignment]
-        with pytest.raises(AudioFormatError, match="Audio vazio"):
+        with pytest.raises(AudioFormatError, match="Empty audio"):
             await backend.transcribe_file(b"")
 
     async def test_model_not_loaded_raises_error(self) -> None:
         backend = FasterWhisperBackend()
-        with pytest.raises(ModelLoadError, match="nao carregado"):
+        with pytest.raises(ModelLoadError, match="not loaded"):
             await backend.transcribe_file(b"\x00\x00" * 100)
 
     async def test_auto_language_passed_as_none(self) -> None:
@@ -186,7 +186,7 @@ class TestTranscribeFile:
 class TestTranscribeStream:
     async def test_model_not_loaded_raises_error(self) -> None:
         backend = FasterWhisperBackend()
-        with pytest.raises(ModelLoadError, match="nao carregado"):
+        with pytest.raises(ModelLoadError, match="not loaded"):
 
             async def _empty_gen() -> None:
                 return
@@ -233,7 +233,7 @@ class TestAudioBytesToNumpy:
         assert abs(result[1] - 1.0) < 0.01
 
     def test_odd_bytes_raises_error(self) -> None:
-        with pytest.raises(AudioFormatError, match="numero par"):
+        with pytest.raises(AudioFormatError, match="even number"):
             pcm_bytes_to_float32(b"\x00\x01\x02")
 
     def test_empty_audio_returns_empty_array(self) -> None:

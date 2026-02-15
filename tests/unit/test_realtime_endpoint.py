@@ -337,3 +337,55 @@ def test_http_get_includes_upgrade_header() -> None:
     response = client.get("/v1/realtime", params={"model": "faster-whisper-tiny"})
 
     assert response.headers.get("upgrade") == "websocket"
+
+
+# ---------------------------------------------------------------------------
+# M-09: Frame size limit
+# ---------------------------------------------------------------------------
+
+
+def test_oversized_binary_frame_returns_error() -> None:
+    """Binary frame exceeding MAX_WS_FRAME_SIZE returns frame_too_large error."""
+    from macaw.server.routes.realtime import MAX_WS_FRAME_SIZE
+
+    app = create_app(registry=_make_mock_registry())
+    client = TestClient(app)
+
+    with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
+        created = ws.receive_json()
+        assert created["type"] == "session.created"
+
+        # Send a frame that exceeds the limit
+        oversized = b"\x00" * (MAX_WS_FRAME_SIZE + 1)
+        ws.send_bytes(oversized)
+
+        error = ws.receive_json()
+        assert error["type"] == "error"
+        assert error["code"] == "frame_too_large"
+        assert error["recoverable"] is True
+
+        # Connection should still be alive
+        ws.send_json({"type": "session.close"})
+        closed = ws.receive_json()
+        assert closed["type"] == "session.closed"
+
+
+def test_max_size_binary_frame_accepted() -> None:
+    """Binary frame at exactly MAX_WS_FRAME_SIZE is accepted (no error)."""
+    from macaw.server.routes.realtime import MAX_WS_FRAME_SIZE
+
+    app = create_app(registry=_make_mock_registry())
+    client = TestClient(app)
+
+    with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
+        created = ws.receive_json()
+        assert created["type"] == "session.created"
+
+        # Send a frame at exactly the limit — should be accepted
+        exact_frame = b"\x00" * MAX_WS_FRAME_SIZE
+        ws.send_bytes(exact_frame)
+
+        # No error expected; close cleanly
+        ws.send_json({"type": "session.close"})
+        closed = ws.receive_json()
+        assert closed["type"] == "session.closed"

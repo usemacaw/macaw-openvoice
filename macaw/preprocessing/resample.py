@@ -1,7 +1,7 @@
 """ResampleStage — converte audio para sample rate alvo.
 
 Usa scipy.signal.resample_poly para resampling de alta qualidade.
-Converte audio multi-canal para mono antes do resample.
+Pipeline contract guarantees mono input; no multi-channel handling here.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ class ResampleStage(AudioStage):
     """Stage de resampling do pipeline de preprocessamento.
 
     Converte audio de qualquer sample rate para o sample rate alvo (default 16kHz).
-    Audio multi-canal e convertido para mono via media dos canais.
+    Expects mono input (pipeline contract).
 
     Args:
         target_sample_rate: Sample rate alvo em Hz (default: 16000).
@@ -36,7 +36,6 @@ class ResampleStage(AudioStage):
         """Converte audio para sample rate alvo.
 
         Se o audio ja esta no sample rate alvo, retorna sem modificacao.
-        Se o audio e multi-canal, converte para mono antes do resample.
         Se o audio esta vazio, retorna sem modificacao.
 
         Args:
@@ -48,10 +47,6 @@ class ResampleStage(AudioStage):
         """
         if audio.size == 0:
             return audio, sample_rate
-
-        # Converter multi-canal para mono
-        if audio.ndim > 1:
-            audio = np.mean(audio, axis=1).astype(np.float32)
 
         # Skip se ja esta no sample rate alvo
         if sample_rate == self._target_sample_rate:

@@ -19,9 +19,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from macaw._types import VoiceInfo
+from macaw._types import TTSEngineCapabilities, VoiceInfo
 from macaw.exceptions import ModelLoadError, TTSSynthesisError
 from macaw.logging import get_logger
+from macaw.workers.torch_utils import release_gpu_memory, resolve_device
 from macaw.workers.tts.audio_utils import CHUNK_SIZE_BYTES, float32_to_pcm16_bytes
 from macaw.workers.tts.interface import TTSBackend
 
@@ -37,17 +38,17 @@ logger = get_logger("worker.tts.kokoro")
 
 _DEFAULT_SAMPLE_RATE = 24000
 
-# Voice prefix mapping -> (lang_code, language_name)
-_VOICE_LANG_MAP: dict[str, tuple[str, str]] = {
-    "a": ("a", "en"),  # American English
-    "b": ("b", "en"),  # British English
-    "e": ("e", "es"),  # Spanish
-    "f": ("f", "fr"),  # French
-    "h": ("h", "hi"),  # Hindi
-    "i": ("i", "it"),  # Italian
-    "j": ("j", "ja"),  # Japanese
-    "p": ("p", "pt"),  # Portuguese
-    "z": ("z", "zh"),  # Chinese
+# Voice prefix -> language code. Kokoro convention: first char = language.
+_VOICE_LANG_MAP: dict[str, str] = {
+    "a": "en",  # American English
+    "b": "en",  # British English
+    "e": "es",  # Spanish
+    "f": "fr",  # French
+    "h": "hi",  # Hindi
+    "i": "it",  # Italian
+    "j": "ja",  # Japanese
+    "p": "pt",  # Portuguese
+    "z": "zh",  # Chinese
 }
 
 
@@ -65,13 +66,16 @@ class KokoroBackend(TTSBackend):
         self._voices_dir: str = ""
         self._default_voice: str = "af_heart"
 
+    async def capabilities(self) -> TTSEngineCapabilities:
+        return TTSEngineCapabilities(supports_streaming=True)
+
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if kokoro_lib is None:
-            msg = "kokoro nao esta instalado. Instale com: pip install macaw-openvoice[kokoro]"
+            msg = "kokoro is not installed. Install with: pip install macaw-openvoice[kokoro]"
             raise ModelLoadError(model_path, msg)
 
         device_str = str(config.get("device", "cpu"))
-        device = _resolve_device(device_str)
+        device = resolve_device(device_str)
         lang_code = str(config.get("lang_code", "a"))
         self._default_voice = str(config.get("default_voice", "af_heart"))
 
@@ -116,6 +120,8 @@ class KokoroBackend(TTSBackend):
             voices_dir=self._voices_dir,
         )
 
+    # AsyncGenerator is a subtype of AsyncIterator but mypy doesn't recognize
+    # yield-based overrides. See docs/ADDING_ENGINE.md.
     async def synthesize(  # type: ignore[override, misc]
         self,
         text: str,
@@ -145,11 +151,18 @@ class KokoroBackend(TTSBackend):
             TTSSynthesisError: If synthesis fails.
         """
         if self._pipeline is None:
-            msg = "Modelo nao carregado. Chame load() primeiro."
+            msg = "Model not loaded. Call load() first."
             raise ModelLoadError("unknown", msg)
 
         if not text.strip():
-            raise TTSSynthesisError(self._model_path, "Texto vazio")
+            raise TTSSynthesisError(self._model_path, "Empty text")
+
+        if sample_rate != _DEFAULT_SAMPLE_RATE:
+            logger.warning(
+                "sample_rate=%d ignored; engine outputs at %dHz",
+                sample_rate,
+                _DEFAULT_SAMPLE_RATE,
+            )
 
         voice_path = _resolve_voice_path(
             voice,
@@ -159,6 +172,9 @@ class KokoroBackend(TTSBackend):
 
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+        # Design: error_holder delays error detection to allow partial audio
+        # streaming. This is intentional -- partial audio > no audio for
+        # real-time TTS.
         error_holder: list[Exception | None] = [None]
 
         future = loop.run_in_executor(
@@ -192,7 +208,7 @@ class KokoroBackend(TTSBackend):
             raise TTSSynthesisError(self._model_path, str(exc)) from exc
 
         if not has_audio:
-            msg = "Sintese retornou audio vazio"
+            msg = "Synthesis returned empty audio"
             raise TTSSynthesisError(self._model_path, msg)
 
     async def voices(self) -> list[VoiceInfo]:
@@ -213,14 +229,7 @@ class KokoroBackend(TTSBackend):
         if self._pipeline is not None:
             del self._pipeline
             self._pipeline = None
-        # Best-effort GPU memory cleanup
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except ImportError:
-            pass
+        release_gpu_memory()
         self._model_path = ""
         self._voices_dir = ""
         logger.info("model_unloaded")
@@ -232,20 +241,6 @@ class KokoroBackend(TTSBackend):
 
 
 # --- Pure helper functions ---
-
-
-def _resolve_device(device_str: str) -> str:
-    """Resolve device string to Kokoro format.
-
-    Args:
-        device_str: "auto", "cpu", "cuda", or "cuda:0".
-
-    Returns:
-        Device string in the format expected by Kokoro.
-    """
-    if device_str == "auto":
-        return "cpu"
-    return device_str
 
 
 def _find_weights_file(model_path: str) -> str | None:
@@ -426,9 +421,9 @@ def _voice_id_to_language(voice_id: str) -> str:
     a=en, b=en, e=es, f=fr, h=hi, i=it, j=ja, p=pt, z=zh.
     """
     if voice_id:
-        lang_info = _VOICE_LANG_MAP.get(voice_id[0])
-        if lang_info:
-            return lang_info[1]
+        lang = _VOICE_LANG_MAP.get(voice_id[0])
+        if lang:
+            return lang
     return "en"
 
 

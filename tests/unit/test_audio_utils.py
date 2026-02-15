@@ -55,7 +55,7 @@ class TestPcmBytesToFloat32:
 
     def test_odd_bytes_raises_audio_format_error(self) -> None:
         """Odd byte count raises AudioFormatError."""
-        with pytest.raises(AudioFormatError, match="numero par"):
+        with pytest.raises(AudioFormatError, match="even number of bytes"):
             pcm_bytes_to_float32(b"\x00\x01\x02")
 
     def test_empty_bytes_returns_empty_array(self) -> None:

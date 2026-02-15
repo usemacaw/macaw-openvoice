@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+import uuid
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 import macaw
 from macaw.server.error_handlers import register_error_handlers
 from macaw.server.routes import health, realtime, speech, transcriptions, translations, voices
+
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Assign a unique request_id to each HTTP request."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        request.state.request_id = str(uuid.uuid4())
+        return await call_next(request)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -80,6 +90,8 @@ def create_app(
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    app.add_middleware(RequestIDMiddleware)
 
     register_error_handlers(app)
 

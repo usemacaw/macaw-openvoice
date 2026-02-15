@@ -497,3 +497,78 @@ class TestEdgeCases:
 
         # on_flush should NOT be called (all requests cancelled = empty batch)
         assert len(flushed) == 0
+
+
+# ---------------------------------------------------------------------------
+# _on_flush_done callback tests
+# ---------------------------------------------------------------------------
+
+
+class TestOnFlushDone:
+    async def test_flush_done_removes_task_from_set(self) -> None:
+        """_on_flush_done removes completed task from _flush_tasks."""
+        flushed: list[Any] = []
+
+        async def on_flush(batch: list[ScheduledRequest]) -> None:
+            flushed.append(batch)
+
+        acc = BatchAccumulator(
+            accumulate_ms=30,
+            max_batch_size=100,
+            on_flush=on_flush,
+        )
+        acc.add(_make_scheduled("req_1"))
+
+        # Wait for timer to fire and task to complete
+        await asyncio.sleep(0.06)
+
+        assert len(flushed) == 1
+        # All flush tasks should have been cleaned up
+        assert len(acc._flush_tasks) == 0
+
+    async def test_flush_done_logs_exception(self) -> None:
+        """_on_flush_done logs exceptions from flush tasks without raising."""
+
+        async def failing_flush(batch: list[ScheduledRequest]) -> None:
+            msg = "flush failed"
+            raise RuntimeError(msg)
+
+        acc = BatchAccumulator(
+            accumulate_ms=30,
+            max_batch_size=100,
+            on_flush=failing_flush,
+        )
+        acc.add(_make_scheduled("req_1"))
+
+        # Wait for timer to fire; exception should be logged, not propagated
+        await asyncio.sleep(0.06)
+
+        # Task should still be cleaned up despite the exception
+        assert len(acc._flush_tasks) == 0
+
+    async def test_flush_done_handles_cancelled_task(self) -> None:
+        """_on_flush_done handles cancelled flush tasks gracefully."""
+        never_completes: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+
+        async def slow_flush(batch: list[ScheduledRequest]) -> None:
+            await never_completes
+
+        acc = BatchAccumulator(
+            accumulate_ms=30,
+            max_batch_size=100,
+            on_flush=slow_flush,
+        )
+        acc.add(_make_scheduled("req_1"))
+
+        # Wait for timer to fire and task to be created
+        await asyncio.sleep(0.06)
+
+        # Cancel all pending flush tasks
+        for task in list(acc._flush_tasks):
+            task.cancel()
+
+        # Give cancellation a chance to propagate
+        await asyncio.sleep(0.01)
+
+        # Should not raise; tasks cleaned up
+        assert len(acc._flush_tasks) == 0

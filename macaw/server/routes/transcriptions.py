@@ -14,16 +14,17 @@ from macaw.server.dependencies import (
     get_preprocessing_pipeline,
     get_scheduler,
 )
+from macaw.server.models.responses import CancelResponse
 from macaw.server.routes._common import handle_audio_request
 
 router = APIRouter()
 
 
-@router.post("/v1/audio/transcriptions/{request_id}/cancel")
+@router.post("/v1/audio/transcriptions/{request_id}/cancel", response_model=CancelResponse)
 async def cancel_transcription(
     request_id: str,
     scheduler: Scheduler = Depends(get_scheduler),  # noqa: B008
-) -> dict[str, Any]:
+) -> CancelResponse:
     """Cancel a transcription request in the queue or in flight.
 
     Idempotent: cancelling a missing or already completed request returns
@@ -33,7 +34,7 @@ async def cancel_transcription(
         JSON with ``request_id`` and ``cancelled`` (bool).
     """
     cancelled = scheduler.cancel(request_id)
-    return {"request_id": request_id, "cancelled": cancelled}
+    return CancelResponse(request_id=request_id, cancelled=cancelled)
 
 
 @router.post("/v1/audio/transcriptions")

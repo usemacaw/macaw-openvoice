@@ -108,35 +108,6 @@ class TestCompleteAndSummary:
         tracker = LatencyTracker()
         assert tracker.complete("nonexistent") is None
 
-    def test_get_summary_after_complete(self) -> None:
-        """get_summary() returns the summary created by complete()."""
-        tracker = LatencyTracker()
-        tracker.start("req_1")
-        tracker.dequeued("req_1")
-        tracker.grpc_started("req_1")
-        tracker.complete("req_1")
-
-        summary = tracker.get_summary("req_1")
-        assert summary is not None
-        assert summary.request_id == "req_1"
-
-    def test_get_summary_is_one_shot(self) -> None:
-        """get_summary() removes the summary after returning it."""
-        tracker = LatencyTracker()
-        tracker.start("req_1")
-        tracker.complete("req_1")
-
-        summary1 = tracker.get_summary("req_1")
-        summary2 = tracker.get_summary("req_1")
-
-        assert summary1 is not None
-        assert summary2 is None
-
-    def test_get_summary_unknown_returns_none(self) -> None:
-        """get_summary() on unknown request returns None."""
-        tracker = LatencyTracker()
-        assert tracker.get_summary("nonexistent") is None
-
     def test_complete_with_missing_dequeue(self) -> None:
         """complete() works even if dequeued() was never called."""
         tracker = LatencyTracker()
@@ -191,18 +162,6 @@ class TestDiscard:
         tracker.discard("req_1")
         assert tracker.active_count == 0
 
-    def test_discard_removes_pending_summary(self) -> None:
-        """discard() also removes any pending summary."""
-        tracker = LatencyTracker()
-        tracker.start("req_1")
-        tracker.complete("req_1")
-
-        # Summary exists
-        tracker.discard("req_1")
-
-        # Summary should be gone
-        assert tracker.get_summary("req_1") is None
-
     def test_discard_unknown_is_safe(self) -> None:
         """discard() on unknown request does not raise."""
         tracker = LatencyTracker()
@@ -239,35 +198,19 @@ class TestCleanup:
         assert removed == 0
         assert tracker.active_count == 1
 
-    def test_cleanup_removes_expired_summaries(self) -> None:
-        """cleanup() removes unconsumed summaries older than TTL."""
-        tracker = LatencyTracker(ttl_s=1.0)
-
-        with patch("macaw.scheduler.latency.time.monotonic", return_value=100.0):
-            tracker.start("req_old")
-            tracker.complete("req_old")
-
-        # Summary exists but is expired
-        with patch("macaw.scheduler.latency.time.monotonic", return_value=200.0):
-            removed = tracker.cleanup()
-
-        assert removed == 1  # 1 summary removed
-        assert tracker.get_summary("req_old") is None
-
-    def test_cleanup_returns_total_removed(self) -> None:
-        """cleanup() returns total count of entries + summaries removed."""
+    def test_cleanup_returns_count_of_expired_entries(self) -> None:
+        """cleanup() returns count of expired active entries removed."""
         tracker = LatencyTracker(ttl_s=1.0)
 
         with patch("macaw.scheduler.latency.time.monotonic", return_value=100.0):
             tracker.start("req_1")
             tracker.start("req_2")
-            tracker.complete("req_2")
 
         with patch("macaw.scheduler.latency.time.monotonic", return_value=200.0):
             removed = tracker.cleanup()
 
-        # 1 active entry (req_1) + 1 summary (req_2)
         assert removed == 2
+        assert tracker.active_count == 0
 
 
 # ---------------------------------------------------------------------------

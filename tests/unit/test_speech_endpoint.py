@@ -4,12 +4,10 @@ Valida:
 - Pydantic model SpeechRequest (validacao, defaults)
 - build_tts_proto_request e tts_proto_chunks_to_result (conversores)
 - Rota POST /v1/audio/speech (sucesso, erros, formatos)
-- _pcm_to_wav (conversao PCM -> WAV)
 """
 
 from __future__ import annotations
 
-import struct
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -116,6 +114,18 @@ class TestSpeechRequest:
         req = SpeechRequest(model="m", input="t", speed=4.0)
         assert req.speed == 4.0
 
+    def test_input_max_length_accepted(self) -> None:
+        """Text at the max_length limit is accepted."""
+        text = "a" * 4096
+        req = SpeechRequest(model="m", input=text)
+        assert len(req.input) == 4096
+
+    def test_input_exceeds_max_length_rejected(self) -> None:
+        """Text exceeding max_length (4096) is rejected by Pydantic."""
+        text = "a" * 4097
+        with pytest.raises(Exception):  # noqa: B017
+            SpeechRequest(model="m", input=text)
+
 
 # ─── TTS Converters ───
 
@@ -191,63 +201,6 @@ class TestTTSConverters:
         )
         assert result.audio_data == b""
         assert result.duration == 0.0
-
-
-# ─── PCM to WAV ───
-
-
-class TestPcmToWav:
-    def test_wav_header_structure(self) -> None:
-        from macaw.server.routes.speech import _pcm_to_wav
-
-        pcm = b"\x00\x01" * 100  # 200 bytes of PCM data
-        wav = _pcm_to_wav(pcm, sample_rate=24000)
-
-        # RIFF header
-        assert wav[:4] == b"RIFF"
-        riff_size = struct.unpack("<I", wav[4:8])[0]
-        assert riff_size == 36 + len(pcm)
-        assert wav[8:12] == b"WAVE"
-
-        # fmt subchunk
-        assert wav[12:16] == b"fmt "
-        fmt_size = struct.unpack("<I", wav[16:20])[0]
-        assert fmt_size == 16  # PCM
-        audio_format = struct.unpack("<H", wav[20:22])[0]
-        assert audio_format == 1  # PCM
-        num_channels = struct.unpack("<H", wav[22:24])[0]
-        assert num_channels == 1  # mono
-        sample_rate = struct.unpack("<I", wav[24:28])[0]
-        assert sample_rate == 24000
-        byte_rate = struct.unpack("<I", wav[28:32])[0]
-        assert byte_rate == 24000 * 1 * 2  # sample_rate * channels * bytes_per_sample
-        block_align = struct.unpack("<H", wav[32:34])[0]
-        assert block_align == 2  # channels * bytes_per_sample
-        bits_per_sample = struct.unpack("<H", wav[34:36])[0]
-        assert bits_per_sample == 16
-
-        # data subchunk
-        assert wav[36:40] == b"data"
-        data_size = struct.unpack("<I", wav[40:44])[0]
-        assert data_size == len(pcm)
-        assert wav[44:] == pcm
-
-    def test_wav_total_size(self) -> None:
-        from macaw.server.routes.speech import _pcm_to_wav
-
-        pcm = b"\x00" * 480  # 480 bytes
-        wav = _pcm_to_wav(pcm, sample_rate=16000)
-        # WAV = 44 byte header + PCM data
-        assert len(wav) == 44 + 480
-
-    def test_wav_empty_pcm(self) -> None:
-        from macaw.server.routes.speech import _pcm_to_wav
-
-        wav = _pcm_to_wav(b"", sample_rate=24000)
-        assert len(wav) == 44  # header only
-        assert wav[36:40] == b"data"
-        data_size = struct.unpack("<I", wav[40:44])[0]
-        assert data_size == 0
 
 
 # ─── POST /v1/audio/speech Route ───
@@ -327,7 +280,7 @@ class TestSpeechRoute:
             )
 
         assert response.status_code == 400
-        assert "vazio" in response.json()["error"]["message"]
+        assert "cannot be empty" in response.json()["error"]["message"]
 
     async def test_speech_invalid_format_returns_400(self) -> None:
         registry = _make_mock_registry()

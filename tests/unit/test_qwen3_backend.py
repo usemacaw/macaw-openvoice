@@ -13,10 +13,10 @@ import pytest
 
 from macaw._types import VoiceInfo
 from macaw.exceptions import ModelLoadError, TTSSynthesisError
+from macaw.workers.torch_utils import resolve_device
 from macaw.workers.tts.audio_utils import float32_to_pcm16_bytes
 from macaw.workers.tts.qwen3 import (
     Qwen3TTSBackend,
-    _resolve_device,
 )
 
 
@@ -99,7 +99,7 @@ class TestLoad:
         qwen3_mod._Qwen3TTSModel = None  # type: ignore[assignment]
         try:
             backend = Qwen3TTSBackend()
-            with pytest.raises(ModelLoadError, match="nao esta instalado"):
+            with pytest.raises(ModelLoadError, match="is not installed"):
                 await backend.load("/models/qwen3-tts", {})
         finally:
             qwen3_mod._Qwen3TTSModel = original  # type: ignore[assignment]
@@ -111,7 +111,7 @@ class TestLoad:
         qwen3_mod._Qwen3TTSModel = MagicMock()  # type: ignore[assignment]
         try:
             backend = Qwen3TTSBackend()
-            with pytest.raises(ModelLoadError, match="Variante invalida"):
+            with pytest.raises(ModelLoadError, match="Invalid variant"):
                 await backend.load("/models/qwen3-tts", {"variant": "nonexistent"})
         finally:
             qwen3_mod._Qwen3TTSModel = original_cls  # type: ignore[assignment]
@@ -310,19 +310,19 @@ class TestSynthesize:
 
     async def test_empty_text_raises(self) -> None:
         backend = self._make_loaded_backend()
-        with pytest.raises(TTSSynthesisError, match="Texto vazio"):
+        with pytest.raises(TTSSynthesisError, match="Empty text"):
             async for _ in backend.synthesize(""):
                 pass
 
     async def test_whitespace_only_raises(self) -> None:
         backend = self._make_loaded_backend()
-        with pytest.raises(TTSSynthesisError, match="Texto vazio"):
+        with pytest.raises(TTSSynthesisError, match="Empty text"):
             async for _ in backend.synthesize("   "):
                 pass
 
     async def test_model_not_loaded_raises(self) -> None:
         backend = Qwen3TTSBackend()
-        with pytest.raises(ModelLoadError, match="nao carregado"):
+        with pytest.raises(ModelLoadError, match="not loaded"):
             async for _ in backend.synthesize("Hello"):
                 pass
 
@@ -358,7 +358,7 @@ class TestSynthesize:
             [empty_audio],
             24000,
         )
-        with pytest.raises(TTSSynthesisError, match="audio vazio"):
+        with pytest.raises(TTSSynthesisError, match="empty audio"):
             async for _ in backend.synthesize("Hello"):
                 pass
 
@@ -424,18 +424,16 @@ class TestUnload:
 
 class TestResolveDevice:
     def test_cpu_passthrough(self) -> None:
-        assert _resolve_device("cpu") == "cpu"
+        assert resolve_device("cpu") == "cpu"
 
     def test_cuda_passthrough(self) -> None:
-        assert _resolve_device("cuda:0") == "cuda:0"
+        assert resolve_device("cuda:0") == "cuda:0"
 
     def test_auto_without_torch_defaults_to_cpu(self) -> None:
-        # Patch torch import to simulate absence
         with patch.dict("sys.modules", {"torch": None}):
-            # Force reimport won't work easily, so we test the logic directly
-            # The auto detection tries to import torch; if ImportError, returns cpu
-            result = _resolve_device("cpu")
-            assert result == "cpu"
+            from macaw.workers.torch_utils import resolve_device as _rd
+
+            assert _rd("auto") == "cpu"
 
 
 class TestFloat32ToPcm16Bytes:

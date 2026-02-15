@@ -369,3 +369,121 @@ class TestAudioPreprocessingPipeline:
         result_audio, result_sr = decode_audio(result)
         assert result_sr == 16000
         assert len(result_audio) > 0
+
+
+# --- Tests for create_stages() factory (C-01 fix) ---
+
+
+class TestCreateStagesFactory:
+    """Tests that create_stages() returns independent stage instances."""
+
+    def test_create_stages_returns_new_instances(self) -> None:
+        """create_stages() returns deep-copied stages, not the originals."""
+        from macaw.preprocessing.dc_remove import DCRemoveStage
+
+        config = PreprocessingConfig()
+        dc_stage = DCRemoveStage(cutoff_hz=20)
+        pipeline = AudioPreprocessingPipeline(config, stages=[dc_stage])
+
+        fresh = pipeline.create_stages()
+
+        assert len(fresh) == 1
+        assert fresh[0] is not dc_stage
+        assert fresh[0].name == "dc_remove"
+
+    def test_create_stages_independent_filter_state(self) -> None:
+        """Two calls to create_stages() produce stages with independent state."""
+        from macaw.preprocessing.dc_remove import DCRemoveStage
+
+        config = PreprocessingConfig()
+        dc_stage = DCRemoveStage(cutoff_hz=20)
+        pipeline = AudioPreprocessingPipeline(config, stages=[dc_stage])
+
+        stages_a = pipeline.create_stages()
+        stages_b = pipeline.create_stages()
+
+        # Process different audio through each set
+        t = np.arange(int(16000 * 0.5)) / 16000
+        audio_a = (0.5 * np.sin(2 * np.pi * 440 * t) + 0.2).astype(np.float32)
+        audio_b = (0.3 * np.sin(2 * np.pi * 880 * t) - 0.1).astype(np.float32)
+
+        stages_a[0].process(audio_a, 16000)
+        stages_b[0].process(audio_b, 16000)
+
+        # Filter state (zi) should be different since inputs differ
+        dc_a = stages_a[0]
+        dc_b = stages_b[0]
+        assert dc_a._zi is not None  # type: ignore[union-attr]
+        assert dc_b._zi is not None  # type: ignore[union-attr]
+        assert not np.array_equal(dc_a._zi, dc_b._zi)  # type: ignore[union-attr]
+
+    def test_concurrent_sessions_get_independent_dc_state(self) -> None:
+        """Simulates two concurrent streaming sessions with independent stages.
+
+        Each session processes different audio. The DC filter state of one
+        session must NOT contaminate the other.
+        """
+        from macaw.preprocessing.dc_remove import DCRemoveStage
+        from macaw.preprocessing.streaming import StreamingPreprocessor
+
+        config = PreprocessingConfig()
+        dc_stage = DCRemoveStage(cutoff_hz=20)
+        pipeline = AudioPreprocessingPipeline(config, stages=[dc_stage])
+
+        # Each session gets its own stages via create_stages()
+        preprocessor_1 = StreamingPreprocessor(
+            stages=pipeline.create_stages(), input_sample_rate=16000
+        )
+        preprocessor_2 = StreamingPreprocessor(
+            stages=pipeline.create_stages(), input_sample_rate=16000
+        )
+
+        # Session 1: loud speech with DC offset
+        n = int(16000 * 0.1)  # 100ms
+        t = np.arange(n) / 16000
+        audio_1 = (0.5 * np.sin(2 * np.pi * 440 * t) + 0.3).astype(np.float32)
+        pcm_1 = (audio_1 * 32767).astype(np.int16).tobytes()
+
+        # Session 2: quiet signal, no offset
+        audio_2 = (0.05 * np.sin(2 * np.pi * 200 * t)).astype(np.float32)
+        pcm_2 = (audio_2 * 32767).astype(np.int16).tobytes()
+
+        # Interleave frames (simulating concurrent processing)
+        result_1 = preprocessor_1.process_frame(pcm_1)
+        result_2 = preprocessor_2.process_frame(pcm_2)
+
+        # Results should be independent — session 2 should not inherit
+        # the DC offset correction state from session 1
+        assert len(result_1) > 0
+        assert len(result_2) > 0
+        # Session 2 had near-zero mean; result should also be near-zero
+        assert abs(np.mean(result_2)) < 0.05
+
+    def test_create_stages_resets_filter_state(self) -> None:
+        """create_stages() calls reset() on each returned stage."""
+        from macaw.preprocessing.dc_remove import DCRemoveStage
+
+        config = PreprocessingConfig()
+        dc_stage = DCRemoveStage(cutoff_hz=20)
+
+        # Process some audio to populate filter state
+        t = np.arange(int(16000 * 0.1)) / 16000
+        audio = (0.5 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+        dc_stage.process(audio, 16000)
+        assert dc_stage._zi is not None
+
+        pipeline = AudioPreprocessingPipeline(config, stages=[dc_stage])
+        fresh = pipeline.create_stages()
+
+        # Fresh stage should have zi = None (reset was called)
+        assert fresh[0]._zi is None  # type: ignore[union-attr]
+
+    def test_create_stages_with_stateless_stage(self) -> None:
+        """create_stages() works with stateless stages (reset is no-op)."""
+        config = PreprocessingConfig()
+        pipeline = AudioPreprocessingPipeline(config, stages=[PassthroughStage()])
+
+        fresh = pipeline.create_stages()
+
+        assert len(fresh) == 1
+        assert fresh[0].name == "passthrough"

@@ -14,10 +14,10 @@ import pytest
 
 from macaw._types import VoiceInfo
 from macaw.exceptions import ModelLoadError, TTSSynthesisError
+from macaw.workers.torch_utils import resolve_device
 from macaw.workers.tts.audio_utils import float32_to_pcm16_bytes
 from macaw.workers.tts.kokoro import (
     KokoroBackend,
-    _resolve_device,
     _resolve_voice_path,
     _scan_voices_dir,
     _voice_id_to_gender,
@@ -149,7 +149,7 @@ class TestLoad:
         kokoro_mod.kokoro_lib = None  # type: ignore[assignment]
         try:
             backend = KokoroBackend()
-            with pytest.raises(ModelLoadError, match="nao esta instalado"):
+            with pytest.raises(ModelLoadError, match="is not installed"):
                 await backend.load("/models/kokoro-v1", {})
         finally:
             kokoro_mod.kokoro_lib = original  # type: ignore[assignment]
@@ -211,6 +211,8 @@ class TestLoad:
             kokoro_mod.kokoro_lib = original  # type: ignore[assignment]
 
     async def test_load_with_auto_device(self, tmp_path: object) -> None:
+        from unittest.mock import patch
+
         mock_kokoro = _make_mock_kokoro_lib()
         model_dir = _make_model_dir(tmp_path)
 
@@ -219,11 +221,15 @@ class TestLoad:
         original = kokoro_mod.kokoro_lib
         kokoro_mod.kokoro_lib = mock_kokoro  # type: ignore[assignment]
         try:
-            backend = KokoroBackend()
-            await backend.load(model_dir, {"device": "auto"})
-            # "auto" resolved to "cpu" — KPipeline receives device="cpu"
-            call_kwargs = mock_kokoro.KPipeline.call_args
-            assert call_kwargs[1]["device"] == "cpu"
+            # Patch torch to simulate no CUDA so "auto" -> "cpu"
+            mock_torch = MagicMock()
+            mock_torch.cuda.is_available.return_value = False
+            with patch.dict("sys.modules", {"torch": mock_torch}):
+                backend = KokoroBackend()
+                await backend.load(model_dir, {"device": "auto"})
+                # "auto" resolved to "cpu" — KPipeline receives device="cpu"
+                call_kwargs = mock_kokoro.KPipeline.call_args
+                assert call_kwargs[1]["device"] == "cpu"
         finally:
             kokoro_mod.kokoro_lib = original  # type: ignore[assignment]
 
@@ -292,19 +298,19 @@ class TestSynthesize:
 
     async def test_empty_text_raises_synthesis_error(self) -> None:
         backend = self._make_loaded_backend()
-        with pytest.raises(TTSSynthesisError, match="Texto vazio"):
+        with pytest.raises(TTSSynthesisError, match="Empty text"):
             async for _ in backend.synthesize(""):
                 pass
 
     async def test_whitespace_only_raises_synthesis_error(self) -> None:
         backend = self._make_loaded_backend()
-        with pytest.raises(TTSSynthesisError, match="Texto vazio"):
+        with pytest.raises(TTSSynthesisError, match="Empty text"):
             async for _ in backend.synthesize("   "):
                 pass
 
     async def test_model_not_loaded_raises_error(self) -> None:
         backend = KokoroBackend()
-        with pytest.raises(ModelLoadError, match="nao carregado"):
+        with pytest.raises(ModelLoadError, match="not loaded"):
             async for _ in backend.synthesize("Hello"):
                 pass
 
@@ -366,7 +372,7 @@ class TestSynthesize:
         backend._pipeline = mock_pipeline  # type: ignore[assignment]
         backend._model_path = "/models/kokoro-v1"
 
-        with pytest.raises(TTSSynthesisError, match="audio vazio"):
+        with pytest.raises(TTSSynthesisError, match="empty audio"):
             async for _ in backend.synthesize("Hello"):
                 pass
 
@@ -500,17 +506,29 @@ class TestUnload:
 
 
 class TestResolveDevice:
-    def test_auto_defaults_to_cpu(self) -> None:
-        assert _resolve_device("auto") == "cpu"
+    """Tests for shared resolve_device() from torch_utils.
+
+    Tests live here for backward compatibility with the old kokoro-local
+    _resolve_device. The shared version probes torch.cuda.is_available()
+    for "auto" — on CI (no GPU), "auto" -> "cpu".
+    """
+
+    def test_auto_defaults_to_cpu_without_cuda(self) -> None:
+        from unittest.mock import patch
+
+        with patch.dict("sys.modules", {"torch": None}):
+            from macaw.workers.torch_utils import resolve_device as _rd
+
+            assert _rd("auto") == "cpu"
 
     def test_cpu_passthrough(self) -> None:
-        assert _resolve_device("cpu") == "cpu"
+        assert resolve_device("cpu") == "cpu"
 
     def test_cuda_passthrough(self) -> None:
-        assert _resolve_device("cuda") == "cuda"
+        assert resolve_device("cuda") == "cuda"
 
     def test_cuda_with_id(self) -> None:
-        assert _resolve_device("cuda:0") == "cuda:0"
+        assert resolve_device("cuda:0") == "cuda:0"
 
 
 class TestResolveVoicePath:

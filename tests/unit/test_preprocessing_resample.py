@@ -79,21 +79,19 @@ class TestResampleStage:
         assert result_sr == 16000
         assert result is audio  # Mesmo objeto, sem copia
 
-    def test_resample_stereo_to_mono(self) -> None:
-        """Audio stereo (2 canais) e convertido para mono antes do resample."""
-        # Arrange
-        left = _make_sine(sample_rate=44100, duration=0.5, frequency=440.0, amplitude=0.8)
-        right = _make_sine(sample_rate=44100, duration=0.5, frequency=880.0, amplitude=0.4)
-        stereo = np.column_stack([left, right])  # shape: (n_samples, 2)
+    def test_resample_mono_from_high_sample_rate(self) -> None:
+        """Mono audio at 44.1kHz is correctly resampled to 16kHz."""
+        # Arrange — pipeline contract guarantees mono input
+        audio = _make_sine(sample_rate=44100, duration=0.5, frequency=440.0, amplitude=0.8)
         stage = ResampleStage(target_sample_rate=16000)
 
         # Act
-        result, result_sr = stage.process(stereo, 44100)
+        result, result_sr = stage.process(audio, 44100)
 
         # Assert
         assert result_sr == 16000
-        assert result.ndim == 1  # Mono
-        expected_length = int(0.5 * 16000)  # 0.5s * 16000
+        assert result.ndim == 1
+        expected_length = int(0.5 * 16000)
         assert len(result) == expected_length
 
     def test_resample_preserves_float32(self) -> None:
@@ -162,18 +160,14 @@ class TestResampleStage:
         # Tolerancia de 5% na energia
         assert abs(rms_original - rms_resampled) / rms_original < 0.05
 
-    def test_resample_multichannel_3ch_to_mono(self) -> None:
-        """Audio com 3+ canais tambem e convertido para mono."""
-        # Arrange
-        n_samples = 4410
-        ch1 = np.ones(n_samples, dtype=np.float32) * 0.3
-        ch2 = np.ones(n_samples, dtype=np.float32) * 0.6
-        ch3 = np.ones(n_samples, dtype=np.float32) * 0.9
-        multichannel = np.column_stack([ch1, ch2, ch3])  # shape: (n_samples, 3)
+    def test_resample_preserves_mono_shape(self) -> None:
+        """Mono audio keeps ndim=1 after resampling."""
+        # Arrange — pipeline contract guarantees mono input
+        audio = np.ones(4410, dtype=np.float32) * 0.5
         stage = ResampleStage(target_sample_rate=16000)
 
         # Act
-        result, result_sr = stage.process(multichannel, 44100)
+        result, result_sr = stage.process(audio, 44100)
 
         # Assert
         assert result.ndim == 1

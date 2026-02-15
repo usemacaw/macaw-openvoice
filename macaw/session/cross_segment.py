@@ -68,8 +68,3 @@ class CrossSegmentContext:
     def reset(self) -> None:
         """Clear stored context."""
         self._text = None
-
-    @property
-    def context_text(self) -> str | None:
-        """Alias for get_prompt(). Returns context or None."""
-        return self._text

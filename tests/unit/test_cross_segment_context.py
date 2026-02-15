@@ -132,21 +132,6 @@ class TestCrossSegmentContext:
         # Assert
         assert ctx.get_prompt() is None
 
-    def test_context_text_property(self) -> None:
-        """Property context_text retorna o mesmo que get_prompt()."""
-        # Arrange
-        ctx = CrossSegmentContext()
-
-        # Assert: vazio
-        assert ctx.context_text is None
-
-        # Act
-        ctx.update("hello")
-
-        # Assert: com valor
-        assert ctx.context_text == "hello"
-        assert ctx.context_text == ctx.get_prompt()
-
     def test_max_tokens_custom(self) -> None:
         """max_tokens customizado trunca corretamente."""
         # Arrange

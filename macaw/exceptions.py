@@ -213,3 +213,5 @@ class TTSSynthesisError(TTSError):
         self.model_name = model_name
         self.reason = reason
         super().__init__(f"TTS synthesis failed for model '{model_name}': {reason}")
+
+

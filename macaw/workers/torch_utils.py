@@ -54,3 +54,39 @@ def configure_torch_inference() -> None:
         )
     except ImportError:
         pass
+
+
+def resolve_device(device_str: str) -> str:
+    """Resolve device string, probing CUDA availability for "auto".
+
+    Args:
+        device_str: One of "auto", "cpu", "cuda", or "cuda:N".
+
+    Returns:
+        Resolved device string. "auto" becomes "cuda:0" if CUDA is
+        available, otherwise "cpu". All other values pass through.
+    """
+    if device_str == "auto":
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                return "cuda:0"
+        except ImportError:
+            pass
+        return "cpu"
+    return device_str
+
+
+def release_gpu_memory() -> None:
+    """Best-effort GPU memory cleanup via torch.cuda.empty_cache().
+
+    Safe to call even when torch is not installed or CUDA is unavailable.
+    """
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        pass

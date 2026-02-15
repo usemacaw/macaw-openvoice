@@ -43,6 +43,9 @@ from macaw.proto.stt_worker_pb2_grpc import STTWorkerServicer as _BaseServicer
 logger = get_logger("worker.stt.servicer")
 
 
+_MAX_CANCELLED_REQUESTS = 10_000
+
+
 class STTWorkerServicer(_BaseServicer):
     """Implementation of the STTWorker gRPC service.
 
@@ -246,6 +249,8 @@ class STTWorkerServicer(_BaseServicer):
         request_id = request.request_id
 
         with self._cancel_lock:
+            if len(self._cancelled_requests) >= _MAX_CANCELLED_REQUESTS:
+                self._cancelled_requests.clear()
             self._cancelled_requests.add(request_id)
             is_current = request_id in self._active_request_ids
 

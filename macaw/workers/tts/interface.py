@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from macaw._types import VoiceInfo
+    from macaw._types import TTSEngineCapabilities, VoiceInfo
 
 
 class TTSBackend(ABC):
@@ -40,6 +40,15 @@ class TTSBackend(ABC):
 
         Raises:
             ModelLoadError: If the model cannot be loaded.
+        """
+        ...
+
+    @abstractmethod
+    async def capabilities(self) -> TTSEngineCapabilities:
+        """Return engine capabilities for runtime decision-making.
+
+        Used by the runtime to determine whether the engine supports
+        streaming, voice cloning, instruct mode, or has text length limits.
         """
         ...
 

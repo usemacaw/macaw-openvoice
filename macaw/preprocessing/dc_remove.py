@@ -86,7 +86,7 @@ class DCRemoveStage(AudioStage):
         sos = self._get_sos(sample_rate)
 
         if self._zi is None:
-            self._zi = sosfilt_zi(sos)
+            self._zi = sosfilt_zi(sos) * audio[0]
 
         filtered, self._zi = sosfilt(sos, audio, zi=self._zi)
 

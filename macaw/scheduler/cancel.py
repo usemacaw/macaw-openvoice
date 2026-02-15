@@ -216,18 +216,21 @@ class CancellationManager:
     def is_cancelled(self, request_id: str) -> bool:
         """Verifica se request foi cancelada.
 
-        Util para checks rapidos sem acessar ScheduledRequest.
+        An unknown request (never registered or already unregistered) is
+        considered **not cancelled** — it was never tracked, so it cannot
+        have been cancelled. Only requests whose cancel_event is set
+        return True.
 
         Args:
             request_id: ID da request.
 
         Returns:
-            True se request foi cancelada (nao esta mais no tracking).
+            True if the request was explicitly cancelled, False otherwise
+            (including unknown/unregistered requests).
         """
         entry = self._requests.get(request_id)
         if entry is None:
-            # Nao registrada ou ja removida (cancelada ou concluida)
-            return True
+            return False
         return entry.cancel_event.is_set()
 
     def get_worker_address(self, request_id: str) -> str | None:

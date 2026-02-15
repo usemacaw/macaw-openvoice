@@ -6,7 +6,8 @@ import asyncio
 import contextlib
 import time
 import uuid
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 import grpc.aio
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
@@ -697,19 +698,196 @@ async def _tts_speak_task(
         )
 
 
-async def _cancel_active_tts(
-    tts_task_ref: list[asyncio.Task[None] | None],
-    tts_cancel_ref: list[asyncio.Event | None],
-) -> None:
-    """Cancela TTS ativa se existir. Aguarda finalizacao da task."""
-    cancel_event = tts_cancel_ref[0]
-    task = tts_task_ref[0]
-    if cancel_event is not None and task is not None and not task.done():
-        cancel_event.set()
+async def _cancel_active_tts(ctx: SessionContext) -> None:
+    """Cancel active TTS task if any. Awaits task completion."""
+    if ctx.tts_cancel_event is not None and ctx.tts_task is not None and not ctx.tts_task.done():
+        ctx.tts_cancel_event.set()
         with contextlib.suppress(asyncio.CancelledError, Exception):
-            await task
-    tts_task_ref[0] = None
-    tts_cancel_ref[0] = None
+            await ctx.tts_task
+    # Sync channel ref back (task may have opened/changed the channel)
+    ctx.tts_channel = ctx._tts_channel_ref[0]
+    ctx.tts_task = None
+    ctx.tts_cancel_event = None
+
+
+# ---------------------------------------------------------------------------
+# SessionContext — replaces mutable list refs (M-26)
+# ---------------------------------------------------------------------------
+
+MAX_WS_FRAME_SIZE = 1_048_576  # 1 MB (M-09)
+
+
+@dataclass
+class SessionContext:
+    """Mutable per-session state for the realtime endpoint."""
+
+    session_id: str
+    session_start: float
+    websocket: WebSocket
+    session: StreamingSession | None = None
+    last_audio_time: float = 0.0
+    tts_task: asyncio.Task[None] | None = None
+    tts_cancel_event: asyncio.Event | None = None
+    tts_channel: tuple[str, grpc.aio.Channel] | None = None
+    model_tts: str | None = None
+    backpressure: Any = field(default=None)
+    closed_reason: str = "client_disconnect"
+    _tts_channel_ref: list[tuple[str, grpc.aio.Channel] | None] = field(
+        default_factory=lambda: [None], init=False, repr=False,
+    )
+
+    async def send_event(self, event: ServerEvent) -> None:
+        """Send an event to the client WebSocket."""
+        await _send_event(self.websocket, event, session_id=self.session_id)
+
+
+# ---------------------------------------------------------------------------
+# Command Handlers (H-05)
+# ---------------------------------------------------------------------------
+
+
+async def _handle_configure_command(
+    ctx: SessionContext,
+    cmd: SessionConfigureCommand,
+) -> bool:
+    """Handle session.configure. Returns False (never breaks loop)."""
+    logger.info(
+        "session_configure",
+        session_id=ctx.session_id,
+        language=cmd.language,
+        vad_sensitivity=(cmd.vad_sensitivity.value if cmd.vad_sensitivity else None),
+    )
+    if ctx.session is not None:
+        if cmd.hot_words is not None:
+            ctx.session.update_hot_words(cmd.hot_words)
+        if cmd.enable_itn is not None:
+            ctx.session.update_itn(cmd.enable_itn)
+    if cmd.model_tts is not None:
+        ctx.model_tts = cmd.model_tts
+    return False
+
+
+async def _handle_tts_speak_command(
+    ctx: SessionContext,
+    cmd: TTSSpeakCommand,
+) -> bool:
+    """Handle tts.speak. Returns False (never breaks loop)."""
+    tts_req_id = cmd.request_id or f"tts_{uuid.uuid4().hex[:8]}"
+    logger.info(
+        "tts_speak",
+        session_id=ctx.session_id,
+        request_id=tts_req_id,
+        voice=cmd.voice,
+        text_len=len(cmd.text),
+    )
+    await _cancel_active_tts(ctx)
+
+    cancel_ev = asyncio.Event()
+    ctx.tts_cancel_event = cancel_ev
+    # Shared mutable ref so _tts_speak_task can update the channel
+    channel_ref: list[tuple[str, grpc.aio.Channel] | None] = [ctx.tts_channel]
+    ctx._tts_channel_ref = channel_ref  # keep ref for sync-back
+    ctx.tts_task = asyncio.create_task(
+        _tts_speak_task(
+            websocket=ctx.websocket,
+            session_id=ctx.session_id,
+            session=ctx.session,
+            request_id=tts_req_id,
+            text=cmd.text,
+            voice=cmd.voice,
+            model_tts=ctx.model_tts,
+            send_event=ctx.send_event,
+            cancel_event=cancel_ev,
+            tts_channel_ref=channel_ref,
+            language=cmd.language,
+            ref_audio=cmd.ref_audio,
+            ref_text=cmd.ref_text,
+            instruction=cmd.instruction,
+        ),
+    )
+    return False
+
+
+async def _handle_tts_cancel_command(
+    ctx: SessionContext,
+    cmd: TTSCancelCommand,
+) -> bool:
+    """Handle tts.cancel. Returns False (never breaks loop)."""
+    logger.info(
+        "tts_cancel",
+        session_id=ctx.session_id,
+        request_id=cmd.request_id,
+    )
+    await _cancel_active_tts(ctx)
+    return False
+
+
+async def _handle_session_cancel_command(
+    ctx: SessionContext,
+    cmd: SessionCancelCommand,
+) -> bool:
+    """Handle session.cancel. Returns True (breaks loop)."""
+    logger.info("session_cancel", session_id=ctx.session_id)
+    ctx.closed_reason = "cancelled"
+    segments = ctx.session.segment_id if ctx.session is not None else 0
+    if ctx.session is not None and not ctx.session.is_closed:
+        await ctx.session.close()
+    closed = SessionClosedEvent(
+        reason="cancelled",
+        total_duration_ms=int((time.monotonic() - ctx.session_start) * 1000),
+        segments_transcribed=segments,
+    )
+    await ctx.send_event(closed)
+    return True
+
+
+async def _handle_session_close_command(
+    ctx: SessionContext,
+    cmd: SessionCloseCommand,
+) -> bool:
+    """Handle session.close. Returns True (breaks loop)."""
+    logger.info("session_close", session_id=ctx.session_id)
+    ctx.closed_reason = "client_request"
+    segments = ctx.session.segment_id if ctx.session is not None else 0
+    if ctx.session is not None and not ctx.session.is_closed:
+        await ctx.session.close()
+    closed = SessionClosedEvent(
+        reason="client_request",
+        total_duration_ms=int((time.monotonic() - ctx.session_start) * 1000),
+        segments_transcribed=segments,
+    )
+    await ctx.send_event(closed)
+    return True
+
+
+async def _handle_commit_command(
+    ctx: SessionContext,
+    cmd: InputAudioBufferCommitCommand,
+) -> bool:
+    """Handle input_audio_buffer.commit. Returns False (never breaks loop)."""
+    logger.info("input_audio_buffer_commit", session_id=ctx.session_id)
+    if ctx.session is not None and not ctx.session.is_closed:
+        await ctx.session.commit()
+    return False
+
+
+# Dispatch table: command type -> handler function
+_COMMAND_HANDLERS: dict[
+    type[Any],
+    Callable[[SessionContext, Any], Awaitable[bool]],
+] = {
+    SessionConfigureCommand: _handle_configure_command,
+    TTSSpeakCommand: _handle_tts_speak_command,
+    TTSCancelCommand: _handle_tts_cancel_command,
+    SessionCancelCommand: _handle_session_cancel_command,
+    SessionCloseCommand: _handle_session_close_command,
+    InputAudioBufferCommitCommand: _handle_commit_command,
+}
+
+
+# ---------------------------------------------------------------------------
+# Main Endpoint
+# ---------------------------------------------------------------------------
 
 
 @router.websocket("/v1/realtime")
@@ -718,46 +896,31 @@ async def realtime_endpoint(
     model: str | None = None,
     language: str | None = None,
 ) -> None:
-    """Endpoint WebSocket para streaming STT + TTS full-duplex.
+    """WebSocket endpoint for streaming STT + TTS full-duplex.
 
     Query params:
-        model: Nome do modelo STT (obrigatorio).
-        language: Codigo ISO 639-1 do idioma (opcional, default: auto-detect).
-
-    Protocolo:
-        1. Handshake: valida modelo STT via registry.
-        2. Emite session.created com session_id unico.
-        3. Cria StreamingSession (se worker disponivel).
-        4. Main loop: recebe binary (audio frames) e text (JSON commands).
-        5. Audio frames -> backpressure check -> session.process_frame().
-        6. TTS: tts.speak cria background task, mute STT, stream audio ao cliente.
-        7. TTS: tts.cancel interrompe sintese ativa, unmute STT.
-        8. Background task monitora inatividade e envia heartbeat pings.
-        9. On disconnect: fecha session e emite session.closed.
+        model: STT model name (required).
+        language: ISO 639-1 code (optional, default: auto-detect).
     """
     session_id = f"sess_{uuid.uuid4().hex[:12]}"
 
-    # --- Validacao pre-accept ---
+    # --- Pre-accept validation ---
     if model is None:
         await websocket.accept()
-        error_event = StreamingErrorEvent(
-            code="invalid_request",
-            message="Query parameter 'model' is required",
-            recoverable=False,
+        await _send_event(
+            websocket,
+            StreamingErrorEvent(code="invalid_request", message="Query parameter 'model' is required", recoverable=False),
         )
-        await _send_event(websocket, error_event)
         await websocket.close(code=1008, reason="Missing required query parameter: model")
         return
 
     registry = websocket.app.state.registry
     if registry is None:
         await websocket.accept()
-        error_event = StreamingErrorEvent(
-            code="service_unavailable",
-            message="No models available",
-            recoverable=False,
+        await _send_event(
+            websocket,
+            StreamingErrorEvent(code="service_unavailable", message="No models available", recoverable=False),
         )
-        await _send_event(websocket, error_event)
         await websocket.close(code=1008, reason="No models available")
         return
 
@@ -765,46 +928,31 @@ async def realtime_endpoint(
         manifest = registry.get_manifest(model)
     except ModelNotFoundError:
         await websocket.accept()
-        error_event = StreamingErrorEvent(
-            code="model_not_found",
-            message=f"Model '{model}' not found in registry",
-            recoverable=False,
+        await _send_event(
+            websocket,
+            StreamingErrorEvent(code="model_not_found", message=f"Model '{model}' not found in registry", recoverable=False),
         )
-        await _send_event(websocket, error_event)
         await websocket.close(code=1008, reason=f"Model not found: {model}")
         return
 
-    # Extrair architecture e hot_words capability do manifesto
     model_architecture = manifest.capabilities.architecture or STTArchitecture.ENCODER_DECODER
     model_supports_hot_words = manifest.capabilities.hot_words or False
 
-    # --- Accept conexao ---
+    # --- Accept connection ---
     await websocket.accept()
-
     session_start = time.monotonic()
 
-    logger.info(
-        "session_created",
-        session_id=session_id,
-        model=model,
-        language=language,
-    )
+    logger.info("session_created", session_id=session_id, model=model, language=language)
 
     config = SessionConfig(language=language)
-    created_event = SessionCreatedEvent(
+    await _send_event(
+        websocket,
+        SessionCreatedEvent(session_id=session_id, model=model, config=config),
         session_id=session_id,
-        model=model,
-        config=config,
     )
-    await _send_event(websocket, created_event, session_id=session_id)
 
-    # Referencia mutavel para timestamp do ultimo audio recebido.
-    # Usa lista de um elemento para permitir mutacao pela background task e main loop.
-    last_audio_time: list[float] = [time.monotonic()]
-
-    # --- Criar StreamingSession (se worker disponivel) ---
+    # --- Build session context ---
     async def _on_session_event(event: ServerEvent) -> None:
-        """Callback: emite eventos da StreamingSession para o WebSocket."""
         await _send_event(websocket, event, session_id=session_id)
 
     session: StreamingSession | None = _create_streaming_session(
@@ -816,32 +964,31 @@ async def realtime_endpoint(
         engine_supports_hot_words=model_supports_hot_words,
     )
 
-    # Referencia mutavel para a session (usada pelo monitor de inatividade)
-    session_ref: list[StreamingSession | None] = [session]
-
-    # Backpressure controller (per-session)
     from macaw.session.backpressure import BackpressureController
 
-    backpressure = BackpressureController()
+    ctx = SessionContext(
+        session_id=session_id,
+        session_start=session_start,
+        websocket=websocket,
+        session=session,
+        last_audio_time=time.monotonic(),
+        backpressure=BackpressureController(),
+    )
 
-    # TTS full-duplex: referencia mutavel para task, cancel event, and channel
-    model_tts: str | None = None
-    tts_task_ref: list[asyncio.Task[None] | None] = [None]
-    tts_cancel_ref: list[asyncio.Event | None] = [None]
-    tts_channel_ref: list[tuple[str, grpc.aio.Channel] | None] = [None]
+    session_ref: list[StreamingSession | None] = [session]
+    last_audio_time_ref: list[float] = [ctx.last_audio_time]
 
     monitor_task = asyncio.create_task(
         _inactivity_monitor(
             websocket=websocket,
             session_id=session_id,
             session_start=session_start,
-            last_audio_time_ref=last_audio_time,
+            last_audio_time_ref=last_audio_time_ref,
             session_ref=session_ref,
         ),
     )
 
     # --- Main loop ---
-    closed_reason = "client_disconnect"
     try:
         while True:
             message = await websocket.receive()
@@ -850,211 +997,93 @@ async def realtime_endpoint(
                 break
 
             result = dispatch_message(message)
-
             if result is None:
                 continue
 
             if isinstance(result, ErrorResult):
-                await _send_event(websocket, result.event, session_id=session_id)
+                await ctx.send_event(result.event)
                 continue
 
             if isinstance(result, AudioFrameResult):
-                last_audio_time[0] = time.monotonic()
-                logger.debug(
-                    "audio_frame_received",
-                    session_id=session_id,
-                    size_bytes=len(result.data),
-                )
+                # M-09: frame size limit
+                if len(result.data) > MAX_WS_FRAME_SIZE:
+                    await ctx.send_event(
+                        StreamingErrorEvent(
+                            code="frame_too_large",
+                            message=f"Frame too large: {len(result.data)} bytes (max {MAX_WS_FRAME_SIZE})",
+                            recoverable=True,
+                        )
+                    )
+                    continue
 
-                # Backpressure check
-                bp_action = backpressure.record_frame(len(result.data))
+                ctx.last_audio_time = time.monotonic()
+                last_audio_time_ref[0] = ctx.last_audio_time
+                logger.debug("audio_frame_received", session_id=session_id, size_bytes=len(result.data))
+
+                bp_action = ctx.backpressure.record_frame(len(result.data))
                 if isinstance(bp_action, RateLimitAction):
-                    await _send_event(
-                        websocket,
+                    await ctx.send_event(
                         SessionRateLimitEvent(
                             delay_ms=bp_action.delay_ms,
                             message="Client sending faster than real-time, please throttle",
-                        ),
-                        session_id=session_id,
+                        )
                     )
                 elif isinstance(bp_action, FramesDroppedAction):
-                    await _send_event(
-                        websocket,
+                    await ctx.send_event(
                         SessionFramesDroppedEvent(
                             dropped_ms=bp_action.dropped_ms,
                             message=f"Backlog exceeded, {bp_action.dropped_ms}ms of audio dropped",
-                        ),
-                        session_id=session_id,
+                        )
                     )
-                    continue  # Frame descartado, nao enviar ao session
+                    continue
 
-                # Enviar ao StreamingSession (se disponivel)
                 if session is not None and not session.is_closed:
                     await session.process_frame(result.data)
                 continue
 
             if isinstance(result, CommandResult):
-                cmd = result.command
-
-                if isinstance(cmd, SessionConfigureCommand):
-                    logger.info(
-                        "session_configure",
-                        session_id=session_id,
-                        language=cmd.language,
-                        vad_sensitivity=(
-                            cmd.vad_sensitivity.value if cmd.vad_sensitivity else None
-                        ),
-                    )
-                    # Aplicar hot words e ITN settings na session
-                    if session is not None:
-                        if cmd.hot_words is not None:
-                            session.update_hot_words(cmd.hot_words)
-                        if cmd.enable_itn is not None:
-                            session.update_itn(cmd.enable_itn)
-                    # Track modelo TTS para full-duplex
-                    if cmd.model_tts is not None:
-                        model_tts = cmd.model_tts
-
-                elif isinstance(cmd, TTSSpeakCommand):
-                    tts_req_id = cmd.request_id or f"tts_{uuid.uuid4().hex[:8]}"
-                    logger.info(
-                        "tts_speak",
-                        session_id=session_id,
-                        request_id=tts_req_id,
-                        voice=cmd.voice,
-                        text_len=len(cmd.text),
-                    )
-                    # Cancelar TTS anterior se existir (sequential speaks)
-                    await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
-
-                    # Criar nova TTS task
-                    cancel_ev = asyncio.Event()
-                    tts_cancel_ref[0] = cancel_ev
-                    tts_task_ref[0] = asyncio.create_task(
-                        _tts_speak_task(
-                            websocket=websocket,
-                            session_id=session_id,
-                            session=session,
-                            request_id=tts_req_id,
-                            text=cmd.text,
-                            voice=cmd.voice,
-                            model_tts=model_tts,
-                            send_event=_on_session_event,
-                            cancel_event=cancel_ev,
-                            tts_channel_ref=tts_channel_ref,
-                            language=cmd.language,
-                            ref_audio=cmd.ref_audio,
-                            ref_text=cmd.ref_text,
-                            instruction=cmd.instruction,
-                        ),
-                    )
-
-                elif isinstance(cmd, TTSCancelCommand):
-                    logger.info(
-                        "tts_cancel",
-                        session_id=session_id,
-                        request_id=cmd.request_id,
-                    )
-                    await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
-
-                elif isinstance(cmd, SessionCancelCommand):
-                    logger.info("session_cancel", session_id=session_id)
-                    closed_reason = "cancelled"
-                    segments = session.segment_id if session is not None else 0
-                    if session is not None and not session.is_closed:
-                        await session.close()
-                    closed = SessionClosedEvent(
-                        reason="cancelled",
-                        total_duration_ms=int(
-                            (time.monotonic() - session_start) * 1000,
-                        ),
-                        segments_transcribed=segments,
-                    )
-                    await _send_event(websocket, closed, session_id=session_id)
-                    break
-
-                elif isinstance(cmd, SessionCloseCommand):
-                    logger.info("session_close", session_id=session_id)
-                    closed_reason = "client_request"
-                    segments = session.segment_id if session is not None else 0
-                    if session is not None and not session.is_closed:
-                        await session.close()
-                    closed = SessionClosedEvent(
-                        reason="client_request",
-                        total_duration_ms=int(
-                            (time.monotonic() - session_start) * 1000,
-                        ),
-                        segments_transcribed=segments,
-                    )
-                    await _send_event(websocket, closed, session_id=session_id)
-                    break
-
-                elif isinstance(cmd, InputAudioBufferCommitCommand):
-                    logger.info(
-                        "input_audio_buffer_commit",
-                        session_id=session_id,
-                    )
-                    if session is not None and not session.is_closed:
-                        await session.commit()
+                handler = _COMMAND_HANDLERS.get(type(result.command))
+                if handler is not None:
+                    should_break = await handler(ctx, result.command)
+                    if should_break:
+                        break
 
     except WebSocketDisconnect:
-        logger.info(
-            "client_disconnected",
-            session_id=session_id,
-        )
+        logger.info("client_disconnected", session_id=session_id)
     except Exception:
-        logger.exception(
-            "session_error",
-            session_id=session_id,
+        logger.exception("session_error", session_id=session_id)
+        await ctx.send_event(
+            StreamingErrorEvent(code="internal_error", message="Internal server error", recoverable=False)
         )
-        error_event = StreamingErrorEvent(
-            code="internal_error",
-            message="Internal server error",
-            recoverable=False,
-        )
-        await _send_event(websocket, error_event, session_id=session_id)
     finally:
-        # Cancelar TTS ativa antes de fechar session
-        await _cancel_active_tts(tts_task_ref, tts_cancel_ref)
+        await _cancel_active_tts(ctx)
 
         # Close reusable TTS gRPC channel
-        cached_channel = tts_channel_ref[0]
-        if cached_channel is not None:
+        if ctx.tts_channel is not None:
             with contextlib.suppress(Exception):
-                await cached_channel[1].close()
-            tts_channel_ref[0] = None
+                await ctx.tts_channel[1].close()
+            ctx.tts_channel = None
 
-        # Fechar StreamingSession se ativa
         if session is not None and not session.is_closed:
             await session.close()
 
-        # Cancelar background task de inatividade
         monitor_task.cancel()
         try:
             monitor_result = await monitor_task
             if monitor_result == "inactivity_timeout":
-                closed_reason = "inactivity_timeout"
+                ctx.closed_reason = "inactivity_timeout"
         except asyncio.CancelledError:
             pass
 
-        # Emitir session.closed apenas se nao foi emitido pelo monitor
-        # ou por um comando (session.cancel / session.close)
-        if closed_reason not in (
-            "inactivity_timeout",
-            "cancelled",
-            "client_request",
-        ):
+        if ctx.closed_reason not in ("inactivity_timeout", "cancelled", "client_request"):
             segments = session.segment_id if session is not None else 0
             total_duration_ms = int((time.monotonic() - session_start) * 1000)
-            closed_event = SessionClosedEvent(
-                reason=closed_reason,
-                total_duration_ms=total_duration_ms,
-                segments_transcribed=segments,
+            await ctx.send_event(
+                SessionClosedEvent(
+                    reason=ctx.closed_reason,
+                    total_duration_ms=total_duration_ms,
+                    segments_transcribed=segments,
+                )
             )
-            await _send_event(websocket, closed_event, session_id=session_id)
 
-        logger.info(
-            "session_closed",
-            session_id=session_id,
-            reason=closed_reason,
-        )
+        logger.info("session_closed", session_id=session_id, reason=ctx.closed_reason)
