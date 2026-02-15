@@ -497,15 +497,26 @@ class TestEngineBatchSupport:
             assert end.endswith("_end")
 
     async def test_semaphore_allows_parallel_when_higher(self) -> None:
-        """With semaphore>1, requests can run in parallel (faster than serial)."""
+        """With semaphore>1, requests can run in parallel (observed via concurrency)."""
+        max_concurrent_observed = 0
+        current_concurrent = 0
         task_delay = 0.05
         task_count = 4
         backend = _MockBackend(delay=task_delay)
+        original_transcribe = backend.transcribe_file
+
+        async def tracking_transcribe(**kwargs: Any) -> BatchResult:
+            nonlocal max_concurrent_observed, current_concurrent
+            current_concurrent += 1
+            if current_concurrent > max_concurrent_observed:
+                max_concurrent_observed = current_concurrent
+            try:
+                return await original_transcribe(**kwargs)
+            finally:
+                current_concurrent -= 1
+
+        backend.transcribe_file = tracking_transcribe  # type: ignore[assignment]
         servicer = _make_servicer(backend=backend, max_concurrent=task_count)
-
-        import time
-
-        start = time.monotonic()
 
         requests = []
         for i in range(task_count):
@@ -517,13 +528,10 @@ class TestEngineBatchSupport:
 
         await asyncio.gather(*requests)
 
-        elapsed = time.monotonic() - start
-        serial_time = task_delay * task_count
-        # Parallel execution should be significantly faster than serial.
-        # Use relative assertion: parallel must take less than half of serial time.
-        assert elapsed < serial_time * 0.75, (
-            f"Expected parallel execution but took {elapsed:.3f}s "
-            f"(serial estimate: {serial_time:.3f}s)"
+        # Structural assertion: with semaphore=4 and 4 tasks, we should observe
+        # more than 1 concurrent execution (proves parallelism is working).
+        assert max_concurrent_observed > 1, (
+            f"Expected parallel execution but max concurrency was {max_concurrent_observed}"
         )
         assert backend.call_count == task_count
 
