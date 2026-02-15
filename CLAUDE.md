@@ -23,7 +23,7 @@ make proto              # generate protobuf stubs
 ## Architecture
 
 ```
-src/macaw/
+macaw/
 ├── server/           # FastAPI — endpoints REST + WebSocket
 │   ├── routes/       # transcriptions, translations, speech, voices, health, realtime
 │   └── voice_store.py # Voice persistence (VoiceStore ABC + FileSystemVoiceStore)

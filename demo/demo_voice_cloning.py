@@ -4,7 +4,7 @@ Usa Qwen3-TTS-0.6B-Base para clonar voz a partir de audio de referencia.
 Interface web via Gradio.
 
 Uso:
-    PYTHONPATH=src .venv/bin/python demo_voice_cloning.py
+    PYTHONPATH=. .venv/bin/python demo_voice_cloning.py
 
 Abre no navegador: http://localhost:7860
 """

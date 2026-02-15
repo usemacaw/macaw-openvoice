@@ -19,7 +19,7 @@ class ProtobufBuildHook(BuildHookInterface):
 
     def initialize(self, version: str, build_data: dict) -> None:  # type: ignore[type-arg]
         root = Path(self.root)
-        proto_dir = root / "src" / "macaw" / "proto"
+        proto_dir = root / "macaw" / "proto"
 
         protos = list(proto_dir.glob("*.proto"))
         if not protos:
@@ -55,5 +55,5 @@ class ProtobufBuildHook(BuildHookInterface):
         # Force-include generated files in the wheel
         for pattern in ("*_pb2.py", "*_pb2_grpc.py", "*_pb2.pyi"):
             for f in proto_dir.glob(pattern):
-                rel = f.relative_to(root / "src")
+                rel = f.relative_to(root)
                 build_data["force_include"][str(f)] = str(rel)

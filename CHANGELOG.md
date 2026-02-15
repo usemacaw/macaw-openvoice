@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Health check `_check_worker_health()` refactored from if/else to dispatch table — adding a new worker type requires one function + one dict entry (#review-phase3)
 - Stale gRPC channels now evicted on error in `Scheduler._dispatch_request()` — next request creates a fresh channel instead of broken one (#review-phase3)
 - Consolidated duplicate VAD methods `_compute_timestamp_ms` / `_samples_to_ms` into single `_samples_to_ms` in `vad/detector.py` (#review-phase3)
+- Migrated from src layout to flat layout (`src/macaw/` → `macaw/`) — simpler project structure, zero import changes (#flat-layout)
 
 ### Removed
 - Dead code: `CreateVoiceRequest` model, `ErrorResponse`/`ErrorDetail` models, `_sensitivity` field in VAD detector, `_pending_final_event` in StreamingSession, YAGNI preprocessing config fields (#review-phase3)

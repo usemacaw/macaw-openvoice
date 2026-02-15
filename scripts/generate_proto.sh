@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PROTO_DIR="$ROOT_DIR/src/macaw/proto"
+PROTO_DIR="$ROOT_DIR/macaw/proto"
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
 "$PYTHON_BIN" -m grpc_tools.protoc \

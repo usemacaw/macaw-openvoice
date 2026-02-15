@@ -15,7 +15,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml README.md ./
-COPY src/ src/
+COPY macaw/ macaw/
 
 RUN uv pip install --system --no-cache ".[server,grpc,itn]"
 
@@ -27,7 +27,7 @@ WORKDIR /app
 # Copy installed packages and entry point
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /app/src /app/src
+COPY --from=builder /app/macaw /app/macaw
 
 # Models volume mount point
 VOLUME /root/.macaw/models

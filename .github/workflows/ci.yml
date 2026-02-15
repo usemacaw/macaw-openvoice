@@ -29,16 +29,16 @@ jobs:
       - name: Verify proto stubs are up-to-date
         run: |
           bash scripts/generate_proto.sh
-          git diff --exit-code src/macaw/proto/
+          git diff --exit-code macaw/proto/
 
       - name: Lint (ruff check)
-        run: python -m ruff check src/ tests/
+        run: python -m ruff check macaw/ tests/
 
       - name: Format check (ruff format)
-        run: python -m ruff format --check src/ tests/
+        run: python -m ruff format --check macaw/ tests/
 
       - name: Type check (mypy)
-        run: python -m mypy src/
+        run: python -m mypy macaw/
 
       - name: Unit tests
         run: python -m pytest tests/unit/ -v
@@ -128,7 +128,7 @@ jobs:
 
           INIT_VERSION=$(python -c "
           import ast, pathlib
-          src = pathlib.Path('src/macaw/__init__.py').read_text()
+          src = pathlib.Path('macaw/__init__.py').read_text()
           for node in ast.walk(ast.parse(src)):
               if isinstance(node, ast.Assign):
                   for target in node.targets:

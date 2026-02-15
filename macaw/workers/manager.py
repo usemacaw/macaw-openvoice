@@ -408,13 +408,15 @@ def _spawn_worker_process(
         Popen handle for the created process.
     """
     cmd = _build_worker_cmd(port, engine, model_path, engine_config, worker_type=worker_type)
-    src_dir = Path(__file__).resolve().parents[2]
+    # Flat layout: macaw/workers/manager.py → parents[2] = repo root
+    # (macaw/ is directly under the repo root, not under src/)
+    repo_root = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH")
     if existing_pythonpath:
-        env["PYTHONPATH"] = f"{src_dir}{os.pathsep}{existing_pythonpath}"
+        env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing_pythonpath}"
     else:
-        env["PYTHONPATH"] = str(src_dir)
+        env["PYTHONPATH"] = str(repo_root)
     return subprocess.Popen(
         cmd,
         stdout=subprocess.DEVNULL,

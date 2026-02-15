@@ -6,10 +6,10 @@ import struct
 import sys
 from pathlib import Path
 
-# Ensure `src/` is on sys.path so tests can import the `macaw` package
+# Ensure repo root is on sys.path so tests can import the `macaw` package
 # when running pytest from the repository root without an editable install.
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT))
 
 import pytest  # noqa: E402
 

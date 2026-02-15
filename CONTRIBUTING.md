@@ -62,7 +62,7 @@ make proto
 - `from __future__ import annotations` is required in **all** source files
 - Use `TYPE_CHECKING` blocks for imports used only in type hints (ruff TCH rules)
 - Dataclasses use `frozen=True, slots=True` for immutable value objects
-- Domain-specific exceptions in `src/macaw/exceptions.py` — never raise bare `Exception`
+- Domain-specific exceptions in `macaw/exceptions.py` — never raise bare `Exception`
 - Async-first: all public interfaces are `async`
 - Imports are absolute from `macaw.` (e.g., `from macaw.registry import Registry`)
 
@@ -87,7 +87,7 @@ make proto
 
 ```
 tests/
-  unit/           # Mirrors src/macaw/ structure
+  unit/           # Mirrors macaw/ structure
   integration/    # Tests requiring external resources
   fixtures/       # Shared test fixtures (audio, manifests)
   conftest.py     # Shared fixtures
@@ -164,7 +164,7 @@ Both must match exactly — the CI verifies this.
 version = "0.2.0"
 ```
 
-`src/macaw/__init__.py`:
+`macaw/__init__.py`:
 ```python
 __version__ = "0.2.0"
 ```
@@ -190,7 +190,7 @@ The CI verifies that `CHANGELOG.md` contains an entry matching `[0.2.0]`.
 **4. Commit the version bump**
 
 ```bash
-git add pyproject.toml src/macaw/__init__.py CHANGELOG.md
+git add pyproject.toml macaw/__init__.py CHANGELOG.md
 git commit -m "release: v0.2.0"
 ```
 

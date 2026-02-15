@@ -6,13 +6,13 @@ RUFF := .venv/bin/ruff
 ## Linting & Formatting
 
 format: ## Format code with ruff
-	$(RUFF) format src/ tests/
+	$(RUFF) format macaw/ tests/
 
 lint: ## Run ruff check (lint)
-	$(RUFF) check src/ tests/
+	$(RUFF) check macaw/ tests/
 
 typecheck: ## Run mypy (type checking)
-	$(PYTHON) -m mypy src/
+	$(PYTHON) -m mypy macaw/
 
 check: format lint typecheck ## Format + lint + typecheck (all)
 
