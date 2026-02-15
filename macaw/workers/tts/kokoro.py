@@ -364,14 +364,16 @@ def _stream_pipeline_segments(
         loop: Event loop for call_soon_threadsafe.
         error_holder: Mutable list to store any exception from the pipeline.
     """
+    from contextlib import nullcontext
+    from typing import Any
+
+    inference_ctx: Any = nullcontext()
     try:
         import torch
 
         inference_ctx = torch.inference_mode()
     except ImportError:
-        from contextlib import nullcontext
-
-        inference_ctx = nullcontext()  # type: ignore[assignment]
+        pass
 
     try:
         with inference_ctx:

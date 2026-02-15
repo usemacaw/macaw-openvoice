@@ -320,14 +320,16 @@ def _synthesize_with_model(
     Returns:
         16-bit PCM audio as bytes.
     """
+    from contextlib import nullcontext
+    from typing import Any
+
+    inference_ctx: Any = nullcontext()
     try:
         import torch
 
         inference_ctx = torch.inference_mode()
     except ImportError:
-        from contextlib import nullcontext
-
-        inference_ctx = nullcontext()  # type: ignore[assignment]
+        pass
 
     with inference_ctx:
         if variant == "custom_voice":
