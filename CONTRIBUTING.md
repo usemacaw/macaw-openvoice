@@ -152,7 +152,7 @@ Follow [Semantic Versioning](https://semver.org/):
 |--------|---------|-------------|
 | Breaking API change | Remove endpoint, change response format | Major (`1.0.0` → `2.0.0`) |
 | New feature, backward-compatible | Add new endpoint, new engine | Minor (`0.1.0` → `0.2.0`) |
-| Bug fix, backward-compatible | Fix race condition, typo | Patch (`0.1.0` → `0.1.6`) |
+| Bug fix, backward-compatible | Fix race condition, typo | Patch (`0.1.0` → `0.1.7`) |
 
 **2. Update version in two files**
 
