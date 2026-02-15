@@ -306,5 +306,3 @@ def _wav_streaming_header(sample_rate: int) -> bytes:
     buf.write(struct.pack("<I", data_size))
 
     return buf.getvalue()
-
-

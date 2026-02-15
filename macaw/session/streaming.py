@@ -1085,10 +1085,7 @@ class StreamingSession:
         # Convert word timestamps
         words: list[WordEvent] | None = None
         if segment.words:
-            words = [
-                WordEvent(word=w.word, start=w.start, end=w.end)
-                for w in segment.words
-            ]
+            words = [WordEvent(word=w.word, start=w.start, end=w.end) for w in segment.words]
 
         await self._on_event(
             TranscriptFinalEvent(
@@ -1103,11 +1100,7 @@ class StreamingSession:
         )
 
         # Record confidence metric
-        if (
-            HAS_METRICS
-            and stt_confidence_avg is not None
-            and segment.confidence is not None
-        ):
+        if HAS_METRICS and stt_confidence_avg is not None and segment.confidence is not None:
             stt_confidence_avg.observe(segment.confidence)
 
         # Advance ring buffer read fence
@@ -1124,10 +1117,7 @@ class StreamingSession:
         )
 
         # Cross-segment context (encoder-decoder only, not CTC)
-        if (
-            self._cross_segment_context is not None
-            and self._architecture != STTArchitecture.CTC
-        ):
+        if self._cross_segment_context is not None and self._architecture != STTArchitecture.CTC:
             self._cross_segment_context.update(text)
 
     async def _handle_partial_event(self, segment: TranscriptSegment) -> None:

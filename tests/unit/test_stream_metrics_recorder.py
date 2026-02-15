@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from macaw.session.streaming import StreamMetricsRecorder
 
-
 # ---------------------------------------------------------------------------
 # consume_force_commit (test-and-clear)
 # ---------------------------------------------------------------------------

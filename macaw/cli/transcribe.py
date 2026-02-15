@@ -353,7 +353,6 @@ def transcribe(
     )
 
 
-
 @cli.command()
 @click.argument("file", type=click.Path(exists=False))
 @click.option("--model", "-m", required=True, help="STT model name.")

@@ -733,7 +733,9 @@ class SessionContext:
     backpressure: Any = field(default=None)
     closed_reason: str = "client_disconnect"
     _tts_channel_ref: list[tuple[str, grpc.aio.Channel] | None] = field(
-        default_factory=lambda: [None], init=False, repr=False,
+        default_factory=lambda: [None],
+        init=False,
+        repr=False,
     )
 
     async def send_event(self, event: ServerEvent) -> None:
@@ -909,7 +911,11 @@ async def realtime_endpoint(
         await websocket.accept()
         await _send_event(
             websocket,
-            StreamingErrorEvent(code="invalid_request", message="Query parameter 'model' is required", recoverable=False),
+            StreamingErrorEvent(
+                code="invalid_request",
+                message="Query parameter 'model' is required",
+                recoverable=False,
+            ),
         )
         await websocket.close(code=1008, reason="Missing required query parameter: model")
         return
@@ -919,7 +925,9 @@ async def realtime_endpoint(
         await websocket.accept()
         await _send_event(
             websocket,
-            StreamingErrorEvent(code="service_unavailable", message="No models available", recoverable=False),
+            StreamingErrorEvent(
+                code="service_unavailable", message="No models available", recoverable=False
+            ),
         )
         await websocket.close(code=1008, reason="No models available")
         return
@@ -930,7 +938,11 @@ async def realtime_endpoint(
         await websocket.accept()
         await _send_event(
             websocket,
-            StreamingErrorEvent(code="model_not_found", message=f"Model '{model}' not found in registry", recoverable=False),
+            StreamingErrorEvent(
+                code="model_not_found",
+                message=f"Model '{model}' not found in registry",
+                recoverable=False,
+            ),
         )
         await websocket.close(code=1008, reason=f"Model not found: {model}")
         return
@@ -1018,7 +1030,9 @@ async def realtime_endpoint(
 
                 ctx.last_audio_time = time.monotonic()
                 last_audio_time_ref[0] = ctx.last_audio_time
-                logger.debug("audio_frame_received", session_id=session_id, size_bytes=len(result.data))
+                logger.debug(
+                    "audio_frame_received", session_id=session_id, size_bytes=len(result.data)
+                )
 
                 bp_action = ctx.backpressure.record_frame(len(result.data))
                 if isinstance(bp_action, RateLimitAction):
@@ -1053,7 +1067,9 @@ async def realtime_endpoint(
     except Exception:
         logger.exception("session_error", session_id=session_id)
         await ctx.send_event(
-            StreamingErrorEvent(code="internal_error", message="Internal server error", recoverable=False)
+            StreamingErrorEvent(
+                code="internal_error", message="Internal server error", recoverable=False
+            )
         )
     finally:
         await _cancel_active_tts(ctx)

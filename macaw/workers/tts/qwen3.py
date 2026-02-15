@@ -87,9 +87,7 @@ class Qwen3TTSBackend(TTSBackend):
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if _Qwen3TTSModel is None:
-            msg = (
-                "qwen-tts is not installed. Install with: pip install macaw-openvoice[qwen3-tts]"
-            )
+            msg = "qwen-tts is not installed. Install with: pip install macaw-openvoice[qwen3-tts]"
             raise ModelLoadError(model_path, msg)
 
         device_str = str(config.get("device", "auto"))

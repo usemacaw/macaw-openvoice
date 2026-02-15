@@ -21,6 +21,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         request.state.request_id = str(uuid.uuid4())
         return await call_next(request)
 
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
