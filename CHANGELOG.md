@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Environment variables for audio preprocessing tuning: `MACAW_PREPROCESSING_DC_CUTOFF_HZ`, `MACAW_PREPROCESSING_TARGET_DBFS` — operators can tune DC-remove cutoff (telephony vs full-band) and gain normalization target per deployment (#hardcode-audit-v6)
+- Environment variable for ITN language: `MACAW_ITN_LANGUAGE` — multi-language deployments can switch ITN language without code changes (#hardcode-audit-v6)
+- Environment variable for TTS streaming chunk size: `MACAW_TTS_CHUNK_SIZE_BYTES` — tune TTFB vs network overhead trade-off (#hardcode-audit-v6)
+- Environment variable for STT worker concurrency: `MACAW_STT_WORKER_MAX_CONCURRENT` — increase for GPUs with spare capacity (#hardcode-audit-v6)
+- Environment variable for health probe RPC timeout: `MACAW_WORKER_HEALTH_PROBE_RPC_TIMEOUT_S` — tune for high-latency networks (#hardcode-audit-v6)
+- Centralized constants: `SILERO_VAD_CHUNK_SIZE`, `PCM_UINT8_SCALE` in `_audio_constants.py`; `MIN_REALTIME_RTF` in `workers/_constants.py` (#hardcode-audit-v6)
 - VAD sensitivity and debounce durations configurable via environment variables: `MACAW_VAD_SENSITIVITY`, `MACAW_VAD_MIN_SPEECH_DURATION_MS`, `MACAW_VAD_MIN_SILENCE_DURATION_MS`, `MACAW_VAD_MAX_SPEECH_DURATION_MS` (#hardcode-audit-v5)
 - Worker gRPC host configurable via `MACAW_WORKER_HOST` for distributed deployments (Docker Compose, K8s) (#hardcode-audit-v5)
 - Environment variables for worker lifecycle tuning: `MACAW_WORKER_MAX_CRASHES`, `MACAW_WORKER_CRASH_WINDOW_S`, `MACAW_WORKER_HEALTH_PROBE_TIMEOUT_S`, `MACAW_WORKER_STOP_GRACE_PERIOD_S`, `MACAW_WORKER_WARMUP_STEPS`, and others (#env-configurability)
@@ -33,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coverage reporting with HTML artifacts and XML upload in CI pipeline (#quality-gates)
 
 ### Fixed
+- `macaw ps` CLI command used hardcoded 10s timeout instead of configured `MACAW_HTTP_TIMEOUT_S` (120s default) — caused inconsistent timeout behavior vs `macaw transcribe` (#hardcode-audit-v6)
+- DRY violations: beam_size/accumulation_threshold defaults duplicated in faster_whisper.py, RTFx threshold duplicated in STT/TTS warmup, Silero chunk_size magic number, 8-bit PCM scale magic number (#hardcode-audit-v6)
 - `session.configure` timeout fields (`silence_timeout_ms`, `hold_timeout_ms`) accepted but silently ignored — now wired through to `StreamingSession.update_session_timeouts()` (#review-v2-F12)
 - `macaw ps` command broken — read wrong response keys (`models` instead of `data`, `name` instead of `id`), always showed "No models loaded" (#review-v2)
 - Hot-path float64-to-float32 allocation in `DCRemoveStage.process()` — avoided unconditional `astype` copy on every audio frame (#review-v2)

@@ -8,6 +8,7 @@ import httpx
 from click.testing import CliRunner
 
 from macaw.cli.main import cli
+from macaw.config.settings import get_settings
 
 
 class TestPsCommand:
@@ -88,7 +89,8 @@ class TestPsCommand:
         runner = CliRunner()
         result = runner.invoke(cli, ["ps", "--server", "http://custom:9000"])
         assert result.exit_code == 0
-        mock_get.assert_called_once_with("http://custom:9000/v1/models", timeout=10.0)
+        expected_timeout = get_settings().cli.http_timeout_s
+        mock_get.assert_called_once_with("http://custom:9000/v1/models", timeout=expected_timeout)
 
     @patch("httpx.get")
     def test_ps_table_alignment(self, mock_get: MagicMock) -> None:

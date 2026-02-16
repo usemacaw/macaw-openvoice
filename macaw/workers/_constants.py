@@ -17,6 +17,10 @@ GRPC_WORKER_SERVER_OPTIONS: list[tuple[str, int]] = [
     ("grpc.keepalive_permit_without_calls", 1),
 ]
 
+# Real-time factor threshold for warmup readiness.
+# RTFx < 1.0 means the system cannot keep up with real-time audio.
+MIN_REALTIME_RTF: float = 1.0
+
 
 # --- PEP 562 lazy resolution for configurable constants ---
 _SETTINGS_ATTRS: dict[str, str] = {

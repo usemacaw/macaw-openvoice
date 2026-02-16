@@ -27,6 +27,7 @@ from macaw.proto import add_TTSWorkerServicer_to_server  # noqa: E402
 from macaw.workers._constants import (  # noqa: E402
     DEFAULT_WARMUP_STEPS,
     GRPC_WORKER_SERVER_OPTIONS,
+    MIN_REALTIME_RTF,
     STOP_GRACE_PERIOD,
 )
 from macaw.workers.torch_utils import configure_torch_inference  # noqa: E402
@@ -178,7 +179,7 @@ async def _warmup_backend(
             return
 
     if rtfx is not None:
-        if rtfx < 1.0:
+        if rtfx < MIN_REALTIME_RTF:
             logger.warning(
                 "warmup_rtfx_below_realtime",
                 rtfx=round(rtfx, 2),

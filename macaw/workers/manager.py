@@ -235,7 +235,9 @@ class WorkerManager:
             try:
                 await asyncio.sleep(delay)
                 result = await _check_worker_health(
-                    handle.port, timeout=2.0, worker_type=handle.worker_type
+                    handle.port,
+                    timeout=self._lifecycle.health_probe_rpc_timeout_s,
+                    worker_type=handle.worker_type,
                 )
                 if result.get("status") == "ok":
                     handle.state = WorkerState.READY

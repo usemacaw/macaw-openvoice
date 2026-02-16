@@ -36,6 +36,10 @@ except ImportError:
 
 logger = get_logger("worker.stt.faster_whisper")
 
+# --- Faster-Whisper defaults (shared between __init__ and load) ---
+_DEFAULT_BEAM_SIZE = 5
+_DEFAULT_ACCUMULATION_THRESHOLD_S = 5.0
+
 
 class FasterWhisperBackend(STTBackend):
     """STT backend using Faster-Whisper (CTranslate2).
@@ -45,8 +49,8 @@ class FasterWhisperBackend(STTBackend):
 
     def __init__(self) -> None:
         self._model: object | None = None
-        self._beam_size: int = 5
-        self._accumulation_threshold_seconds: float = 5.0
+        self._beam_size: int = _DEFAULT_BEAM_SIZE
+        self._accumulation_threshold_seconds: float = _DEFAULT_ACCUMULATION_THRESHOLD_S
 
     @property
     def architecture(self) -> STTArchitecture:
@@ -60,9 +64,9 @@ class FasterWhisperBackend(STTBackend):
         model_size = str(config.get("model_size", model_path))
         compute_type = str(config.get("compute_type", "auto"))
         device = str(config.get("device", "auto"))
-        self._beam_size = int(config.get("beam_size", 5))  # type: ignore[call-overload]
+        self._beam_size = int(config.get("beam_size", _DEFAULT_BEAM_SIZE))  # type: ignore[call-overload]
         self._accumulation_threshold_seconds = float(
-            config.get("accumulation_threshold_seconds", 5.0)  # type: ignore[arg-type]
+            config.get("accumulation_threshold_seconds", _DEFAULT_ACCUMULATION_THRESHOLD_S)  # type: ignore[arg-type]
         )
 
         loop = asyncio.get_running_loop()
