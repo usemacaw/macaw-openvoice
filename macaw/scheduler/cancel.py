@@ -31,8 +31,10 @@ if TYPE_CHECKING:
 
 logger = get_logger("scheduler.cancel")
 
-# Timeout for cancel propagation via gRPC to the worker (seconds)
-_CANCEL_PROPAGATION_TIMEOUT_S = 0.1
+# Default timeout for cancel propagation via gRPC to the worker (seconds).
+# Overridden by MACAW_SCHEDULER_CANCEL_PROPAGATION_TIMEOUT_S env var
+# when CancellationManager is instantiated by the Scheduler.
+_DEFAULT_CANCEL_PROPAGATION_TIMEOUT_S = 0.1
 
 
 @dataclass(slots=True)
@@ -57,7 +59,12 @@ class CancellationManager:
     4. ``unregister()`` after completion (success, error, or cancel).
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        cancel_propagation_timeout_s: float = _DEFAULT_CANCEL_PROPAGATION_TIMEOUT_S,
+    ) -> None:
+        self._cancel_propagation_timeout_s = cancel_propagation_timeout_s
         self._requests: dict[str, _CancellableRequest] = {}
 
     def register(
@@ -161,7 +168,7 @@ class CancellationManager:
             stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
             response = await asyncio.wait_for(
                 stub.Cancel(CancelRequest(request_id=request_id)),
-                timeout=_CANCEL_PROPAGATION_TIMEOUT_S,
+                timeout=self._cancel_propagation_timeout_s,
             )
 
             elapsed = time.monotonic() - start

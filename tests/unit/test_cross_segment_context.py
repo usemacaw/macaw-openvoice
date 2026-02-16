@@ -360,7 +360,7 @@ class TestStreamingSessionCrossSegment:
 
         first_call = calls[0]
         prompt = first_call.kwargs.get("initial_prompt")
-        assert prompt == "Termos: PIX, TED. contexto anterior"
+        assert prompt == "Terms: PIX, TED. contexto anterior"
 
         # hot_words tambem enviados
         assert first_call.kwargs.get("hot_words") == ["PIX", "TED"]
@@ -406,7 +406,7 @@ class TestStreamingSessionCrossSegment:
         calls = stream_handle.send_frame.call_args_list
         first_call = calls[0]
         prompt = first_call.kwargs.get("initial_prompt")
-        assert prompt == "Termos: PIX, Selic."
+        assert prompt == "Terms: PIX, Selic."
 
         # Cleanup
         await session.close()

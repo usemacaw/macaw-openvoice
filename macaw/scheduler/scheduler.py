@@ -44,16 +44,6 @@ if TYPE_CHECKING:
 
 logger = get_logger("scheduler")
 
-# Backoff when no worker is available (seconds)
-_NO_WORKER_BACKOFF_S = 0.1
-
-# Interval for LatencyTracker cleanup (seconds)
-_LATENCY_CLEANUP_INTERVAL_S = 30.0
-
-# Poll interval for dequeuing requests from the priority queue (seconds).
-# Trade-off: shorter = lower latency but more CPU wake-ups.
-_DEQUEUE_POLL_INTERVAL_S = 0.5
-
 
 class Scheduler:
     """Routes transcription requests to gRPC workers.
@@ -103,13 +93,15 @@ class Scheduler:
         self._dispatch_task: asyncio.Task[None] | None = None
         self._running = False
         self._in_flight_tasks: set[asyncio.Task[Any]] = set()
-        self._cancellation = CancellationManager()
+        self._cancellation = CancellationManager(
+            cancel_propagation_timeout_s=self._settings.cancel_propagation_timeout_s,
+        )
         self._batch_accumulator = BatchAccumulator(
             accumulate_ms=_accumulate,
             max_batch_size=_max_size,
             on_flush=self._dispatch_batch,
         )
-        self._latency = LatencyTracker()
+        self._latency = LatencyTracker(ttl_s=self._settings.latency_ttl_s)
 
     @property
     def queue(self) -> SchedulerQueue:
@@ -385,7 +377,7 @@ class Scheduler:
                 # from requests that never complete (e.g., worker crash
                 # without cancel propagation).
                 now = time.monotonic()
-                if now - last_cleanup >= _LATENCY_CLEANUP_INTERVAL_S:
+                if now - last_cleanup >= self._settings.latency_cleanup_interval_s:
                     removed = self._latency.cleanup()
                     if removed > 0:
                         logger.debug("latency_periodic_cleanup", removed=removed)
@@ -394,7 +386,7 @@ class Scheduler:
                 try:
                     scheduled = await asyncio.wait_for(
                         self._queue.dequeue(),
-                        timeout=_DEQUEUE_POLL_INTERVAL_S,
+                        timeout=self._settings.dequeue_poll_interval_s,
                     )
                 except TimeoutError:
                     continue
@@ -455,7 +447,7 @@ class Scheduler:
         worker = self._worker_manager.get_ready_worker(request.model_name)
         if worker is None:
             # Re-enqueue: preserve future and cancel_event
-            await asyncio.sleep(_NO_WORKER_BACKOFF_S)
+            await asyncio.sleep(self._settings.no_worker_backoff_s)
 
             # Check if it was cancelled during backoff
             if scheduled.cancel_event.is_set():

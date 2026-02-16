@@ -13,6 +13,7 @@ from macaw.config.settings import (
     MacawSettings,
     SchedulerSettings,
     ServerSettings,
+    SessionSettings,
     TTSSettings,
     VADSettings,
     WorkerLifecycleSettings,
@@ -198,6 +199,7 @@ class TestMacawSettingsRoot:
         assert isinstance(settings.worker, WorkerSettings)
         assert isinstance(settings.worker_lifecycle, WorkerLifecycleSettings)
         assert isinstance(settings.grpc, GRPCSettings)
+        assert isinstance(settings.session, SessionSettings)
         assert isinstance(settings.scheduler, SchedulerSettings)
         assert isinstance(settings.vad, VADSettings)
 
@@ -414,6 +416,148 @@ class TestSchedulerSettingsEnvOverrides:
         monkeypatch.setenv("MACAW_SCHEDULER_BATCH_MAX_SIZE", "16")
         s = SchedulerSettings()
         assert s.batch_max_size == 16
+
+
+class TestSchedulerSettingsExtendedDefaults:
+    """Defaults for the new scheduler dispatch tuning fields."""
+
+    def test_default_no_worker_backoff(self) -> None:
+        s = SchedulerSettings()
+        assert s.no_worker_backoff_s == 0.1
+
+    def test_default_dequeue_poll_interval(self) -> None:
+        s = SchedulerSettings()
+        assert s.dequeue_poll_interval_s == 0.5
+
+    def test_default_latency_cleanup_interval(self) -> None:
+        s = SchedulerSettings()
+        assert s.latency_cleanup_interval_s == 30.0
+
+    def test_default_latency_ttl(self) -> None:
+        s = SchedulerSettings()
+        assert s.latency_ttl_s == 60.0
+
+    def test_default_cancel_propagation_timeout(self) -> None:
+        s = SchedulerSettings()
+        assert s.cancel_propagation_timeout_s == 0.1
+
+
+class TestSchedulerSettingsExtendedValidation:
+    def test_no_worker_backoff_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="no_worker_backoff_s"):
+            SchedulerSettings(no_worker_backoff_s=0)  # type: ignore[call-arg]
+
+    def test_dequeue_poll_interval_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="dequeue_poll_interval_s"):
+            SchedulerSettings(dequeue_poll_interval_s=0)  # type: ignore[call-arg]
+
+    def test_latency_ttl_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="latency_ttl_s"):
+            SchedulerSettings(latency_ttl_s=0)  # type: ignore[call-arg]
+
+    def test_cancel_propagation_timeout_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="cancel_propagation_timeout_s"):
+            SchedulerSettings(cancel_propagation_timeout_s=11)  # type: ignore[call-arg]
+
+
+class TestSchedulerSettingsExtendedEnvOverrides:
+    def test_no_worker_backoff_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SCHEDULER_NO_WORKER_BACKOFF_S", "0.5")
+        s = SchedulerSettings()
+        assert s.no_worker_backoff_s == 0.5
+
+    def test_latency_ttl_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SCHEDULER_LATENCY_TTL_S", "120.0")
+        s = SchedulerSettings()
+        assert s.latency_ttl_s == 120.0
+
+    def test_cancel_propagation_timeout_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SCHEDULER_CANCEL_PROPAGATION_TIMEOUT_S", "0.5")
+        s = SchedulerSettings()
+        assert s.cancel_propagation_timeout_s == 0.5
+
+
+class TestSessionSettingsDefaults:
+    def test_default_ring_buffer_duration(self) -> None:
+        s = SessionSettings()
+        assert s.ring_buffer_duration_s == 60.0
+
+    def test_default_recovery_timeout(self) -> None:
+        s = SessionSettings()
+        assert s.recovery_timeout_s == 10.0
+
+    def test_default_drain_stream_timeout(self) -> None:
+        s = SessionSettings()
+        assert s.drain_stream_timeout_s == 5.0
+
+    def test_default_flush_and_close_timeout(self) -> None:
+        s = SessionSettings()
+        assert s.flush_and_close_timeout_s == 2.0
+
+    def test_default_backpressure_max_backlog(self) -> None:
+        s = SessionSettings()
+        assert s.backpressure_max_backlog_s == 10.0
+
+    def test_default_backpressure_rate_limit_threshold(self) -> None:
+        s = SessionSettings()
+        assert s.backpressure_rate_limit_threshold == 1.2
+
+
+class TestSessionSettingsValidation:
+    def test_ring_buffer_duration_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="ring_buffer_duration_s"):
+            SessionSettings(ring_buffer_duration_s=0)  # type: ignore[call-arg]
+
+    def test_ring_buffer_duration_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="ring_buffer_duration_s"):
+            SessionSettings(ring_buffer_duration_s=601)  # type: ignore[call-arg]
+
+    def test_recovery_timeout_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="recovery_timeout_s"):
+            SessionSettings(recovery_timeout_s=0)  # type: ignore[call-arg]
+
+    def test_drain_stream_timeout_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="drain_stream_timeout_s"):
+            SessionSettings(drain_stream_timeout_s=0)  # type: ignore[call-arg]
+
+    def test_flush_and_close_timeout_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="flush_and_close_timeout_s"):
+            SessionSettings(flush_and_close_timeout_s=0)  # type: ignore[call-arg]
+
+    def test_backpressure_rate_limit_threshold_at_one_raises(self) -> None:
+        with pytest.raises(ValidationError, match="backpressure_rate_limit_threshold"):
+            SessionSettings(backpressure_rate_limit_threshold=1.0)  # type: ignore[call-arg]
+
+    def test_backpressure_rate_limit_threshold_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="backpressure_rate_limit_threshold"):
+            SessionSettings(backpressure_rate_limit_threshold=5.1)  # type: ignore[call-arg]
+
+
+class TestSessionSettingsEnvOverrides:
+    def test_ring_buffer_duration_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SESSION_RING_BUFFER_DURATION_S", "120.0")
+        s = SessionSettings()
+        assert s.ring_buffer_duration_s == 120.0
+
+    def test_recovery_timeout_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SESSION_RECOVERY_TIMEOUT_S", "30.0")
+        s = SessionSettings()
+        assert s.recovery_timeout_s == 30.0
+
+    def test_drain_stream_timeout_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SESSION_DRAIN_STREAM_TIMEOUT_S", "10.0")
+        s = SessionSettings()
+        assert s.drain_stream_timeout_s == 10.0
+
+    def test_backpressure_max_backlog_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SESSION_BACKPRESSURE_MAX_BACKLOG_S", "20.0")
+        s = SessionSettings()
+        assert s.backpressure_max_backlog_s == 20.0
+
+    def test_backpressure_rate_limit_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SESSION_BACKPRESSURE_RATE_LIMIT_THRESHOLD", "1.5")
+        s = SessionSettings()
+        assert s.backpressure_rate_limit_threshold == 1.5
 
 
 class TestGetSettingsSingleton:

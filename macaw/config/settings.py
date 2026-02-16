@@ -223,6 +223,34 @@ class VADSettings(BaseSettings):
         return VADSensitivity(self.sensitivity)
 
 
+class SessionSettings(BaseSettings):
+    """Streaming session tuning (timeouts, ring buffer, backpressure)."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    ring_buffer_duration_s: float = Field(
+        default=60.0, gt=0, le=600, validation_alias="MACAW_SESSION_RING_BUFFER_DURATION_S"
+    )
+    recovery_timeout_s: float = Field(
+        default=10.0, gt=0, le=120, validation_alias="MACAW_SESSION_RECOVERY_TIMEOUT_S"
+    )
+    drain_stream_timeout_s: float = Field(
+        default=5.0, gt=0, le=60, validation_alias="MACAW_SESSION_DRAIN_STREAM_TIMEOUT_S"
+    )
+    flush_and_close_timeout_s: float = Field(
+        default=2.0, gt=0, le=30, validation_alias="MACAW_SESSION_FLUSH_AND_CLOSE_TIMEOUT_S"
+    )
+    backpressure_max_backlog_s: float = Field(
+        default=10.0, gt=0, le=120, validation_alias="MACAW_SESSION_BACKPRESSURE_MAX_BACKLOG_S"
+    )
+    backpressure_rate_limit_threshold: float = Field(
+        default=1.2,
+        gt=1.0,
+        le=5.0,
+        validation_alias="MACAW_SESSION_BACKPRESSURE_RATE_LIMIT_THRESHOLD",
+    )
+
+
 class SchedulerSettings(BaseSettings):
     """Scheduler dispatch tuning (timeouts, batching, aging)."""
 
@@ -246,6 +274,21 @@ class SchedulerSettings(BaseSettings):
     batch_max_size: int = Field(
         default=8, ge=1, le=64, validation_alias="MACAW_SCHEDULER_BATCH_MAX_SIZE"
     )
+    no_worker_backoff_s: float = Field(
+        default=0.1, gt=0, le=10, validation_alias="MACAW_SCHEDULER_NO_WORKER_BACKOFF_S"
+    )
+    dequeue_poll_interval_s: float = Field(
+        default=0.5, gt=0, le=10, validation_alias="MACAW_SCHEDULER_DEQUEUE_POLL_INTERVAL_S"
+    )
+    latency_cleanup_interval_s: float = Field(
+        default=30.0, gt=0, le=600, validation_alias="MACAW_SCHEDULER_LATENCY_CLEANUP_INTERVAL_S"
+    )
+    latency_ttl_s: float = Field(
+        default=60.0, gt=0, le=600, validation_alias="MACAW_SCHEDULER_LATENCY_TTL_S"
+    )
+    cancel_propagation_timeout_s: float = Field(
+        default=0.1, gt=0, le=10, validation_alias="MACAW_SCHEDULER_CANCEL_PROPAGATION_TIMEOUT_S"
+    )
 
 
 class MacawSettings(BaseSettings):
@@ -266,6 +309,7 @@ class MacawSettings(BaseSettings):
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     worker_lifecycle: WorkerLifecycleSettings = Field(default_factory=WorkerLifecycleSettings)
     grpc: GRPCSettings = Field(default_factory=GRPCSettings)
+    session: SessionSettings = Field(default_factory=SessionSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     vad: VADSettings = Field(default_factory=VADSettings)
 

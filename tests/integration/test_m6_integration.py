@@ -422,9 +422,9 @@ async def test_hot_words_and_cross_segment_in_initial_prompt() -> None:
     first_frame_seg1 = handles[1].sent_frames[0]
     assert first_frame_seg1["hot_words"] == ["PIX", "TED"]
     assert first_frame_seg1["initial_prompt"] is not None
-    # Should combine: "Termos: PIX, TED. segmento 0"
+    # Should combine: "Terms: PIX, TED. segmento 0"
     prompt = first_frame_seg1["initial_prompt"]
-    assert "Termos: PIX, TED." in prompt
+    assert "Terms: PIX, TED." in prompt
     assert "segmento 0" in prompt
 
     # Cleanup
