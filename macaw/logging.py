@@ -3,6 +3,10 @@
 Uses structlog with stdlib logging as the backend. Two formats:
 - console: human-readable for development (default)
 - json: structured for production
+
+MACAW_LOG_FORMAT and MACAW_LOG_LEVEL are read here (not in Settings)
+because logging must bootstrap before pydantic-settings loads.
+See .env.example for documentation of all MACAW_* env vars.
 """
 
 from __future__ import annotations

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import grpc
 import grpc.aio
 
-from macaw._grpc_constants import GRPC_STREAMING_CHANNEL_OPTIONS
+from macaw._grpc_constants import get_streaming_channel_options
 from macaw._types import TranscriptSegment, WordTimestamp
 from macaw.exceptions import WorkerCrashError, WorkerTimeoutError
 from macaw.logging import get_logger
@@ -191,7 +191,7 @@ class StreamingGRPCClient:
         """
         self._channel = grpc.aio.insecure_channel(
             self._worker_address,
-            options=GRPC_STREAMING_CHANNEL_OPTIONS,
+            options=get_streaming_channel_options(),
         )
         from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
 

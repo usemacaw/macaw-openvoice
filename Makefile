@@ -16,6 +16,8 @@ typecheck: ## Run mypy (type checking)
 
 check: format lint typecheck ## Format + lint + typecheck (all)
 
+all: format lint typecheck test security audit ## Format + lint + typecheck (all)
+
 ## Tests
 
 test: ## Run all tests

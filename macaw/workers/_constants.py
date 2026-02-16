@@ -2,20 +2,34 @@
 
 Single source of truth for worker lifecycle parameters and gRPC server
 options that are identical between STT and TTS workers.
+
+``STOP_GRACE_PERIOD`` and ``DEFAULT_WARMUP_STEPS`` are resolved lazily via
+PEP 562 ``__getattr__`` from ``WorkerLifecycleSettings``.
 """
 
 from __future__ import annotations
 
-# Grace period (seconds) for gRPC server.stop() before forceful termination.
-# Used by both worker mains and the WorkerManager's stop logic.
-STOP_GRACE_PERIOD: float = 5.0
-
-# Default number of warmup inference passes at worker startup.
-DEFAULT_WARMUP_STEPS: int = 3
-
 # gRPC server-side options for worker subprocesses.
 # Matches the client-side streaming keepalive expectations.
+# Protocol-level — not user-tunable.
 GRPC_WORKER_SERVER_OPTIONS: list[tuple[str, int]] = [
     ("grpc.http2.min_recv_ping_interval_without_data_ms", 5_000),
     ("grpc.keepalive_permit_without_calls", 1),
 ]
+
+
+# --- PEP 562 lazy resolution for configurable constants ---
+_SETTINGS_ATTRS: dict[str, str] = {
+    "STOP_GRACE_PERIOD": "stop_grace_period_s",
+    "DEFAULT_WARMUP_STEPS": "default_warmup_steps",
+}
+
+
+def __getattr__(name: str) -> float | int:
+    settings_field = _SETTINGS_ATTRS.get(name)
+    if settings_field is not None:
+        from macaw.config.settings import get_settings
+
+        return getattr(get_settings().worker_lifecycle, settings_field)  # type: ignore[no-any-return]
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)

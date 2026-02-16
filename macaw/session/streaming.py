@@ -78,22 +78,13 @@ if TYPE_CHECKING:
 
 logger = get_logger("session.streaming")
 
-# Timeout for draining final transcripts from the worker stream.
-_DRAIN_STREAM_TIMEOUT_S = 5.0
-
-# Timeout for the final flush-and-close operation.
-_FLUSH_AND_CLOSE_TIMEOUT_S = 2.0
-
-# Default timeout for worker recovery after crash.
-_DEFAULT_RECOVERY_TIMEOUT_S = 10.0
-
 # Initial size for the pre-allocated int16 conversion buffer (samples).
 # 1024 samples = 64ms at 16kHz. Grows on demand if a larger frame arrives.
 _INITIAL_INT16_BUFFER_SAMPLES = 1024
 
 # Prefix used when injecting hot words into the initial prompt for
-# encoder-decoder engines (e.g., Whisper). Language-specific.
-_HOT_WORDS_PROMPT_PREFIX = "Termos:"
+# encoder-decoder engines (e.g., Whisper).
+_HOT_WORDS_PROMPT_PREFIX = "Terms:"
 
 
 class StreamMetricsRecorder:
@@ -198,7 +189,7 @@ class StreamRecoveryHandler:
     def __init__(
         self,
         session: StreamingSession,
-        recovery_timeout_s: float = _DEFAULT_RECOVERY_TIMEOUT_S,
+        recovery_timeout_s: float = 10.0,
     ) -> None:
         self._session = session
         self._recovery_timeout_s = recovery_timeout_s
@@ -374,11 +365,14 @@ class StreamingSession:
         state_machine: SessionStateMachine | None = None,
         ring_buffer: RingBuffer | None = None,
         wal: SessionWAL | None = None,
-        recovery_timeout_s: float = _DEFAULT_RECOVERY_TIMEOUT_S,
+        recovery_timeout_s: float | None = None,
         cross_segment_context: CrossSegmentContext | None = None,
         engine_supports_hot_words: bool = False,
         architecture: STTArchitecture = STTArchitecture.ENCODER_DECODER,
     ) -> None:
+        from macaw.config.settings import get_settings
+
+        self._session_settings = get_settings().session
         self._session_id = session_id
         self._preprocessor = preprocessor
         self._vad = vad
@@ -412,9 +406,14 @@ class StreamingSession:
         self._metrics = StreamMetricsRecorder(session_id)
 
         # Recovery handler (extracted collaborator)
+        _recovery_timeout = (
+            recovery_timeout_s
+            if recovery_timeout_s is not None
+            else self._session_settings.recovery_timeout_s
+        )
         self._recovery = StreamRecoveryHandler(
             session=self,
-            recovery_timeout_s=recovery_timeout_s,
+            recovery_timeout_s=_recovery_timeout,
         )
 
         # Wire ring buffer force-commit callback via constructor parameter
@@ -658,7 +657,7 @@ class StreamingSession:
         if self._stream_handle is None:
             return
 
-        await self._drain_stream(timeout=_DRAIN_STREAM_TIMEOUT_S)
+        await self._drain_stream(timeout=self._session_settings.drain_stream_timeout_s)
 
         # Increment segment_id for next segment
         self._segment_id += 1
@@ -907,7 +906,9 @@ class StreamingSession:
 
         # Drain stream: close gRPC send + await receiver task.
         # Guarantees transcript.final is emitted BEFORE vad.speech_end.
-        receiver_ok = await self._drain_stream(timeout=_DRAIN_STREAM_TIMEOUT_S)
+        receiver_ok = await self._drain_stream(
+            timeout=self._session_settings.drain_stream_timeout_s
+        )
 
         # Emit vad.speech_end ONLY after receiver task completes.
         # If receiver failed (timeout/cancel), we still emit speech_end
@@ -1143,7 +1144,7 @@ class StreamingSession:
 
     async def _flush_and_close(self) -> None:
         """Flush pending data during CLOSING and transition to CLOSED."""
-        await self._drain_stream(timeout=_FLUSH_AND_CLOSE_TIMEOUT_S)
+        await self._drain_stream(timeout=self._session_settings.flush_and_close_timeout_s)
 
     async def _emit_error(
         self,

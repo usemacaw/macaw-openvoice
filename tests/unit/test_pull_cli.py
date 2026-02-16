@@ -116,7 +116,7 @@ class TestPullCommand:
         mock_downloader = MagicMock()
         mock_downloader_cls.return_value = mock_downloader
         mock_downloader.is_installed.return_value = False
-        mock_downloader.download.side_effect = RuntimeError("huggingface_hub nao esta instalado")
+        mock_downloader.download.side_effect = RuntimeError("huggingface_hub is not installed")
 
         runner = CliRunner()
         result = runner.invoke(cli, ["pull", "faster-whisper-tiny"])

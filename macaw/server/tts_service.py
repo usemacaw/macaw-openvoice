@@ -34,7 +34,10 @@ def resolve_tts_resources(
     if worker is None:
         raise WorkerUnavailableError(model)
 
-    worker_address = f"localhost:{worker.port}"
+    from macaw.config.settings import get_settings
+
+    worker_host = get_settings().worker.worker_host
+    worker_address = f"{worker_host}:{worker.port}"
     return manifest, worker, worker_address
 
 

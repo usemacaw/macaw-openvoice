@@ -6,13 +6,17 @@ Usa mocks para subprocess.Popen e _check_worker_health.
 from __future__ import annotations
 
 import asyncio
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from macaw.config.settings import get_settings
 from macaw.workers.manager import (
-    MAX_CRASHES_IN_WINDOW,
     WorkerManager,
     WorkerState,
 )
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def _make_mock_process(poll_return: int | None = None) -> MagicMock:
@@ -144,10 +148,13 @@ class TestHealthProbe:
 
             await manager.stop_all()
 
-    @patch("macaw.workers.manager.HEALTH_PROBE_TIMEOUT", 1.0)
     @patch("macaw.workers.manager.subprocess.Popen")
-    async def test_crashes_on_timeout(self, mock_popen: MagicMock) -> None:
+    async def test_crashes_on_timeout(
+        self, mock_popen: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         mock_popen.return_value = _make_mock_process()
+        monkeypatch.setenv("MACAW_WORKER_HEALTH_PROBE_TIMEOUT_S", "1.0")
+        get_settings.cache_clear()
         manager = WorkerManager()
 
         with patch(
@@ -167,6 +174,7 @@ class TestHealthProbe:
             assert handle.state == WorkerState.CRASHED
 
             await manager.stop_all()
+        get_settings.cache_clear()
 
 
 class TestMonitorWorker:
@@ -197,7 +205,9 @@ class TestMonitorWorker:
             # Pre-fill crash timestamps to exceed max
             import time
 
-            handle.crash_timestamps = [time.monotonic()] * MAX_CRASHES_IN_WINDOW
+            handle.crash_timestamps = [
+                time.monotonic()
+            ] * get_settings().worker_lifecycle.max_crashes_in_window
 
             # Simulate crash
             proc.poll.return_value = 1
@@ -285,7 +295,9 @@ class TestAutoRestart:
             # Pre-fill crash timestamps to simulate max crashes reached
             import time
 
-            handle.crash_timestamps = [time.monotonic()] * MAX_CRASHES_IN_WINDOW
+            handle.crash_timestamps = [
+                time.monotonic()
+            ] * get_settings().worker_lifecycle.max_crashes_in_window
 
             # Call _attempt_restart directly
             await manager._attempt_restart("faster-whisper-50060")
@@ -379,31 +391,37 @@ class TestStopWorker:
         await manager.stop_worker("nonexistent-99999")
 
     @patch("macaw.workers.manager.subprocess.Popen")
-    async def test_force_kills_on_timeout(self, mock_popen: MagicMock) -> None:
+    async def test_force_kills_on_timeout(
+        self, mock_popen: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         proc = _make_mock_process(poll_return=None)
         # Make wait() hang forever to simulate stuck process
         import time as time_mod
 
         proc.wait.side_effect = lambda: time_mod.sleep(10)
         mock_popen.return_value = proc
+
+        # Use a very short grace period so the test is fast
+        monkeypatch.setenv("MACAW_WORKER_STOP_GRACE_PERIOD_S", "0.2")
+        get_settings.cache_clear()
         manager = WorkerManager()
 
         with patch(
             "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
         ) as mock_health:
             mock_health.return_value = {"status": "ok"}
-            with patch("macaw.workers.manager.STOP_GRACE_PERIOD", 0.2):
-                await manager.spawn_worker(
-                    model_name="large-v3",
-                    port=50062,
-                    engine="faster-whisper",
-                    model_path="/models/test",
-                    engine_config={},
-                )
+            await manager.spawn_worker(
+                model_name="large-v3",
+                port=50062,
+                engine="faster-whisper",
+                model_path="/models/test",
+                engine_config={},
+            )
 
-                await manager.stop_worker("faster-whisper-50062")
+            await manager.stop_worker("faster-whisper-50062")
 
-            proc.kill.assert_called_once()
+        proc.kill.assert_called_once()
+        get_settings.cache_clear()
 
 
 class TestStopAll:

@@ -236,6 +236,11 @@ class TestSchedulerWorkerUnavailable:
         mock_stub = AsyncMock()
         mock_stub.TranscribeFile.return_value = proto_response
 
+        # Speed up backoff for test
+        scheduler._settings = type(scheduler._settings).model_validate(
+            {**scheduler._settings.model_dump(), "no_worker_backoff_s": 0.01}
+        )
+
         with (
             patch(
                 "macaw.scheduler.scheduler.grpc.aio.insecure_channel",
@@ -245,7 +250,6 @@ class TestSchedulerWorkerUnavailable:
                 "macaw.scheduler.scheduler.STTWorkerStub",
                 return_value=mock_stub,
             ),
-            patch("macaw.scheduler.scheduler._NO_WORKER_BACKOFF_S", 0.01),
         ):
             await scheduler.start()
             try:

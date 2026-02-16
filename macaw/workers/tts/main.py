@@ -131,7 +131,9 @@ _WARMUP_TEXTS = (
 
 
 async def _warmup_backend(
-    backend: TTSBackend, *, warmup_steps: int = DEFAULT_WARMUP_STEPS
+    backend: TTSBackend,
+    *,
+    warmup_steps: int = DEFAULT_WARMUP_STEPS,  # type: ignore[assignment]
 ) -> None:
     """Run warmup synthesis passes to prime GPU caches, JIT, and memory pools.
 

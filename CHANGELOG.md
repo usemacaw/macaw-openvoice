@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- VAD sensitivity and debounce durations configurable via environment variables: `MACAW_VAD_SENSITIVITY`, `MACAW_VAD_MIN_SPEECH_DURATION_MS`, `MACAW_VAD_MIN_SILENCE_DURATION_MS`, `MACAW_VAD_MAX_SPEECH_DURATION_MS` (#hardcode-audit-v5)
+- Worker gRPC host configurable via `MACAW_WORKER_HOST` for distributed deployments (Docker Compose, K8s) (#hardcode-audit-v5)
+- Environment variables for worker lifecycle tuning: `MACAW_WORKER_MAX_CRASHES`, `MACAW_WORKER_CRASH_WINDOW_S`, `MACAW_WORKER_HEALTH_PROBE_TIMEOUT_S`, `MACAW_WORKER_STOP_GRACE_PERIOD_S`, `MACAW_WORKER_WARMUP_STEPS`, and others (#env-configurability)
+- Environment variables for gRPC message size: `MACAW_GRPC_MAX_BATCH_MESSAGE_MB`, `MACAW_GRPC_MAX_STREAMING_MESSAGE_MB` (#env-configurability)
+- Environment variables for scheduler tuning: `MACAW_SCHEDULER_MIN_GRPC_TIMEOUT_S`, `MACAW_SCHEDULER_AGING_THRESHOLD_S`, `MACAW_SCHEDULER_BATCH_MAX_SIZE`, and others (#env-configurability)
+- Centralized `pydantic-settings` configuration (`macaw/config/settings.py`) — all 14 `MACAW_*` env vars validated, typed, and documented in `.env.example`; replaces scattered `os.environ.get()` calls across 4 modules (#settings)
 - `NullMetric` null object class (`macaw/_null_metrics.py`) — metrics consumers call methods unconditionally without guard checks, NullMetric silently discards observations when prometheus_client is not installed (#review-v3-4.4)
 - OpenAPI tags on all routers — Audio, Voices, System, Realtime — Swagger UI now groups endpoints by category (#review-v3-4.5)
 - OpenAPI tag presence tests in `test_openapi_schema.py` (#review-v3-4.5)

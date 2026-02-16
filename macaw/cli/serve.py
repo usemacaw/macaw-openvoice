@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import signal
 import sys
 from pathlib import Path
@@ -12,6 +11,7 @@ from typing import TYPE_CHECKING
 import click
 
 from macaw.cli.main import cli
+from macaw.config.settings import get_settings
 from macaw.engines import is_engine_available
 from macaw.logging import configure_logging, get_logger
 
@@ -24,10 +24,11 @@ if TYPE_CHECKING:
 
 logger = get_logger("cli.serve")
 
-DEFAULT_HOST = os.environ.get("MACAW_HOST", "127.0.0.1")
-DEFAULT_PORT = int(os.environ.get("MACAW_PORT", "8000"))
-DEFAULT_MODELS_DIR = os.environ.get("MACAW_MODELS_DIR", "~/.macaw/models")
-DEFAULT_WORKER_BASE_PORT = int(os.environ.get("MACAW_WORKER_BASE_PORT", "50051"))
+_s = get_settings()
+DEFAULT_HOST = _s.server.host
+DEFAULT_PORT = _s.server.port
+DEFAULT_MODELS_DIR = _s.worker.models_dir
+DEFAULT_WORKER_BASE_PORT = _s.worker.worker_base_port
 
 
 @cli.command()
@@ -254,7 +255,8 @@ async def _serve(
     if stt_worker_port is not None:
         from macaw.scheduler.streaming import StreamingGRPCClient
 
-        streaming_client = StreamingGRPCClient(f"localhost:{stt_worker_port}")
+        worker_host = get_settings().worker.worker_host
+        streaming_client = StreamingGRPCClient(f"{worker_host}:{stt_worker_port}")
         await streaming_client.connect()
         app.state.streaming_grpc_client = streaming_client
         logger.info("streaming_grpc_connected", worker_port=stt_worker_port)
