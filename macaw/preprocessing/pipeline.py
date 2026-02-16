@@ -1,7 +1,7 @@
 """Audio Preprocessing Pipeline.
 
-Orquestra stages de preprocessamento de audio em sequencia.
-Cada stage e toggleavel via PreprocessingConfig.
+Orchestrates audio preprocessing stages in sequence.
+Each stage is toggleable via PreprocessingConfig.
 """
 
 from __future__ import annotations
@@ -20,15 +20,15 @@ logger = get_logger("preprocessing.pipeline")
 
 
 class AudioPreprocessingPipeline:
-    """Pipeline de preprocessamento de audio.
+    """Audio preprocessing pipeline.
 
-    Recebe bytes de audio em qualquer formato, aplica stages de
-    processamento em sequencia e retorna PCM 16-bit WAV.
+    Receives audio bytes in any format, applies processing stages
+    in sequence, and returns PCM 16-bit WAV.
 
     Args:
-        config: Configuracao do pipeline (stages habilitados, parametros).
-        stages: Lista de stages a executar. Se None, usa lista vazia
-                (stages concretos serao adicionados em E1-T2..T4).
+        config: Pipeline configuration (enabled stages, parameters).
+        stages: List of stages to execute. If None, uses empty list
+                (concrete stages will be added in E1-T2..T4).
     """
 
     def __init__(
@@ -41,12 +41,12 @@ class AudioPreprocessingPipeline:
 
     @property
     def config(self) -> PreprocessingConfig:
-        """Configuracao do pipeline."""
+        """Pipeline configuration."""
         return self._config
 
     @property
     def stages(self) -> list[AudioStage]:
-        """Lista de stages do pipeline."""
+        """List of pipeline stages."""
         return list(self._stages)
 
     def create_stages(self) -> list[AudioStage]:
@@ -62,16 +62,16 @@ class AudioPreprocessingPipeline:
         return fresh
 
     def process(self, audio_bytes: bytes) -> bytes:
-        """Processa audio atraves de todos os stages do pipeline.
+        """Process audio through all pipeline stages.
 
         Args:
-            audio_bytes: Bytes do audio de entrada (qualquer formato suportado).
+            audio_bytes: Input audio bytes (any supported format).
 
         Returns:
-            Bytes do audio processado em formato WAV PCM 16-bit, mono.
+            Processed audio bytes in WAV PCM 16-bit, mono format.
 
         Raises:
-            AudioFormatError: Se o audio de entrada nao pode ser decodificado.
+            AudioFormatError: If the input audio cannot be decoded.
         """
         audio, sample_rate = decode_audio(audio_bytes)
 

@@ -1,6 +1,6 @@
-"""ResampleStage — converte audio para sample rate alvo.
+"""ResampleStage — converts audio to target sample rate.
 
-Usa scipy.signal.resample_poly para resampling de alta qualidade.
+Uses scipy.signal.resample_poly for high-quality resampling.
 Pipeline contract guarantees mono input; no multi-channel handling here.
 """
 
@@ -11,48 +11,49 @@ from math import gcd
 import numpy as np
 from scipy.signal import resample_poly
 
+from macaw._audio_constants import STT_SAMPLE_RATE
 from macaw.preprocessing.stages import AudioStage
 
 
 class ResampleStage(AudioStage):
-    """Stage de resampling do pipeline de preprocessamento.
+    """Resampling stage for the preprocessing pipeline.
 
-    Converte audio de qualquer sample rate para o sample rate alvo (default 16kHz).
+    Converts audio from any sample rate to the target sample rate (default 16kHz).
     Expects mono input (pipeline contract).
 
     Args:
-        target_sample_rate: Sample rate alvo em Hz (default: 16000).
+        target_sample_rate: Target sample rate in Hz (default: 16000).
     """
 
-    def __init__(self, target_sample_rate: int = 16000) -> None:
+    def __init__(self, target_sample_rate: int = STT_SAMPLE_RATE) -> None:
         self._target_sample_rate = target_sample_rate
 
     @property
     def name(self) -> str:
-        """Nome identificador do stage."""
+        """Identifier name for the stage."""
         return "resample"
 
     def process(self, audio: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int]:
-        """Converte audio para sample rate alvo.
+        """Convert audio to target sample rate.
 
-        Se o audio ja esta no sample rate alvo, retorna sem modificacao.
-        Se o audio esta vazio, retorna sem modificacao.
+        If the audio is already at the target sample rate, returns unchanged.
+        If the audio is empty, returns unchanged.
 
         Args:
-            audio: Array numpy com amostras de audio.
-            sample_rate: Sample rate atual do audio em Hz.
+            audio: Numpy array with audio samples.
+            sample_rate: Current audio sample rate in Hz.
 
         Returns:
-            Tupla (audio resampleado float32, sample rate alvo).
+            Tuple (resampled float32 audio, target sample rate).
         """
         if audio.size == 0:
             return audio, sample_rate
 
-        # Skip se ja esta no sample rate alvo
+        # Skip if already at target sample rate
         if sample_rate == self._target_sample_rate:
             return audio, sample_rate
 
-        # Calcular fatores up/down simplificados pelo GCD
+        # Calculate up/down factors simplified by GCD
         divisor = gcd(self._target_sample_rate, sample_rate)
         up = self._target_sample_rate // divisor
         down = sample_rate // divisor

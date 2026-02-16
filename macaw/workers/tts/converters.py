@@ -8,13 +8,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from macaw._audio_constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw.proto.tts_worker_pb2 import (
     HealthResponse,
     ListVoicesResponse,
     SynthesizeChunk,
     VoiceInfoProto,
 )
-from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw.workers.proto_utils import build_health_response
 
 if TYPE_CHECKING:

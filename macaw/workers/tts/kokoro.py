@@ -19,10 +19,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from macaw._audio_constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw._types import TTSEngineCapabilities, VoiceInfo
 from macaw.exceptions import ModelLoadError, TTSEngineError, TTSSynthesisError
 from macaw.logging import get_logger
-from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw.workers.torch_utils import release_gpu_memory, resolve_device
 from macaw.workers.tts.audio_utils import CHUNK_SIZE_BYTES, float32_to_pcm16_bytes
 from macaw.workers.tts.interface import TTSBackend

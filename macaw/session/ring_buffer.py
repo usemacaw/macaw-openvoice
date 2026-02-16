@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from macaw._audio_constants import STT_SAMPLE_RATE
 from macaw.exceptions import BufferOverrunError
 
 if TYPE_CHECKING:
@@ -58,7 +59,7 @@ class RingBuffer:
     def __init__(
         self,
         duration_s: float = 60.0,
-        sample_rate: int = 16000,
+        sample_rate: int = STT_SAMPLE_RATE,
         bytes_per_sample: int = 2,
         on_force_commit: Callable[[int], None] | None = None,
     ) -> None:

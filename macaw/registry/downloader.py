@@ -6,6 +6,7 @@ with a progress bar and manifest validation after copying.
 
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -20,7 +21,9 @@ if TYPE_CHECKING:
 
 logger = get_logger("registry.downloader")
 
-_DEFAULT_MODELS_DIR = Path.home() / ".macaw" / "models"
+_DEFAULT_MODELS_DIR = Path(
+    os.environ.get("MACAW_MODELS_DIR", str(Path.home() / ".macaw" / "models"))
+)
 
 
 class ModelDownloader:
@@ -78,8 +81,8 @@ class ModelDownloader:
             manifest_path = model_dir / "macaw.yaml"
             if manifest_path.exists():
                 msg = (
-                    f"Modelo '{entry.name}' ja esta instalado em {model_dir}. "
-                    f"Use --force para reinstalar."
+                    f"Model '{entry.name}' is already installed at {model_dir}. "
+                    f"Use --force to reinstall."
                 )
                 raise FileExistsError(msg)
 
@@ -137,7 +140,7 @@ class ModelDownloader:
         """Write macaw.yaml to the model directory."""
         manifest_data = entry.manifest
         if not manifest_data:
-            msg = f"Catalogo sem manifesto para o modelo '{entry.name}'"
+            msg = f"Catalog has no manifest for model '{entry.name}'"
             raise ValueError(msg)
 
         manifest_path = model_dir / "macaw.yaml"

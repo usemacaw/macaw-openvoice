@@ -17,6 +17,7 @@ import enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from macaw._audio_constants import STT_SAMPLE_RATE
 from macaw.logging import get_logger
 
 if TYPE_CHECKING:
@@ -67,7 +68,7 @@ class VADDetector:
         self,
         energy_pre_filter: EnergyPreFilter,
         silero_classifier: SileroVADClassifier,
-        sample_rate: int = 16000,
+        sample_rate: int = STT_SAMPLE_RATE,
         min_speech_duration_ms: int = 250,
         min_silence_duration_ms: int = 300,
         max_speech_duration_ms: int = 30_000,
@@ -85,7 +86,7 @@ class VADDetector:
             max_speech_duration_ms: Maximum continuous speech duration before
                                     forcing SPEECH_END (default: 30000ms).
         """
-        if sample_rate != 16000:
+        if sample_rate != STT_SAMPLE_RATE:
             msg = f"Only 16kHz supported, got {sample_rate}"
             raise ValueError(msg)
 

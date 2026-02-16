@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, get_args
 
 import grpc.aio
 from fastapi import APIRouter, Depends, Form, Request, UploadFile
 
-from macaw._types import ModelType
+from macaw._types import ModelType, VoiceTypeLiteral
 from macaw.exceptions import InvalidRequestError, VoiceNotFoundError
 from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2 import ListVoicesRequest
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
+from macaw.server.constants import TTS_LIST_VOICES_TIMEOUT
 from macaw.server.dependencies import get_registry, get_worker_manager, require_voice_store
 from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.voices import (
@@ -26,15 +27,12 @@ if TYPE_CHECKING:
     from macaw.server.voice_store import VoiceStore
     from macaw.workers.manager import WorkerManager
 
-router = APIRouter()
+router = APIRouter(tags=["Voices"])
 
 logger = get_logger("server.routes.voices")
 
-# Timeout for the ListVoices RPC (shorter than synthesis)
-_GRPC_TIMEOUT = 10.0
-
-# Allowed voice types
-_ALLOWED_VOICE_TYPES = frozenset({"cloned", "designed"})
+# Allowed voice types — derived from VoiceTypeLiteral (single source of truth).
+_ALLOWED_VOICE_TYPES: frozenset[str] = frozenset(get_args(VoiceTypeLiteral))
 
 
 @router.get("/v1/voices", response_model=VoiceListResponse)
@@ -49,6 +47,7 @@ async def list_voices(
     and aggregates the results into a single list.
     """
     all_voices: list[VoiceResponse] = []
+    failed_models: list[str] = []
 
     # Get all TTS models from registry
     for manifest in registry.list_models():
@@ -70,7 +69,7 @@ async def list_voices(
             channel = get_or_create_tts_channel(tts_channels, worker_address)
 
             stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
-            response = await stub.ListVoices(ListVoicesRequest(), timeout=_GRPC_TIMEOUT)
+            response = await stub.ListVoices(ListVoicesRequest(), timeout=TTS_LIST_VOICES_TIMEOUT)
 
             for voice_proto in response.voices:
                 all_voices.append(
@@ -89,10 +88,19 @@ async def list_voices(
                 model=model_name,
                 grpc_code=str(exc.code()),
             )
+            failed_models.append(model_name)
             continue
         except Exception:
             logger.exception("voices_unexpected_error", model=model_name)
+            failed_models.append(model_name)
             continue
+
+    if failed_models:
+        logger.warning(
+            "voices_partial_response",
+            failed_models=failed_models,
+            returned_count=len(all_voices),
+        )
 
     return VoiceListResponse(data=all_voices)
 
@@ -135,10 +143,13 @@ async def create_voice(
 
     voice_id = str(uuid.uuid4())
 
+    # After validation above, voice_type is guaranteed to be a valid VoiceTypeLiteral.
+    validated_voice_type = cast("VoiceTypeLiteral", voice_type)
+
     saved = await voice_store.save(
         voice_id=voice_id,
         name=name,
-        voice_type=voice_type,
+        voice_type=validated_voice_type,
         ref_audio=ref_audio_bytes,
         language=language,
         ref_text=ref_text,

@@ -1,10 +1,10 @@
-"""Inverse Text Normalization (ITN) stage para o pipeline de pos-processamento.
+"""Inverse Text Normalization (ITN) stage for the post-processing pipeline.
 
-Converte texto numerico por extenso para formato numerico:
-"dois mil e vinte e cinco" -> "2025", "dez por cento" -> "10%".
+Converts written-out numeric text to numeric format:
+"two thousand twenty five" -> "2025", "ten percent" -> "10%".
 
-Usa nemo_text_processing como dependencia opcional. Se nao estiver instalado,
-o stage opera em modo fail-open: retorna o texto original sem modificacao.
+Uses nemo_text_processing as an optional dependency. If not installed,
+the stage operates in fail-open mode: returns the original text unmodified.
 """
 
 from __future__ import annotations
@@ -18,17 +18,16 @@ logger = get_logger("postprocessing.itn")
 
 
 class ITNStage(TextStage):
-    """Stage de Inverse Text Normalization usando NeMo.
+    """Inverse Text Normalization stage using NeMo.
 
-    Opera em modo fail-open: se nemo_text_processing nao estiver instalado,
-    falhar na inicializacao ou falhar no processamento, retorna o texto
-    original inalterado. A transcricao funciona -- apenas sem formatacao
-    numerica.
+    Operates in fail-open mode: if nemo_text_processing is not installed,
+    fails to initialize, or fails during processing, returns the original
+    text unchanged. Transcription works -- just without numeric formatting.
     """
 
     @property
     def name(self) -> str:
-        """Nome identificador do stage."""
+        """Identifier name for the stage."""
         return "itn"
 
     def __init__(self, language: str = "pt") -> None:
@@ -37,10 +36,10 @@ class ITNStage(TextStage):
         self._available: bool | None = None
 
     def _ensure_loaded(self) -> bool:
-        """Carrega o normalizador NeMo lazily.
+        """Lazily load the NeMo normalizer.
 
         Returns:
-            True se o normalizador esta disponivel, False caso contrario.
+            True if the normalizer is available, False otherwise.
         """
         if self._available is not None:
             return self._available
@@ -56,7 +55,7 @@ class ITNStage(TextStage):
             logger.warning(
                 "nemo_text_processing_not_available",
                 language=self._language,
-                msg="nemo_text_processing nao instalado, ITN desabilitado",
+                msg="nemo_text_processing not installed, ITN disabled",
             )
             self._available = False
         except Exception:
@@ -70,16 +69,16 @@ class ITNStage(TextStage):
         return self._available
 
     def process(self, text: str) -> str:
-        """Aplica ITN ao texto.
+        """Apply ITN to text.
 
-        Se o texto estiver vazio, o NeMo nao estiver disponivel ou ocorrer
-        qualquer erro, retorna o texto original inalterado (fail-open).
+        If the text is empty, NeMo is not available, or any error occurs,
+        returns the original text unchanged (fail-open).
 
         Args:
-            text: Texto cru da engine.
+            text: Raw text from the engine.
 
         Returns:
-            Texto com numeros formatados, ou texto original em caso de falha.
+            Text with formatted numbers, or original text on failure.
         """
         if not text.strip():
             return text

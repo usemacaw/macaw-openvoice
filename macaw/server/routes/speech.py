@@ -23,7 +23,12 @@ from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
 from macaw.registry.registry import ModelRegistry  # noqa: TC001
 from macaw.scheduler.tts_converters import build_tts_proto_request
-from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE, TTS_GRPC_TIMEOUT
+from macaw.server.constants import (
+    DEFAULT_VOICE_NAME,
+    SAVED_VOICE_PREFIX,
+    TTS_DEFAULT_SAMPLE_RATE,
+    TTS_GRPC_TIMEOUT,
+)
 from macaw.server.dependencies import get_registry, get_worker_manager
 from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.speech import SpeechRequest  # noqa: TC001
@@ -35,12 +40,9 @@ if TYPE_CHECKING:
 
     from macaw.proto.tts_worker_pb2 import SynthesizeRequest
 
-router = APIRouter()
+router = APIRouter(tags=["Audio"])
 
 logger = get_logger("server.routes.speech")
-
-# Supported response formats (enforced by Literal type in SpeechRequest)
-_SUPPORTED_FORMATS = frozenset({"wav", "pcm"})
 
 
 @router.post("/v1/audio/speech")
@@ -93,8 +95,8 @@ async def create_speech(
     instruction = body.instruction
     language = body.language
 
-    if voice.startswith("voice_"):
-        saved_voice_id = voice[len("voice_") :]
+    if voice.startswith(SAVED_VOICE_PREFIX):
+        saved_voice_id = voice[len(SAVED_VOICE_PREFIX) :]
         voice_store = request.app.state.voice_store
         if voice_store is None:
             raise InvalidRequestError("VoiceStore not configured. Cannot resolve saved voice.")
@@ -121,7 +123,7 @@ async def create_speech(
             language = saved.language
 
         # Use "default" as voice for the engine (saved voice provides params)
-        voice = "default"
+        voice = DEFAULT_VOICE_NAME
 
     # Build proto request
     proto_request = build_tts_proto_request(

@@ -51,7 +51,7 @@ class TestManifestFromYamlPath:
             ModelManifest.from_yaml_path(invalid_manifest_path)
 
     def test_nonexistent_file_raises_parse_error(self) -> None:
-        with pytest.raises(ManifestParseError, match="Arquivo nao encontrado"):
+        with pytest.raises(ManifestParseError, match="File not found"):
             ModelManifest.from_yaml_path("/nonexistent/path/macaw.yaml")
 
 
@@ -69,11 +69,11 @@ resources:
         assert manifest.model_type == ModelType.STT
 
     def test_invalid_yaml_raises_parse_error(self) -> None:
-        with pytest.raises(ManifestParseError, match="YAML invalido"):
+        with pytest.raises(ManifestParseError, match="Invalid YAML"):
             ModelManifest.from_yaml_string("{{invalid yaml")
 
     def test_non_dict_yaml_raises_parse_error(self) -> None:
-        with pytest.raises(ManifestParseError, match="mapeamento"):
+        with pytest.raises(ManifestParseError, match="must be a mapping"):
             ModelManifest.from_yaml_string("- item1\n- item2")
 
     def test_invalid_model_name_raises_error(self) -> None:

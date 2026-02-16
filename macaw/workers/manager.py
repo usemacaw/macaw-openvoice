@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from macaw.logging import get_logger
+from macaw.workers._constants import STOP_GRACE_PERIOD
 
 logger = get_logger("worker.manager")
 
@@ -32,7 +33,6 @@ CRASH_WINDOW_SECONDS = 60.0
 HEALTH_PROBE_INITIAL_DELAY = 0.5
 HEALTH_PROBE_MAX_DELAY = 5.0
 HEALTH_PROBE_TIMEOUT = 120.0
-STOP_GRACE_PERIOD = 5.0
 MONITOR_INTERVAL = 1.0
 
 

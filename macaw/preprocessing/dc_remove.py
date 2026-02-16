@@ -1,7 +1,7 @@
-"""DCRemoveStage — High-pass filter para remover DC offset do audio.
+"""DCRemoveStage — High-pass filter to remove DC offset from audio.
 
-Usa filtro Butterworth de 2a ordem como HPF. Remove DC offset de hardware
-comum em telefonia sem afetar a banda de fala (80Hz-8kHz).
+Uses a 2nd-order Butterworth filter as HPF. Removes hardware DC offset
+common in telephony without affecting the speech band (80Hz-8kHz).
 """
 
 from __future__ import annotations
@@ -13,13 +13,13 @@ from macaw.preprocessing.stages import AudioStage
 
 
 class DCRemoveStage(AudioStage):
-    """Remove DC offset via Butterworth high-pass filter de 2a ordem.
+    """Remove DC offset via 2nd-order Butterworth high-pass filter.
 
-    Coeficientes do filtro sao lazy-computed e cacheados por sample rate.
-    Recalcula apenas quando o sample rate muda.
+    Filter coefficients are lazy-computed and cached per sample rate.
+    Recomputed only when the sample rate changes.
 
     Args:
-        cutoff_hz: Frequencia de corte do HPF em Hz (default: 20).
+        cutoff_hz: HPF cutoff frequency in Hz (default: 20).
     """
 
     def __init__(self, cutoff_hz: int = 20) -> None:
@@ -30,20 +30,20 @@ class DCRemoveStage(AudioStage):
 
     @property
     def name(self) -> str:
-        """Nome identificador do stage."""
+        """Identifier name for the stage."""
         return "dc_remove"
 
     def _get_sos(self, sample_rate: int) -> np.ndarray:
-        """Retorna coeficientes SOS do filtro, recalculando se necessario.
+        """Return filter SOS coefficients, recomputing if necessary.
 
         When the sample rate changes, filter state is also reset since
         the SOS coefficients change.
 
         Args:
-            sample_rate: Sample rate atual do audio em Hz.
+            sample_rate: Current audio sample rate in Hz.
 
         Returns:
-            Array de coeficientes SOS do filtro Butterworth.
+            Array of Butterworth filter SOS coefficients.
         """
         if self._cached_sample_rate != sample_rate or self._cached_sos is None:
             self._cached_sos = butter(
@@ -67,18 +67,18 @@ class DCRemoveStage(AudioStage):
         self._zi = None
 
     def process(self, audio: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int]:
-        """Aplica HPF para remover DC offset do audio.
+        """Apply HPF to remove DC offset from audio.
 
         Maintains filter state across calls for seamless streaming.
         On the first call (or after reset), initial conditions are
         computed via sosfilt_zi() to minimize transient artifacts.
 
         Args:
-            audio: Array numpy float32 com amostras de audio (mono).
-            sample_rate: Sample rate atual do audio em Hz.
+            audio: Numpy float32 array with audio samples (mono).
+            sample_rate: Current audio sample rate in Hz.
 
         Returns:
-            Tupla (audio filtrado float32, sample rate inalterado).
+            Tuple (filtered float32 audio, unchanged sample rate).
         """
         if len(audio) == 0:
             return audio, sample_rate

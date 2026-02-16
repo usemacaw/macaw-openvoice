@@ -1,14 +1,14 @@
-"""CancellationManager — rastreia e cancela requests batch (na fila e em execucao).
+"""CancellationManager — tracks and cancels batch requests (queued and in-flight).
 
-M8-03: Cancelamento de Requests na Fila.
-M8-04: Cancelamento de Requests em Execucao (gRPC Cancel).
+M8-03: Cancellation of Queued Requests.
+M8-04: Cancellation of In-Flight Requests (gRPC Cancel).
 
-Responsabilidades:
-- Registrar requests cancelaveis (cancel_event + future).
-- Cancelar instantaneamente na fila (<1ms): seta cancel_event, resolve future.
-- Cancelar requests em execucao via gRPC Cancel RPC ao worker.
-- Idempotente: cancel de request inexistente/completada e no-op.
-- Lifecycle: unregister apos conclusao (sucesso, erro ou cancel).
+Responsibilities:
+- Register cancellable requests (cancel_event + future).
+- Cancel instantly in queue (<1ms): set cancel_event, resolve future.
+- Cancel in-flight requests via gRPC Cancel RPC to the worker.
+- Idempotent: cancel of non-existent/completed request is no-op.
+- Lifecycle: unregister after completion (success, error, or cancel).
 """
 
 from __future__ import annotations
@@ -31,13 +31,13 @@ if TYPE_CHECKING:
 
 logger = get_logger("scheduler.cancel")
 
-# Timeout para propagacao de cancel via gRPC ao worker (segundos)
+# Timeout for cancel propagation via gRPC to the worker (seconds)
 _CANCEL_PROPAGATION_TIMEOUT_S = 0.1
 
 
 @dataclass(slots=True)
 class _CancellableRequest:
-    """Tracking info de uma request cancelavel."""
+    """Tracking info for a cancellable request."""
 
     request_id: str
     cancel_event: asyncio.Event
@@ -46,15 +46,15 @@ class _CancellableRequest:
 
 
 class CancellationManager:
-    """Gerencia cancelamento de requests batch.
+    """Manages cancellation of batch requests.
 
-    Thread-safe via event loop unico (asyncio single-threaded).
+    Thread-safe via single event loop (asyncio single-threaded).
 
-    Fluxo:
-    1. ``register()`` quando request entra na fila.
-    2. ``mark_in_flight()`` quando request e despachada ao worker.
-    3. ``cancel()`` a qualquer momento — seta cancel_event e resolve future.
-    4. ``unregister()`` apos conclusao (sucesso, erro ou cancel).
+    Flow:
+    1. ``register()`` when request enters the queue.
+    2. ``mark_in_flight()`` when request is dispatched to the worker.
+    3. ``cancel()`` at any time -- sets cancel_event and resolves future.
+    4. ``unregister()`` after completion (success, error, or cancel).
     """
 
     def __init__(self) -> None:
@@ -66,14 +66,14 @@ class CancellationManager:
         cancel_event: asyncio.Event,
         result_future: asyncio.Future[BatchResult] | None,
     ) -> None:
-        """Registra request como cancelavel.
+        """Register request as cancellable.
 
-        Chamado quando request entra na fila (apos submit).
+        Called when request enters the queue (after submit).
 
         Args:
-            request_id: ID unico da request.
-            cancel_event: Evento de cancelamento compartilhado com ScheduledRequest.
-            result_future: Future do caller (resolvido com CancelledError no cancel).
+            request_id: Unique request ID.
+            cancel_event: Cancellation event shared with ScheduledRequest.
+            result_future: Caller's future (resolved with CancelledError on cancel).
         """
         self._requests[request_id] = _CancellableRequest(
             request_id=request_id,
@@ -82,41 +82,41 @@ class CancellationManager:
         )
 
     def mark_in_flight(self, request_id: str, worker_address: str) -> None:
-        """Marca request como em execucao (despachada ao worker).
+        """Mark request as in-flight (dispatched to the worker).
 
-        Usado por M8-04 para propagacao de cancel via gRPC.
+        Used by M8-04 for cancel propagation via gRPC.
 
         Args:
-            request_id: ID da request.
-            worker_address: Endereco do worker (ex: ``localhost:50051``).
+            request_id: Request ID.
+            worker_address: Worker address (e.g. ``localhost:50051``).
         """
         entry = self._requests.get(request_id)
         if entry is not None:
             entry.worker_address = worker_address
 
     def cancel(self, request_id: str) -> bool:
-        """Cancela request (na fila ou em execucao).
+        """Cancel request (queued or in-flight).
 
-        Seta cancel_event e resolve future com CancelledError.
-        Para requests em execucao, apenas seta flags locais — a propagacao
-        gRPC ao worker deve ser feita via ``cancel_in_flight()`` pelo caller.
+        Sets cancel_event and resolves future with CancelledError.
+        For in-flight requests, only sets local flags -- gRPC propagation
+        to the worker must be done via ``cancel_in_flight()`` by the caller.
 
-        Idempotente: cancel de request inexistente/completada retorna False.
+        Idempotent: cancel of non-existent/completed request returns False.
 
         Args:
-            request_id: ID da request a cancelar.
+            request_id: ID of the request to cancel.
 
         Returns:
-            True se request foi encontrada e cancelada, False caso contrario.
+            True if request was found and cancelled, False otherwise.
         """
         entry = self._requests.get(request_id)
         if entry is None:
             return False
 
-        # Seta cancel_event (dispatch loop verifica antes de gRPC call)
+        # Set cancel_event (dispatch loop checks before gRPC call)
         entry.cancel_event.set()
 
-        # Resolve future com CancelledError
+        # Resolve future with CancelledError
         if entry.result_future is not None and not entry.result_future.done():
             entry.result_future.cancel()
 
@@ -126,7 +126,7 @@ class CancellationManager:
             in_flight=entry.worker_address is not None,
         )
 
-        # Remove do tracking (cancel e terminal)
+        # Remove from tracking (cancel is terminal)
         self._requests.pop(request_id, None)
 
         return True
@@ -137,18 +137,18 @@ class CancellationManager:
         worker_address: str,
         channel: grpc.aio.Channel | None = None,
     ) -> bool:
-        """Propaga cancelamento via gRPC Cancel RPC ao worker.
+        """Propagate cancellation via gRPC Cancel RPC to the worker.
 
-        Chamado pelo Scheduler quando a request esta em execucao (in-flight).
-        Best-effort: se worker nao responde em 100ms, desiste silenciosamente.
+        Called by the Scheduler when the request is in-flight.
+        Best-effort: if worker does not respond in 100ms, gives up silently.
 
         Args:
-            request_id: ID da request a cancelar.
-            worker_address: Endereco gRPC do worker (ex: ``localhost:50051``).
-            channel: Canal gRPC existente (reusado do pool). Se None, cria temporario.
+            request_id: ID of the request to cancel.
+            worker_address: gRPC worker address (e.g. ``localhost:50051``).
+            channel: Existing gRPC channel (reused from pool). If None, creates temporary.
 
         Returns:
-            True se worker confirmou cancel (acknowledged), False caso contrario.
+            True if worker confirmed cancel (acknowledged), False otherwise.
         """
         start = time.monotonic()
         close_channel = False
@@ -167,7 +167,7 @@ class CancellationManager:
             elapsed = time.monotonic() - start
             elapsed_ms = elapsed * 1000
 
-            # Observa metrica de cancel latency
+            # Observe cancel latency metric
             if scheduler_cancel_latency_seconds is not None:
                 scheduler_cancel_latency_seconds.observe(elapsed)
 
@@ -184,7 +184,7 @@ class CancellationManager:
             elapsed = time.monotonic() - start
             elapsed_ms = elapsed * 1000
 
-            # Observa metrica mesmo em falha
+            # Observe metric even on failure
             if scheduler_cancel_latency_seconds is not None:
                 scheduler_cancel_latency_seconds.observe(elapsed)
 
@@ -199,30 +199,30 @@ class CancellationManager:
 
         finally:
             if close_channel and channel is not None:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(OSError, grpc.aio.AioRpcError):
                     await channel.close()
 
     def unregister(self, request_id: str) -> None:
-        """Remove request do tracking apos conclusao.
+        """Remove request from tracking after completion.
 
-        Chamado quando request completa (sucesso ou erro).
-        No-op se request ja foi removida (por cancel).
+        Called when request completes (success or error).
+        No-op if request was already removed (by cancel).
 
         Args:
-            request_id: ID da request a remover.
+            request_id: ID of the request to remove.
         """
         self._requests.pop(request_id, None)
 
     def is_cancelled(self, request_id: str) -> bool:
-        """Verifica se request foi cancelada.
+        """Check if request was cancelled.
 
         An unknown request (never registered or already unregistered) is
-        considered **not cancelled** — it was never tracked, so it cannot
+        considered **not cancelled** -- it was never tracked, so it cannot
         have been cancelled. Only requests whose cancel_event is set
         return True.
 
         Args:
-            request_id: ID da request.
+            request_id: Request ID.
 
         Returns:
             True if the request was explicitly cancelled, False otherwise
@@ -234,15 +234,15 @@ class CancellationManager:
         return entry.cancel_event.is_set()
 
     def get_worker_address(self, request_id: str) -> str | None:
-        """Retorna worker address de request em execucao.
+        """Return worker address of in-flight request.
 
-        Usado por M8-04 para propagacao de cancel via gRPC.
+        Used by M8-04 for cancel propagation via gRPC.
 
         Args:
-            request_id: ID da request.
+            request_id: Request ID.
 
         Returns:
-            Worker address se request esta em execucao, None caso contrario.
+            Worker address if request is in-flight, None otherwise.
         """
         entry = self._requests.get(request_id)
         if entry is None:
@@ -251,5 +251,5 @@ class CancellationManager:
 
     @property
     def pending_count(self) -> int:
-        """Total de requests registradas (na fila + em execucao)."""
+        """Total registered requests (queued + in-flight)."""
         return len(self._requests)

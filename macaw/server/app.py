@@ -1,4 +1,4 @@
-"""FastAPI application factory para o Macaw OpenVoice."""
+"""FastAPI application factory for Macaw OpenVoice."""
 
 from __future__ import annotations
 
@@ -42,18 +42,18 @@ def create_app(
     voice_store: VoiceStore | None = None,
     cors_origins: list[str] | None = None,
 ) -> FastAPI:
-    """Cria a aplicacao FastAPI.
+    """Create the FastAPI application.
 
     Args:
-        registry: Model Registry (opcional, None apenas para testes do health endpoint).
-        scheduler: Scheduler (opcional, None apenas para testes do health endpoint).
-        preprocessing_pipeline: Pipeline de preprocessamento de audio (opcional).
-        postprocessing_pipeline: Pipeline de pos-processamento de texto (opcional).
-        worker_manager: Worker Manager para TTS (opcional).
-        cors_origins: Lista de CORS origins permitidos (opcional).
+        registry: Model Registry (optional, None only for health endpoint tests).
+        scheduler: Scheduler (optional, None only for health endpoint tests).
+        preprocessing_pipeline: Audio preprocessing pipeline (optional).
+        postprocessing_pipeline: Text post-processing pipeline (optional).
+        worker_manager: Worker Manager for TTS (optional).
+        cors_origins: List of allowed CORS origins (optional).
 
     Returns:
-        FastAPI application configurada.
+        Configured FastAPI application.
     """
 
     @asynccontextmanager
@@ -69,7 +69,7 @@ def create_app(
     app = FastAPI(
         title="Macaw OpenVoice",
         version=macaw.__version__,
-        description="Runtime unificado de voz (STT + TTS) com API OpenAI-compatible",
+        description="Unified voice runtime (STT + TTS) with OpenAI-compatible API",
         lifespan=lifespan,
     )
 

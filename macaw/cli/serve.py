@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import signal
 import sys
 from pathlib import Path
@@ -23,10 +24,10 @@ if TYPE_CHECKING:
 
 logger = get_logger("cli.serve")
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8000
-DEFAULT_MODELS_DIR = "~/.macaw/models"
-DEFAULT_WORKER_BASE_PORT = 50051
+DEFAULT_HOST = os.environ.get("MACAW_HOST", "127.0.0.1")
+DEFAULT_PORT = int(os.environ.get("MACAW_PORT", "8000"))
+DEFAULT_MODELS_DIR = os.environ.get("MACAW_MODELS_DIR", "~/.macaw/models")
+DEFAULT_WORKER_BASE_PORT = int(os.environ.get("MACAW_WORKER_BASE_PORT", "50051"))
 
 
 @cli.command()
@@ -83,7 +84,6 @@ async def _spawn_all_workers(
     """
     from macaw._types import ModelType
 
-    # TODO: Consider OS-assigned ports (port=0) for dynamic allocation
     port_counter = base_port
 
     stt_models = [m for m in models if m.model_type == ModelType.STT]

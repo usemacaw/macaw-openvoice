@@ -1,7 +1,7 @@
-"""gRPC streaming client para comunicacao runtime -> worker STT.
+"""gRPC streaming client for runtime -> STT worker communication.
 
-Gerencia streams bidirecionais gRPC para transcricao em tempo real.
-Cada sessao abre um stream com o worker, envia AudioFrames e recebe
+Manages bidirectional gRPC streams for real-time transcription.
+Each session opens a stream with the worker, sends AudioFrames, and receives
 TranscriptEvents.
 """
 
@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import grpc
 import grpc.aio
 
+from macaw._grpc_constants import GRPC_STREAMING_CHANNEL_OPTIONS
 from macaw._types import TranscriptSegment, WordTimestamp
 from macaw.exceptions import WorkerCrashError, WorkerTimeoutError
 from macaw.logging import get_logger
@@ -24,35 +25,21 @@ if TYPE_CHECKING:
 
 logger = get_logger("scheduler.streaming")
 
-# gRPC channel options para streaming — keepalive agressivo para detectar
-# worker crash via stream break em <100ms (REGRA 1: P99, nao media)
-_GRPC_STREAMING_CHANNEL_OPTIONS = [
-    ("grpc.max_send_message_length", 10 * 1024 * 1024),
-    ("grpc.max_receive_message_length", 10 * 1024 * 1024),
-    ("grpc.keepalive_time_ms", 10_000),
-    ("grpc.keepalive_timeout_ms", 5_000),
-    ("grpc.keepalive_permit_without_calls", 1),
-    ("grpc.http2.min_recv_ping_interval_without_data_ms", 5_000),
-    # Allow unlimited keepalive pings without data to prevent silent
-    # connection death during mute-on-speak (no frames sent while TTS active).
-    ("grpc.http2.max_pings_without_data", 0),
-]
-
 
 class StreamHandle:
-    """Handle para um stream gRPC bidirecional com o worker.
+    """Handle for a bidirectional gRPC stream with the worker.
 
-    Gerencia o envio de AudioFrames e recepcao de TranscriptEvents
-    para uma sessao de streaming.
+    Manages sending AudioFrames and receiving TranscriptEvents
+    for a streaming session.
 
-    O lifecycle tipico e:
-        1. open_stream() cria o StreamHandle
-        2. send_frame() envia audio ao worker
-        3. receive_events() consome transcript events
-        4. close() encerra gracefully (is_last=True + done_writing)
+    Typical lifecycle:
+        1. open_stream() creates the StreamHandle
+        2. send_frame() sends audio to the worker
+        3. receive_events() consumes transcript events
+        4. close() shuts down gracefully (is_last=True + done_writing)
 
-    Se o worker crashar, send_frame() e receive_events() levantam
-    WorkerCrashError. O runtime detecta via stream break e inicia recovery.
+    If the worker crashes, send_frame() and receive_events() raise
+    WorkerCrashError. The runtime detects via stream break and initiates recovery.
     """
 
     def __init__(
@@ -66,12 +53,12 @@ class StreamHandle:
 
     @property
     def session_id(self) -> str:
-        """ID da sessao associada a este stream."""
+        """Session ID associated with this stream."""
         return self._session_id
 
     @property
     def is_closed(self) -> bool:
-        """True se o stream foi fechado (graceful ou por erro)."""
+        """True if the stream was closed (graceful or by error)."""
         return self._closed
 
     async def send_frame(
@@ -80,15 +67,15 @@ class StreamHandle:
         initial_prompt: str | None = None,
         hot_words: list[str] | None = None,
     ) -> None:
-        """Envia um frame de audio ao worker.
+        """Send an audio frame to the worker.
 
         Args:
-            pcm_data: Bytes PCM 16-bit 16kHz mono.
-            initial_prompt: Contexto para conditioning (tipicamente no primeiro frame).
-            hot_words: Palavras para keyword boosting.
+            pcm_data: PCM 16-bit 16kHz mono bytes.
+            initial_prompt: Context for conditioning (typically on first frame).
+            hot_words: Words for keyword boosting.
 
         Raises:
-            WorkerCrashError: Se o stream foi fechado pelo worker.
+            WorkerCrashError: If the stream was closed by the worker.
         """
         if self._closed:
             raise WorkerCrashError(self._session_id)
@@ -112,14 +99,14 @@ class StreamHandle:
             raise WorkerCrashError(self._session_id) from e
 
     async def receive_events(self) -> AsyncIterator[TranscriptSegment]:
-        """Recebe TranscriptEvents do worker como TranscriptSegments.
+        """Receive TranscriptEvents from the worker as TranscriptSegments.
 
         Yields:
-            TranscriptSegment convertido do proto TranscriptEvent.
+            TranscriptSegment converted from proto TranscriptEvent.
 
         Raises:
-            WorkerCrashError: Se o stream quebrou inesperadamente.
-            WorkerTimeoutError: Se timeout na recepcao de eventos.
+            WorkerCrashError: If the stream broke unexpectedly.
+            WorkerTimeoutError: If timeout receiving events.
         """
         try:
             async for event in self._call:
@@ -136,13 +123,13 @@ class StreamHandle:
             raise WorkerCrashError(self._session_id) from e
 
     async def close(self) -> None:
-        """Fecha o stream gracefully, enviando is_last=True.
+        """Close the stream gracefully, sending is_last=True.
 
-        Envia um AudioFrame vazio com is_last=True para sinalizar ao worker
-        que nao havera mais frames, e chama done_writing() para fechar o
-        lado de escrita do stream.
+        Sends an empty AudioFrame with is_last=True to signal the worker
+        that there will be no more frames, and calls done_writing() to close
+        the write side of the stream.
 
-        Idempotente — chamadas em stream ja fechado sao no-op.
+        Idempotent -- calls on already closed stream are no-op.
         """
         if self._closed:
             return
@@ -164,47 +151,47 @@ class StreamHandle:
             self._closed = True
 
     async def cancel(self) -> None:
-        """Cancela o stream imediatamente.
+        """Cancel the stream immediately.
 
-        Nao espera flush de dados pendentes. Usado para cancelamento
-        rapido (target: <=50ms conforme PRD).
+        Does not wait for pending data flush. Used for fast cancellation
+        (target: <=50ms per PRD).
         """
         self._closed = True
         self._call.cancel()
 
 
 class StreamingGRPCClient:
-    """Cliente gRPC para streaming bidirecional com workers STT.
+    """gRPC client for bidirectional streaming with STT workers.
 
-    Gerencia o canal gRPC e a abertura de streams. Um canal e reutilizado
-    para multiplos streams (uma sessao = um stream).
+    Manages the gRPC channel and stream opening. A channel is reused
+    for multiple streams (one session = one stream).
 
-    Lifecycle tipico:
+    Typical lifecycle:
         client = StreamingGRPCClient("localhost:50051")
         await client.connect()
         handle = await client.open_stream("sess_123")
-        # ... usar handle ...
+        # ... use handle ...
         await client.close()
     """
 
     def __init__(self, worker_address: str) -> None:
-        """Inicializa o cliente.
+        """Initialize the client.
 
         Args:
-            worker_address: Endereco do worker gRPC (ex: "localhost:50051").
+            worker_address: gRPC worker address (e.g. "localhost:50051").
         """
         self._worker_address = worker_address
         self._channel: grpc.aio.Channel | None = None
         self._stub: STTWorkerStub | None = None
 
     async def connect(self) -> None:
-        """Abre canal gRPC com o worker.
+        """Open gRPC channel with the worker.
 
-        O canal e reutilizado para todos os streams abertos via open_stream().
+        The channel is reused for all streams opened via open_stream().
         """
         self._channel = grpc.aio.insecure_channel(
             self._worker_address,
-            options=_GRPC_STREAMING_CHANNEL_OPTIONS,
+            options=GRPC_STREAMING_CHANNEL_OPTIONS,
         )
         from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
 
@@ -212,16 +199,16 @@ class StreamingGRPCClient:
         logger.info("grpc_streaming_connected", worker_address=self._worker_address)
 
     async def open_stream(self, session_id: str) -> StreamHandle:
-        """Abre um stream bidirecional para uma sessao.
+        """Open a bidirectional stream for a session.
 
         Args:
-            session_id: ID da sessao de streaming.
+            session_id: Streaming session ID.
 
         Returns:
-            StreamHandle para enviar/receber mensagens.
+            StreamHandle for sending/receiving messages.
 
         Raises:
-            WorkerCrashError: Se o canal nao esta conectado ou falhou ao abrir stream.
+            WorkerCrashError: If the channel is not connected or failed to open stream.
         """
         if self._stub is None:
             raise WorkerCrashError(session_id)
@@ -238,9 +225,9 @@ class StreamingGRPCClient:
             raise WorkerCrashError(session_id) from e
 
     async def close(self) -> None:
-        """Fecha o canal gRPC.
+        """Close the gRPC channel.
 
-        Todos os streams abertos via este canal serao invalidados.
+        All streams opened via this channel will be invalidated.
         """
         if self._channel is not None:
             await self._channel.close()
@@ -253,15 +240,15 @@ class StreamingGRPCClient:
 
 
 def _proto_event_to_transcript_segment(event: TranscriptEvent) -> TranscriptSegment:
-    """Converte TranscriptEvent proto em TranscriptSegment Macaw.
+    """Convert TranscriptEvent proto to Macaw TranscriptSegment.
 
-    Funcao pura — sem side effects, sem IO.
+    Pure function -- no side effects, no IO.
 
     Args:
-        event: TranscriptEvent recebido do worker via gRPC.
+        event: TranscriptEvent received from the worker via gRPC.
 
     Returns:
-        TranscriptSegment imutavel com dados convertidos.
+        Immutable TranscriptSegment with converted data.
     """
     words: tuple[WordTimestamp, ...] | None = None
     if event.words:

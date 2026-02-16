@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import grpc.aio
 
+from macaw._grpc_constants import GRPC_TTS_CHANNEL_OPTIONS
 from macaw.logging import get_logger
-from macaw.server.constants import TTS_GRPC_CHANNEL_OPTIONS
 
 logger = get_logger("server.grpc_channels")
 
@@ -21,7 +21,7 @@ def get_or_create_tts_channel(
     """
     channel = tts_channels.get(address)
     if channel is None:
-        channel = grpc.aio.insecure_channel(address, options=TTS_GRPC_CHANNEL_OPTIONS)
+        channel = grpc.aio.insecure_channel(address, options=GRPC_TTS_CHANNEL_OPTIONS)
         tts_channels[address] = channel
     return channel
 

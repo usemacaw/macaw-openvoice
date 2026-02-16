@@ -18,12 +18,12 @@ if TYPE_CHECKING:
 
 
 def get_preprocessing_pipeline(request: Request) -> AudioPreprocessingPipeline | None:
-    """Retorna o AudioPreprocessingPipeline do app state, ou None se nao configurado."""
+    """Return the AudioPreprocessingPipeline from app state, or None if not configured."""
     return request.app.state.preprocessing_pipeline  # type: ignore[no-any-return]
 
 
 def get_postprocessing_pipeline(request: Request) -> PostProcessingPipeline | None:
-    """Retorna o PostProcessingPipeline do app state, ou None se nao configurado."""
+    """Return the PostProcessingPipeline from app state, or None if not configured."""
     return request.app.state.postprocessing_pipeline  # type: ignore[no-any-return]
 
 
@@ -52,7 +52,7 @@ def get_scheduler(request: Request) -> Scheduler:
 
 
 def get_voice_store(request: Request) -> VoiceStore | None:
-    """Retorna o VoiceStore do app state, ou None se nao configurado."""
+    """Return the VoiceStore from app state, or None if not configured."""
     return request.app.state.voice_store  # type: ignore[no-any-return]
 
 

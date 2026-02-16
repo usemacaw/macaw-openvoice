@@ -529,23 +529,25 @@ async def test_final_delay_not_recorded_when_no_speech_end():
 
 
 async def test_session_works_without_prometheus():
-    """Sessao funciona normalmente mesmo sem prometheus_client.
+    """Session works normally even without prometheus_client.
 
-    Este teste valida que o modulo metrics nao causa crash quando
-    prometheus_client nao esta instalado. Como prometheus_client ESTA
-    instalado no ambiente de teste, simulamos a ausencia via patch.
+    Validates that the NullMetric pattern works correctly: when
+    prometheus_client is not installed, NullMetric instances are used
+    instead, and all metric calls are silently discarded.
     """
-    # Arrange: simular HAS_METRICS = False
+    from macaw._null_metrics import NullMetric
+
+    null = NullMetric()
+    # Arrange: simulate NullMetric fallback (no prometheus_client)
     with (
-        patch("macaw.session.streaming.HAS_METRICS", False),
-        patch("macaw.session.streaming.stt_active_sessions", None),
-        patch("macaw.session.streaming.stt_vad_events_total", None),
-        patch("macaw.session.streaming.stt_ttfb_seconds", None),
-        patch("macaw.session.streaming.stt_final_delay_seconds", None),
-        patch("macaw.session.streaming.stt_session_duration_seconds", None),
-        patch("macaw.session.streaming.stt_segments_force_committed_total", None),
-        patch("macaw.session.streaming.stt_confidence_avg", None),
-        patch("macaw.session.streaming.stt_worker_recoveries_total", None),
+        patch("macaw.session.streaming.stt_active_sessions", null),
+        patch("macaw.session.streaming.stt_vad_events_total", null),
+        patch("macaw.session.streaming.stt_ttfb_seconds", null),
+        patch("macaw.session.streaming.stt_final_delay_seconds", null),
+        patch("macaw.session.streaming.stt_session_duration_seconds", null),
+        patch("macaw.session.streaming.stt_segments_force_committed_total", null),
+        patch("macaw.session.streaming.stt_confidence_avg", null),
+        patch("macaw.session.streaming.stt_worker_recoveries_total", null),
     ):
         vad = make_vad_mock()
         stream_handle = _make_stream_handle_mock()
@@ -583,16 +585,6 @@ async def test_session_works_without_prometheus():
 
     # Assert: nenhum crash, sessao completou normalmente
     assert session.is_closed
-
-
-async def test_metrics_module_has_metrics_flag():
-    """Modulo metrics exporta HAS_METRICS indicando disponibilidade."""
-    from macaw.session import metrics as metrics_mod
-
-    # Com prometheus_client instalado, HAS_METRICS deve ser True
-    # Se nao estiver instalado, deve ser False
-    # Nao sabemos em qual ambiente rodamos, mas o flag deve existir
-    assert isinstance(metrics_mod.HAS_METRICS, bool)
 
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")

@@ -1,6 +1,6 @@
-"""CLI do Macaw OpenVoice.
+"""Macaw OpenVoice CLI.
 
-Registra todos os comandos no grupo principal.
+Registers all commands in the main group.
 """
 
 from macaw.cli.main import cli

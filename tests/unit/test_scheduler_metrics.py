@@ -1,6 +1,6 @@
 """Tests for M8-08: Scheduler Prometheus Metrics.
 
-Tests cover: metric definitions, lazy import pattern, HAS_METRICS flag,
+Tests cover: metric definitions, lazy import pattern,
 queue_depth inc/dec, queue_wait_seconds observation, grpc_duration_seconds
 observation, cancel_latency_seconds observation, batch_size observation,
 requests_total by priority+status, aging_promotions_total, and no-op
@@ -97,13 +97,6 @@ def _make_scheduler(
 
 class TestMetricDefinitions:
     """Tests for the metrics module itself."""
-
-    def test_has_metrics_flag(self) -> None:
-        """HAS_METRICS reflects whether prometheus_client is available."""
-        from macaw.scheduler.metrics import HAS_METRICS
-
-        # In test env prometheus_client should be installed
-        assert HAS_METRICS is True
 
     def test_all_metrics_defined(self) -> None:
         """All 7 metrics are defined (not None) when prometheus is available."""
@@ -490,14 +483,15 @@ class TestAgingPromotionsMetric:
 
 
 class TestNoOpWithoutPrometheus:
-    def test_metrics_none_without_prometheus(self) -> None:
-        """When prometheus_client is not importable, all metrics are None."""
+    def test_metrics_null_without_prometheus(self) -> None:
+        """When prometheus_client is not importable, metrics are NullMetric."""
         import importlib
         import sys
 
         from prometheus_client import REGISTRY
 
         import macaw.scheduler.metrics as metrics_mod
+        from macaw._null_metrics import NullMetric
 
         # Unregister existing metrics to avoid "duplicated timeseries" on reload
         metric_names = [
@@ -520,14 +514,13 @@ class TestNoOpWithoutPrometheus:
 
             importlib.reload(metrics_mod)
 
-            assert metrics_mod.HAS_METRICS is False
-            assert metrics_mod.scheduler_queue_depth is None
-            assert metrics_mod.scheduler_queue_wait_seconds is None
-            assert metrics_mod.scheduler_grpc_duration_seconds is None
-            assert metrics_mod.scheduler_cancel_latency_seconds is None
-            assert metrics_mod.scheduler_batch_size is None
-            assert metrics_mod.scheduler_requests_total is None
-            assert metrics_mod.scheduler_aging_promotions_total is None
+            assert isinstance(metrics_mod.scheduler_queue_depth, NullMetric)
+            assert isinstance(metrics_mod.scheduler_queue_wait_seconds, NullMetric)
+            assert isinstance(metrics_mod.scheduler_grpc_duration_seconds, NullMetric)
+            assert isinstance(metrics_mod.scheduler_cancel_latency_seconds, NullMetric)
+            assert isinstance(metrics_mod.scheduler_batch_size, NullMetric)
+            assert isinstance(metrics_mod.scheduler_requests_total, NullMetric)
+            assert isinstance(metrics_mod.scheduler_aging_promotions_total, NullMetric)
         finally:
             # Restore prometheus_client and reload to re-register metrics
             if saved_module is not None:
@@ -537,14 +530,17 @@ class TestNoOpWithoutPrometheus:
             importlib.reload(metrics_mod)
 
     def test_scheduler_works_without_metrics(self) -> None:
-        """Scheduler can be constructed when all metrics are None."""
+        """Scheduler works when metrics are NullMetric (no prometheus)."""
+        from macaw._null_metrics import NullMetric
+
+        null = NullMetric()
         with (
-            patch("macaw.scheduler.scheduler.scheduler_queue_depth", None),
-            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds", None),
-            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds", None),
-            patch("macaw.scheduler.scheduler.scheduler_requests_total", None),
-            patch("macaw.scheduler.scheduler.scheduler_aging_promotions_total", None),
-            patch("macaw.scheduler.scheduler.scheduler_batch_size", None),
+            patch("macaw.scheduler.scheduler.scheduler_queue_depth", null),
+            patch("macaw.scheduler.scheduler.scheduler_queue_wait_seconds", null),
+            patch("macaw.scheduler.scheduler.scheduler_grpc_duration_seconds", null),
+            patch("macaw.scheduler.scheduler.scheduler_requests_total", null),
+            patch("macaw.scheduler.scheduler.scheduler_aging_promotions_total", null),
+            patch("macaw.scheduler.scheduler.scheduler_batch_size", null),
         ):
             scheduler, _, _ = _make_scheduler()
             # Should not raise

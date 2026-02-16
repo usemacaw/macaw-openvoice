@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 import grpc.aio
 
+from macaw._audio_constants import BYTES_PER_SAMPLE_INT16, STT_SAMPLE_RATE
+from macaw._grpc_constants import GRPC_BATCH_CHANNEL_OPTIONS
 from macaw.exceptions import WorkerCrashError, WorkerTimeoutError, WorkerUnavailableError
 from macaw.logging import get_logger
 from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
@@ -42,15 +44,6 @@ if TYPE_CHECKING:
 
 logger = get_logger("scheduler")
 
-# gRPC channel options — gRPC defaults are 4MB (insufficient for 25MB audio)
-_GRPC_CHANNEL_OPTIONS = [
-    ("grpc.max_send_message_length", 30 * 1024 * 1024),
-    ("grpc.max_receive_message_length", 30 * 1024 * 1024),
-    ("grpc.keepalive_time_ms", 30_000),
-    ("grpc.keepalive_timeout_ms", 10_000),
-    ("grpc.keepalive_permit_without_calls", 1),
-]
-
 # Minimum timeout for TranscribeFile (seconds)
 _MIN_GRPC_TIMEOUT = 30.0
 
@@ -65,6 +58,10 @@ _LATENCY_CLEANUP_INTERVAL_S = 30.0
 
 # Timeout for graceful shutdown (seconds)
 _SHUTDOWN_TIMEOUT_S = 10.0
+
+# Poll interval for dequeuing requests from the priority queue (seconds).
+# Trade-off: shorter = lower latency but more CPU wake-ups.
+_DEQUEUE_POLL_INTERVAL_S = 0.5
 
 
 class Scheduler:
@@ -161,11 +158,7 @@ class Scheduler:
         cancelled_in_queue = self._queue.cancel(request_id)
 
         # Update queue depth if the request was queued
-        if (
-            cancelled_in_queue
-            and scheduler_queue_depth is not None
-            and scheduled_for_metric is not None
-        ):
+        if cancelled_in_queue and scheduled_for_metric is not None:
             scheduler_queue_depth.labels(
                 priority=scheduled_for_metric.priority.name,
             ).dec()
@@ -281,7 +274,9 @@ class Scheduler:
         """
         proto_request = build_proto_request(request)
 
-        audio_duration_estimate = len(request.audio_data) / (16_000 * 2)
+        audio_duration_estimate = len(request.audio_data) / (
+            STT_SAMPLE_RATE * BYTES_PER_SAMPLE_INT16
+        )
         timeout = max(_MIN_GRPC_TIMEOUT, audio_duration_estimate * _TIMEOUT_FACTOR)
 
         stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
@@ -316,7 +311,7 @@ class Scheduler:
 
         channel = grpc.aio.insecure_channel(
             f"localhost:{worker.port}",
-            options=_GRPC_CHANNEL_OPTIONS,
+            options=GRPC_BATCH_CHANNEL_OPTIONS,
         )
         try:
             result = await self._send_to_worker(request, channel, worker.worker_id)
@@ -352,8 +347,7 @@ class Scheduler:
         future = await self._queue.submit(request, priority)
 
         # Update queue depth metric
-        if scheduler_queue_depth is not None:
-            scheduler_queue_depth.labels(priority=priority.name).inc()
+        scheduler_queue_depth.labels(priority=priority.name).inc()
 
         # Register in CancellationManager to allow cancel
         scheduled = self._queue.get_scheduled(request.request_id)
@@ -389,7 +383,7 @@ class Scheduler:
                 try:
                     scheduled = await asyncio.wait_for(
                         self._queue.dequeue(),
-                        timeout=0.5,
+                        timeout=_DEQUEUE_POLL_INTERVAL_S,
                     )
                 except TimeoutError:
                     continue
@@ -398,20 +392,17 @@ class Scheduler:
                 self._latency.dequeued(scheduled.request.request_id)
 
                 # Update queue depth (decrement for original priority)
-                if scheduler_queue_depth is not None:
-                    scheduler_queue_depth.labels(
-                        priority=scheduled.priority.name,
-                    ).dec()
+                scheduler_queue_depth.labels(
+                    priority=scheduled.priority.name,
+                ).dec()
 
                 # Observe queue wait time
-                if scheduler_queue_wait_seconds is not None:
-                    wait = time.monotonic() - scheduled.enqueued_at
-                    scheduler_queue_wait_seconds.observe(wait)
+                wait = time.monotonic() - scheduled.enqueued_at
+                scheduler_queue_wait_seconds.observe(wait)
 
                 # Check aging (BATCH promoted to REALTIME)
                 if self._queue.is_aged(scheduled):
-                    if scheduler_aging_promotions_total is not None:
-                        scheduler_aging_promotions_total.inc()
+                    scheduler_aging_promotions_total.inc()
                     logger.info(
                         "dispatch_aged_promotion",
                         request_id=scheduled.request.request_id,
@@ -420,11 +411,10 @@ class Scheduler:
                 # Check if request was cancelled while queued
                 if scheduled.cancel_event.is_set():
                     self._latency.discard(scheduled.request.request_id)
-                    if scheduler_requests_total is not None:
-                        scheduler_requests_total.labels(
-                            priority=scheduled.priority.name,
-                            status="cancelled",
-                        ).inc()
+                    scheduler_requests_total.labels(
+                        priority=scheduled.priority.name,
+                        status="cancelled",
+                    ).inc()
                     logger.debug(
                         "dispatch_skip_cancelled",
                         request_id=scheduled.request.request_id,
@@ -507,6 +497,22 @@ class Scheduler:
             if future is not None and not future.done():
                 future.set_exception(exc)
 
+            # Log unexpected errors at critical level for visibility
+            if not isinstance(
+                exc,
+                WorkerCrashError
+                | WorkerTimeoutError
+                | WorkerUnavailableError
+                | grpc.aio.AioRpcError
+                | OSError,
+            ):
+                logger.critical(
+                    "dispatch_unexpected_error",
+                    request_id=request.request_id,
+                    error=str(exc),
+                    exc_info=True,
+                )
+
             # Evict stale channel so next request creates a fresh one
             await self.close_channel(address)
 
@@ -516,13 +522,11 @@ class Scheduler:
 
             # Observe gRPC metrics and status
             grpc_elapsed = time.monotonic() - grpc_start
-            if scheduler_grpc_duration_seconds is not None:
-                scheduler_grpc_duration_seconds.observe(grpc_elapsed)
-            if scheduler_requests_total is not None:
-                scheduler_requests_total.labels(
-                    priority=scheduled.priority.name,
-                    status=status,
-                ).inc()
+            scheduler_grpc_duration_seconds.observe(grpc_elapsed)
+            scheduler_requests_total.labels(
+                priority=scheduled.priority.name,
+                status=status,
+            ).inc()
 
     async def _dispatch_batch(self, batch: list[ScheduledRequest]) -> None:
         """Dispatch a batch of requests in parallel via asyncio.gather.
@@ -538,8 +542,7 @@ class Scheduler:
             return
 
         # Observe batch size
-        if scheduler_batch_size is not None:
-            scheduler_batch_size.observe(len(active))
+        scheduler_batch_size.observe(len(active))
 
         logger.info(
             "dispatch_batch",
@@ -564,7 +567,7 @@ class Scheduler:
         if channel is None:
             channel = grpc.aio.insecure_channel(
                 address,
-                options=_GRPC_CHANNEL_OPTIONS,
+                options=GRPC_BATCH_CHANNEL_OPTIONS,
             )
             self._channels[address] = channel
         return channel

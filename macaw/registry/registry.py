@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from macaw.config.manifest import ModelManifest
-from macaw.exceptions import ModelNotFoundError
+from macaw.exceptions import ManifestParseError, ManifestValidationError, ModelNotFoundError
 from macaw.logging import get_logger
 
 logger = get_logger("registry")
@@ -54,7 +54,7 @@ class ModelRegistry:
                 self._manifests[manifest.name] = manifest
                 self._model_paths[manifest.name] = subdir
                 logger.info("model_found", name=manifest.name, engine=manifest.engine)
-            except Exception as exc:
+            except (ManifestParseError, ManifestValidationError, ValueError) as exc:
                 logger.error("manifest_error", path=str(manifest_path), error=str(exc))
 
     def get_manifest(self, model_name: str) -> ModelManifest:

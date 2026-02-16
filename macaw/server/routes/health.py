@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 
 import macaw
 
-router = APIRouter()
+router = APIRouter(tags=["System"])
 
 
 @router.get("/health")

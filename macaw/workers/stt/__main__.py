@@ -1,4 +1,4 @@
-"""Permite executar o worker STT como modulo: python -m macaw.workers.stt"""
+"""Allows running the STT worker as a module: python -m macaw.workers.stt"""
 
 from macaw.workers.stt.main import main
 

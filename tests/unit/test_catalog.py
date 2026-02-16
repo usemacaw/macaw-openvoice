@@ -101,12 +101,12 @@ class TestCatalogLoad:
 
     def test_load_invalid_catalog_raises(self, invalid_catalog_yaml: Path) -> None:
         catalog = ModelCatalog(invalid_catalog_yaml)
-        with pytest.raises(ValueError, match="campo 'models' ausente"):
+        with pytest.raises(ValueError, match="'models' field missing"):
             catalog.load()
 
     def test_load_invalid_models_type_raises(self, invalid_models_type_yaml: Path) -> None:
         catalog = ModelCatalog(invalid_models_type_yaml)
-        with pytest.raises(ValueError, match="deve ser mapeamento"):
+        with pytest.raises(ValueError, match="must be a mapping"):
             catalog.load()
 
 

@@ -1,7 +1,7 @@
-"""Protocol handler para dispatch de mensagens WebSocket.
+"""Protocol handler for WebSocket message dispatch.
 
-Recebe mensagens raw do WebSocket (dict com 'bytes' ou 'text') e retorna
-um resultado tipado: audio bytes, comando parseado, ou evento de erro.
+Receives raw WebSocket messages (dict with 'bytes' or 'text') and returns
+a typed result: audio bytes, parsed command, or error event.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 logger = get_logger("server.ws_protocol")
 
-# Mapeamento de type -> classe de comando
+# Mapping of type -> command class
 _COMMAND_TYPES: dict[str, type[ClientCommand]] = {
     "session.configure": SessionConfigureCommand,
     "session.cancel": SessionCancelCommand,
@@ -43,39 +43,39 @@ _COMMAND_TYPES: dict[str, type[ClientCommand]] = {
 
 @dataclass(frozen=True, slots=True)
 class AudioFrameResult:
-    """Resultado de dispatch: frame de audio binario."""
+    """Dispatch result: binary audio frame."""
 
     data: bytes
 
 
 @dataclass(frozen=True, slots=True)
 class CommandResult:
-    """Resultado de dispatch: comando JSON parseado."""
+    """Dispatch result: parsed JSON command."""
 
     command: ClientCommand
 
 
 @dataclass(frozen=True, slots=True)
 class ErrorResult:
-    """Resultado de dispatch: erro de parsing/validacao."""
+    """Dispatch result: parsing/validation error."""
 
     event: StreamingErrorEvent
 
 
-# Union type para resultado de dispatch
+# Union type for dispatch result
 DispatchResult = AudioFrameResult | CommandResult | ErrorResult
 
 
 def dispatch_message(message: Mapping[str, Any]) -> DispatchResult | None:
-    """Dispatch de mensagem WebSocket raw para resultado tipado.
+    """Dispatch raw WebSocket message to typed result.
 
     Args:
-        message: Dict raw do ``websocket.receive()`` com chaves 'bytes' ou 'text'.
+        message: Raw dict from ``websocket.receive()`` with 'bytes' or 'text' keys.
 
     Returns:
-        ``AudioFrameResult`` para frames binarios, ``CommandResult`` para JSON
-        parseado, ``ErrorResult`` para erros, ou ``None`` se a mensagem nao
-        contem bytes nem text.
+        ``AudioFrameResult`` for binary frames, ``CommandResult`` for parsed JSON,
+        ``ErrorResult`` for errors, or ``None`` if the message contains
+        neither bytes nor text.
     """
     # Binary frame: audio data
     raw_bytes = message.get("bytes")
@@ -99,15 +99,15 @@ def dispatch_message(message: Mapping[str, Any]) -> DispatchResult | None:
 
 
 def _parse_command(raw_text: str) -> CommandResult | ErrorResult:
-    """Parseia texto JSON em um comando tipado.
+    """Parse JSON text into a typed command.
 
-    Fluxo:
-        1. Deserializa JSON.
-        2. Extrai campo ``type``.
-        3. Valida contra o modelo Pydantic correto.
+    Flow:
+        1. Deserialize JSON.
+        2. Extract ``type`` field.
+        3. Validate against the correct Pydantic model.
 
-    Erros sao retornados como ``ErrorResult`` com ``recoverable=True``
-    (conexao nao deve ser fechada).
+    Errors are returned as ``ErrorResult`` with ``recoverable=True``
+    (connection should not be closed).
     """
     # 1. Parse JSON
     try:
@@ -132,7 +132,7 @@ def _parse_command(raw_text: str) -> CommandResult | ErrorResult:
             ),
         )
 
-    # 2. Extrair type
+    # 2. Extract type
     command_type = data.get("type")
     if command_type is None:
         logger.warning("missing_type_field", data_keys=list(data.keys()))
