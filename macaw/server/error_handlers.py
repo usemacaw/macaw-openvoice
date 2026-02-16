@@ -21,6 +21,7 @@ from macaw.exceptions import (
     WorkerUnavailableError,
 )
 from macaw.logging import get_logger
+from macaw.server.constants import RETRY_AFTER_SECONDS
 
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
@@ -114,7 +115,7 @@ async def _handle_worker_unavailable(
         str(exc),
         "worker_unavailable_error",
         "service_unavailable",
-        headers={"Retry-After": "5"},
+        headers={"Retry-After": RETRY_AFTER_SECONDS},
     )
 
 
@@ -145,7 +146,7 @@ async def _handle_worker_crash(request: Request, exc: WorkerCrashError) -> JSONR
         "Inference worker failed. Try again.",
         "worker_crash_error",
         "bad_gateway",
-        headers={"Retry-After": "5"},
+        headers={"Retry-After": RETRY_AFTER_SECONDS},
     )
 
 

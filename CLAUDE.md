@@ -101,7 +101,7 @@ Como adicionar nova engine: @docs/ADDING_ENGINE.md
 - **Scheduler.transcribe() e backward-compatible.** A assinatura externa de M3 e mantida. Internamente usa `_transcribe_inline()` que faz submit+await do future.
 - **CancellationManager remove entry no cancel.** Apos `cancel()`, a request e removida do tracking. `unregister()` e no-op se ja foi cancelada.
 - **BatchAccumulator flush e fire-and-forget.** O flush callback (`_dispatch_batch`) e chamado pelo timer asyncio. Se o scheduler para antes do flush, `stop()` faz flush manual.
-- **LatencyTracker usa TTL.** Entries expiram apos 300s. `cleanup()` deve ser chamado periodicamente para evitar memory leak em requests que nunca completam.
+- **LatencyTracker usa TTL.** Entries expiram apos 60s. `cleanup()` deve ser chamado periodicamente para evitar memory leak em requests que nunca completam.
 - **Metricas do Scheduler sao opcionais.** Usam `try/except ImportError` identico a `macaw.session.metrics`. Sempre verificar `if metric is not None` antes de observar.
 - **Mute-on-speak e try/finally.** `_tts_speak_task()` chama `session.mute()` antes do TTS e `session.unmute()` em `finally`. Se o TTS crashar, o unmute AINDA acontece. Nunca mutar sem garantir unmute.
 - **TTS binary frames sao server->client.** No WebSocket, binary frames server->client sao SEMPRE audio TTS. Client->server sao SEMPRE audio STT. Sem ambiguidade de direcao.

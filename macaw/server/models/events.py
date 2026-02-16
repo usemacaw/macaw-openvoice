@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from macaw._types import VADSensitivity
+from macaw.server.constants import TTS_MAX_TEXT_LENGTH
 
 # ---------------------------------------------------------------------------
 # Shared models
@@ -250,8 +251,9 @@ class TTSSpeakCommand(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     type: Literal["tts.speak"] = "tts.speak"
-    text: str = Field(min_length=1, max_length=4096)
+    text: str = Field(min_length=1, max_length=TTS_MAX_TEXT_LENGTH)
     voice: str = "default"
+    speed: float = Field(default=1.0, ge=0.25, le=4.0)
     request_id: str | None = None
     # Extended options for LLM-based TTS engines (e.g., Qwen3-TTS)
     language: str | None = None

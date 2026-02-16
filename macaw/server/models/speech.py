@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from macaw.server.constants import TTS_MAX_TEXT_LENGTH
+
 
 class SpeechRequest(BaseModel):
     """Request body para POST /v1/audio/speech.
@@ -14,7 +16,9 @@ class SpeechRequest(BaseModel):
     """
 
     model: str = Field(description="Nome do modelo TTS no registry.")
-    input: str = Field(min_length=1, max_length=4096, description="Texto a ser sintetizado.")
+    input: str = Field(
+        min_length=1, max_length=TTS_MAX_TEXT_LENGTH, description="Texto a ser sintetizado."
+    )
     voice: str = Field(
         default="default",
         description="Identificador da voz.",

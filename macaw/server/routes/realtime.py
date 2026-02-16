@@ -25,8 +25,14 @@ from macaw.scheduler.tts_metrics import (
     tts_ttfb_seconds,
 )
 from macaw.server.constants import (
+    MAX_WS_FRAME_SIZE,
     TTS_DEFAULT_SAMPLE_RATE,
     TTS_GRPC_TIMEOUT,
+    WS_CHECK_INTERVAL_S,
+    WS_CLOSE_NORMAL,
+    WS_CLOSE_POLICY_VIOLATION,
+    WS_HEARTBEAT_INTERVAL_S,
+    WS_INACTIVITY_TIMEOUT_S,
 )
 from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.events import (
@@ -247,22 +253,17 @@ async def realtime_docs(
     )
 
 
-# Defaults (overrideable via app.state for tests with short timeouts)
-_DEFAULT_HEARTBEAT_INTERVAL_S = 10.0
-_DEFAULT_INACTIVITY_TIMEOUT_S = 60.0
-_DEFAULT_CHECK_INTERVAL_S = 5.0
-
-
 def _get_ws_timeouts(websocket: WebSocket) -> tuple[float, float, float]:
     """Return (inactivity_timeout, heartbeat_interval, check_interval).
 
-    Values are read from ``app.state`` if present, otherwise uses defaults.
-    This allows tests to override with short timeouts.
+    Values are read from ``app.state`` if present, otherwise uses module-level
+    constants (configurable via environment variables).
+    This allows tests to override with short timeouts via ``app.state``.
     """
     state = websocket.app.state
-    inactivity = getattr(state, "ws_inactivity_timeout_s", _DEFAULT_INACTIVITY_TIMEOUT_S)
-    heartbeat = getattr(state, "ws_heartbeat_interval_s", _DEFAULT_HEARTBEAT_INTERVAL_S)
-    check = getattr(state, "ws_check_interval_s", _DEFAULT_CHECK_INTERVAL_S)
+    inactivity = getattr(state, "ws_inactivity_timeout_s", WS_INACTIVITY_TIMEOUT_S)
+    heartbeat = getattr(state, "ws_heartbeat_interval_s", WS_HEARTBEAT_INTERVAL_S)
+    check = getattr(state, "ws_check_interval_s", WS_CHECK_INTERVAL_S)
     return float(inactivity), float(heartbeat), float(check)
 
 
@@ -347,7 +348,7 @@ async def _inactivity_monitor(
             await _send_event(websocket, closed_event, session_id=session_id)
 
             with contextlib.suppress(WebSocketDisconnect, RuntimeError, OSError):
-                await websocket.close(code=1000, reason="inactivity_timeout")
+                await websocket.close(code=WS_CLOSE_NORMAL, reason="inactivity_timeout")
             return "inactivity_timeout"
 
         # Send ping periodically (best effort)
@@ -435,6 +436,7 @@ async def _prepare_tts_request(
     request_id: str,
     text: str,
     voice: str,
+    speed: float,
     model_tts: str | None,
     send_event: Callable[[ServerEvent], Awaitable[None]],
     language: str | None = None,
@@ -522,7 +524,7 @@ async def _prepare_tts_request(
         text=text,
         voice=voice,
         sample_rate=TTS_DEFAULT_SAMPLE_RATE,
-        speed=1.0,
+        speed=speed,
         language=language,
         ref_audio=ref_audio_bytes,
         ref_text=ref_text,
@@ -539,6 +541,7 @@ async def _tts_speak_task(
     request_id: str,
     text: str,
     voice: str,
+    speed: float,
     model_tts: str | None,
     send_event: Callable[[ServerEvent], Awaitable[None]],
     cancel_event: asyncio.Event,
@@ -569,6 +572,7 @@ async def _tts_speak_task(
             request_id=request_id,
             text=text,
             voice=voice,
+            speed=speed,
             model_tts=model_tts,
             send_event=send_event,
             language=language,
@@ -704,8 +708,6 @@ async def _cancel_active_tts(ctx: SessionContext) -> None:
 # SessionContext — replaces mutable list refs (M-26)
 # ---------------------------------------------------------------------------
 
-MAX_WS_FRAME_SIZE = 1_048_576  # 1 MB (M-09)
-
 
 @dataclass
 class SessionContext:
@@ -785,6 +787,7 @@ async def _handle_tts_speak_command(
             request_id=tts_req_id,
             text=cmd.text,
             voice=cmd.voice,
+            speed=cmd.speed,
             model_tts=ctx.model_tts,
             send_event=ctx.send_event,
             cancel_event=cancel_ev,
@@ -903,7 +906,9 @@ async def realtime_endpoint(
                 recoverable=False,
             ),
         )
-        await websocket.close(code=1008, reason="Missing required query parameter: model")
+        await websocket.close(
+            code=WS_CLOSE_POLICY_VIOLATION, reason="Missing required query parameter: model"
+        )
         return
 
     registry = websocket.app.state.registry
@@ -915,7 +920,7 @@ async def realtime_endpoint(
                 code="service_unavailable", message="No models available", recoverable=False
             ),
         )
-        await websocket.close(code=1008, reason="No models available")
+        await websocket.close(code=WS_CLOSE_POLICY_VIOLATION, reason="No models available")
         return
 
     try:
@@ -930,7 +935,7 @@ async def realtime_endpoint(
                 recoverable=False,
             ),
         )
-        await websocket.close(code=1008, reason=f"Model not found: {model}")
+        await websocket.close(code=WS_CLOSE_POLICY_VIOLATION, reason=f"Model not found: {model}")
         return
 
     model_architecture = manifest.capabilities.architecture or STTArchitecture.ENCODER_DECODER

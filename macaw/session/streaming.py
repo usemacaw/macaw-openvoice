@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from macaw._audio_constants import PCM_INT16_MAX, PCM_INT16_MIN
 from macaw._types import SessionState, STTArchitecture, TranscriptSegment
 from macaw.exceptions import InvalidTransitionError, WorkerCrashError
 from macaw.logging import get_logger
@@ -75,6 +76,15 @@ if TYPE_CHECKING:
     from macaw.vad.detector import VADDetector
 
 logger = get_logger("session.streaming")
+
+# Timeout for draining final transcripts from the worker stream.
+_DRAIN_STREAM_TIMEOUT_S = 5.0
+
+# Timeout for the final flush-and-close operation.
+_FLUSH_AND_CLOSE_TIMEOUT_S = 2.0
+
+# Default timeout for worker recovery after crash.
+_DEFAULT_RECOVERY_TIMEOUT_S = 10.0
 
 
 class StreamMetricsRecorder:
@@ -179,7 +189,7 @@ class StreamRecoveryHandler:
     def __init__(
         self,
         session: StreamingSession,
-        recovery_timeout_s: float = 10.0,
+        recovery_timeout_s: float = _DEFAULT_RECOVERY_TIMEOUT_S,
     ) -> None:
         self._session = session
         self._recovery_timeout_s = recovery_timeout_s
@@ -355,7 +365,7 @@ class StreamingSession:
         state_machine: SessionStateMachine | None = None,
         ring_buffer: RingBuffer | None = None,
         wal: SessionWAL | None = None,
-        recovery_timeout_s: float = 10.0,
+        recovery_timeout_s: float = _DEFAULT_RECOVERY_TIMEOUT_S,
         cross_segment_context: CrossSegmentContext | None = None,
         engine_supports_hot_words: bool = False,
         architecture: STTArchitecture = STTArchitecture.ENCODER_DECODER,
@@ -639,7 +649,7 @@ class StreamingSession:
         if self._stream_handle is None:
             return
 
-        await self._drain_stream(timeout=5.0)
+        await self._drain_stream(timeout=_DRAIN_STREAM_TIMEOUT_S)
 
         # Increment segment_id for next segment
         self._segment_id += 1
@@ -888,7 +898,7 @@ class StreamingSession:
 
         # Drain stream: close gRPC send + await receiver task.
         # Guarantees transcript.final is emitted BEFORE vad.speech_end.
-        receiver_ok = await self._drain_stream(timeout=5.0)
+        receiver_ok = await self._drain_stream(timeout=_DRAIN_STREAM_TIMEOUT_S)
 
         # Emit vad.speech_end ONLY after receiver task completes.
         # If receiver failed (timeout/cancel), we still emit speech_end
@@ -929,8 +939,8 @@ class StreamingSession:
         # In-place multiply+clip avoids 2 intermediate allocations per frame.
         # Safe: frame is not used after this method (VAD already processed it,
         # preprocessor creates a new array each call).
-        np.multiply(frame, 32767.0, out=frame)
-        np.clip(frame, -32768, 32767, out=frame)
+        np.multiply(frame, PCM_INT16_MAX, out=frame)
+        np.clip(frame, PCM_INT16_MIN, PCM_INT16_MAX, out=frame)
         # Reuse pre-allocated int16 buffer to avoid per-frame allocation.
         # Grow if needed (rare: only on first oversized frame).
         frame_len = len(frame)
@@ -1123,7 +1133,7 @@ class StreamingSession:
 
     async def _flush_and_close(self) -> None:
         """Flush pending data during CLOSING and transition to CLOSED."""
-        await self._drain_stream(timeout=2.0)
+        await self._drain_stream(timeout=_FLUSH_AND_CLOSE_TIMEOUT_S)
 
     async def _emit_error(
         self,

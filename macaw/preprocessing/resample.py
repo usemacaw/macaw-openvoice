@@ -11,6 +11,7 @@ from math import gcd
 import numpy as np
 from scipy.signal import resample_poly
 
+from macaw._audio_constants import STT_SAMPLE_RATE
 from macaw.preprocessing.stages import AudioStage
 
 
@@ -24,7 +25,7 @@ class ResampleStage(AudioStage):
         target_sample_rate: Target sample rate in Hz (default: 16000).
     """
 
-    def __init__(self, target_sample_rate: int = 16000) -> None:
+    def __init__(self, target_sample_rate: int = STT_SAMPLE_RATE) -> None:
         self._target_sample_rate = target_sample_rate
 
     @property

@@ -14,8 +14,12 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from macaw.exceptions import InvalidRequestError
+
+if TYPE_CHECKING:
+    from macaw._types import VoiceTypeLiteral
 
 _SAFE_VOICE_ID = re.compile(r"^[a-zA-Z0-9_-]+$")
 
@@ -26,7 +30,7 @@ class SavedVoice:
 
     voice_id: str
     name: str
-    voice_type: str  # "cloned" or "designed"
+    voice_type: VoiceTypeLiteral
     language: str | None = None
     ref_text: str | None = None
     instruction: str | None = None
@@ -42,7 +46,7 @@ class VoiceStore(ABC):
         self,
         voice_id: str,
         name: str,
-        voice_type: str,
+        voice_type: VoiceTypeLiteral,
         ref_audio: bytes | None = None,
         *,
         language: str | None = None,
@@ -111,7 +115,7 @@ class FileSystemVoiceStore(VoiceStore):
         self,
         voice_id: str,
         name: str,
-        voice_type: str,
+        voice_type: VoiceTypeLiteral,
         ref_audio: bytes | None,
         *,
         language: str | None,
@@ -158,7 +162,7 @@ class FileSystemVoiceStore(VoiceStore):
         self,
         voice_id: str,
         name: str,
-        voice_type: str,
+        voice_type: VoiceTypeLiteral,
         ref_audio: bytes | None = None,
         *,
         language: str | None = None,

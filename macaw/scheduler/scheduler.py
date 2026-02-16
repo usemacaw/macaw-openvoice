@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import grpc.aio
 
+from macaw._audio_constants import BYTES_PER_SAMPLE_INT16, STT_SAMPLE_RATE
 from macaw.exceptions import WorkerCrashError, WorkerTimeoutError, WorkerUnavailableError
 from macaw.logging import get_logger
 from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
@@ -277,7 +278,9 @@ class Scheduler:
         """
         proto_request = build_proto_request(request)
 
-        audio_duration_estimate = len(request.audio_data) / (16_000 * 2)
+        audio_duration_estimate = len(request.audio_data) / (
+            STT_SAMPLE_RATE * BYTES_PER_SAMPLE_INT16
+        )
         timeout = max(_MIN_GRPC_TIMEOUT, audio_duration_estimate * _TIMEOUT_FACTOR)
 
         stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]

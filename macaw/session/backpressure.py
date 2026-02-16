@@ -26,11 +26,10 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from macaw._audio_constants import BYTES_PER_SAMPLE_INT16, STT_SAMPLE_RATE
+
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-# 16-bit PCM mono: 2 bytes per sample
-_BYTES_PER_SAMPLE = 2
 
 # Sliding window size for rate calculation (seconds)
 _SLIDING_WINDOW_S = 5.0
@@ -88,7 +87,7 @@ class BackpressureController:
 
     def __init__(
         self,
-        sample_rate: int = 16000,
+        sample_rate: int = STT_SAMPLE_RATE,
         max_backlog_s: float = 10.0,
         rate_limit_threshold: float = 1.2,
         clock: Callable[[], float] | None = None,
@@ -144,7 +143,7 @@ class BackpressureController:
         self._frames_received += 1
 
         # Frame duration in seconds
-        n_samples = frame_bytes / _BYTES_PER_SAMPLE
+        n_samples = frame_bytes / BYTES_PER_SAMPLE_INT16
         frame_duration_s = n_samples / self._sample_rate
 
         # First frame: initialize and return (no history to compare)

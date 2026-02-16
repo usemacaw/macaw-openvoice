@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING  # noqa: E402
 
 import grpc.aio  # noqa: E402
 
+from macaw._audio_constants import STT_SAMPLE_RATE  # noqa: E402
 from macaw.logging import configure_logging, get_logger  # noqa: E402
 from macaw.proto import add_STTWorkerServicer_to_server  # noqa: E402
 from macaw.workers.stt.servicer import STTWorkerServicer  # noqa: E402
@@ -120,7 +121,6 @@ async def serve(
 
 
 _WARMUP_AUDIO_DURATIONS = (1.0, 3.0, 5.0)
-_SAMPLE_RATE = 16000
 
 
 async def _warmup_backend(backend: STTBackend, *, warmup_steps: int = 3) -> None:
@@ -141,7 +141,7 @@ async def _warmup_backend(backend: STTBackend, *, warmup_steps: int = 3) -> None
 
     for step in range(warmup_steps):
         duration_s = _WARMUP_AUDIO_DURATIONS[step % len(_WARMUP_AUDIO_DURATIONS)]
-        num_samples = int(duration_s * _SAMPLE_RATE)
+        num_samples = int(duration_s * STT_SAMPLE_RATE)
         silence = b"\x00\x00" * num_samples
 
         is_last = step == warmup_steps - 1

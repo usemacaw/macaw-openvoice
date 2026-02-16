@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from macaw._audio_constants import PCM_INT16_SCALE, PCM_INT32_SCALE
 from macaw.exceptions import AudioFormatError
 
-# Maximum absolute value for signed PCM integer formats.
-PCM_INT16_MAX = 32768.0
-PCM_INT32_MAX = 2147483648.0
+# Re-export for backward compatibility (used by tests and other modules).
+__all__ = ["PCM_INT16_SCALE", "PCM_INT32_SCALE", "pcm_bytes_to_float32"]
 
 
 def pcm_bytes_to_float32(audio_data: bytes) -> np.ndarray:
@@ -35,5 +35,5 @@ def pcm_bytes_to_float32(audio_data: bytes) -> np.ndarray:
 
     int16_array = np.frombuffer(audio_data, dtype=np.int16)
     audio = int16_array.astype(np.float32)
-    audio /= PCM_INT16_MAX
+    audio /= PCM_INT16_SCALE
     return audio

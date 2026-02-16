@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from macaw._audio_constants import STT_SAMPLE_RATE
 from macaw._types import VADSensitivity
 from macaw.logging import get_logger
 
@@ -33,9 +34,6 @@ _THRESHOLDS: dict[VADSensitivity, float] = {
     VADSensitivity.LOW: 0.7,
 }
 
-# Sample rate expected by Silero VAD.
-_EXPECTED_SAMPLE_RATE = 16000
-
 
 class SileroVADClassifier:
     """Voice Activity Detection classifier using Silero VAD.
@@ -51,7 +49,7 @@ class SileroVADClassifier:
     def __init__(
         self,
         sensitivity: VADSensitivity = VADSensitivity.NORMAL,
-        sample_rate: int = _EXPECTED_SAMPLE_RATE,
+        sample_rate: int = STT_SAMPLE_RATE,
     ) -> None:
         """Initialize the classifier.
 
@@ -62,9 +60,9 @@ class SileroVADClassifier:
         Raises:
             ValueError: If sample_rate is not 16000.
         """
-        if sample_rate != _EXPECTED_SAMPLE_RATE:
+        if sample_rate != STT_SAMPLE_RATE:
             msg = (
-                f"Silero VAD requires sample rate {_EXPECTED_SAMPLE_RATE}Hz, "
+                f"Silero VAD requires sample rate {STT_SAMPLE_RATE}Hz, "
                 f"received {sample_rate}Hz. Resample first."
             )
             raise ValueError(msg)

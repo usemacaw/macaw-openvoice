@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import Literal
 
 
 class STTArchitecture(Enum):
@@ -142,6 +143,9 @@ class EngineCapabilities:
 
 
 # --- TTS ---
+
+# Valid voice types for VoiceStore saved voices.
+VoiceTypeLiteral = Literal["cloned", "designed"]
 
 
 @dataclass(frozen=True, slots=True)

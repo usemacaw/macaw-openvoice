@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from macaw._audio_constants import STT_SAMPLE_RATE
 from macaw.logging import get_logger
 from macaw.workers.audio_utils import pcm_bytes_to_float32
 
@@ -39,7 +40,7 @@ class StreamingPreprocessor:
     def __init__(
         self,
         stages: list[AudioStage],
-        input_sample_rate: int = 16000,
+        input_sample_rate: int = STT_SAMPLE_RATE,
     ) -> None:
         self._stages = stages
         self._input_sample_rate = input_sample_rate

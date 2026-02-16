@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import click
 
+from macaw._audio_constants import PCM_INT16_MAX, STT_SAMPLE_RATE
 from macaw.cli.main import cli
 
-DEFAULT_SERVER_URL = "http://localhost:8000"
+DEFAULT_SERVER_URL = os.environ.get("MACAW_SERVER_URL", "http://localhost:8000")
+_HTTP_TIMEOUT_S = float(os.environ.get("MACAW_HTTP_TIMEOUT_S", "120.0"))
 
 
 def _post_audio(
@@ -45,7 +48,7 @@ def _post_audio(
                 url,
                 files={"file": (file_path.name, f, "audio/wav")},
                 data=data,
-                timeout=120.0,
+                timeout=_HTTP_TIMEOUT_S,
             )
     except httpx.ConnectError:
         click.echo(
@@ -131,7 +134,7 @@ async def _stream_microphone_async(
     import sounddevice as sd
     from websockets.client import connect as ws_connect
 
-    sample_rate = 16000
+    sample_rate = STT_SAMPLE_RATE
     frame_duration_ms = 40
     frame_size = int(sample_rate * frame_duration_ms / 1000)
     audio_queue: queue.Queue[bytes] = queue.Queue()
@@ -145,7 +148,7 @@ async def _stream_microphone_async(
         import numpy as np
 
         data = np.asarray(indata)
-        pcm_bytes = (data * 32767).astype(np.int16).tobytes()
+        pcm_bytes = (data * PCM_INT16_MAX).astype(np.int16).tobytes()
         audio_queue.put(pcm_bytes)
 
     # Build WebSocket URL

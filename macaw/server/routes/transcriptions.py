@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Form, UploadFile
 from macaw.postprocessing.pipeline import PostProcessingPipeline  # noqa: TC001
 from macaw.preprocessing.pipeline import AudioPreprocessingPipeline  # noqa: TC001
 from macaw.scheduler.scheduler import Scheduler  # noqa: TC001
+from macaw.server.constants import DEFAULT_TEMPERATURE, MAX_TEMPERATURE, MODEL_NAME_MAX_LENGTH
 from macaw.server.dependencies import (
     get_postprocessing_pipeline,
     get_preprocessing_pipeline,
@@ -40,11 +41,11 @@ async def cancel_transcription(
 @router.post("/v1/audio/transcriptions")
 async def create_transcription(
     file: UploadFile,
-    model: str = Form(max_length=256),
+    model: str = Form(max_length=MODEL_NAME_MAX_LENGTH),
     language: str | None = Form(default=None),
     prompt: str | None = Form(default=None),
     response_format: str = Form(default="json"),
-    temperature: float = Form(default=0.0, ge=0.0, le=2.0),
+    temperature: float = Form(default=DEFAULT_TEMPERATURE, ge=0.0, le=MAX_TEMPERATURE),
     timestamp_granularities: list[str] = Form(  # noqa: B008
         default=["segment"], alias="timestamp_granularities[]"
     ),

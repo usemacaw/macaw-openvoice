@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from macaw._audio_constants import STT_SAMPLE_RATE
 from macaw._types import (
     BatchResult,
     EngineCapabilities,
@@ -193,7 +194,7 @@ class FasterWhisperBackend(STTBackend):
             msg = "Model not loaded. Call load() first."
             raise ModelLoadError("unknown", msg)
 
-        sample_rate = 16000
+        sample_rate = STT_SAMPLE_RATE
         threshold_samples = int(self._accumulation_threshold_seconds * sample_rate)
 
         buffer_chunks: list[np.ndarray] = []

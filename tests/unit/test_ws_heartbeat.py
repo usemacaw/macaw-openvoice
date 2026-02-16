@@ -131,16 +131,16 @@ def test_cancel_does_not_emit_duplicate_session_closed() -> None:
 
 
 def test_default_timeouts_used_when_not_configured() -> None:
-    """Valores default sao usados quando app.state nao tem configuracao."""
-    from macaw.server.routes.realtime import (
-        _DEFAULT_CHECK_INTERVAL_S,
-        _DEFAULT_HEARTBEAT_INTERVAL_S,
-        _DEFAULT_INACTIVITY_TIMEOUT_S,
+    """Default values are used when app.state has no configuration."""
+    from macaw.server.constants import (
+        WS_CHECK_INTERVAL_S,
+        WS_HEARTBEAT_INTERVAL_S,
+        WS_INACTIVITY_TIMEOUT_S,
     )
 
-    assert _DEFAULT_HEARTBEAT_INTERVAL_S == 10.0
-    assert _DEFAULT_INACTIVITY_TIMEOUT_S == 60.0
-    assert _DEFAULT_CHECK_INTERVAL_S == 5.0
+    assert WS_HEARTBEAT_INTERVAL_S == 10.0
+    assert WS_INACTIVITY_TIMEOUT_S == 60.0
+    assert WS_CHECK_INTERVAL_S == 5.0
 
 
 def test_text_command_does_not_reset_inactivity_timer() -> None:
