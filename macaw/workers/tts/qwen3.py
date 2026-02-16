@@ -21,11 +21,10 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from macaw._audio_constants import PCM_INT16_SCALE, PCM_INT32_SCALE
+from macaw._audio_constants import PCM_INT16_SCALE, PCM_INT32_SCALE, TTS_DEFAULT_SAMPLE_RATE
 from macaw._types import TTSEngineCapabilities, VoiceInfo
 from macaw.exceptions import ModelLoadError, TTSEngineError, TTSSynthesisError
 from macaw.logging import get_logger
-from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw.workers.torch_utils import release_gpu_memory, resolve_device
 from macaw.workers.tts.audio_utils import CHUNK_SIZE_BYTES, float32_to_pcm16_bytes
 from macaw.workers.tts.interface import TTSBackend
@@ -71,12 +70,15 @@ class Qwen3TTSBackend(TTSBackend):
     TTFB equals total synthesis time. For low-latency streaming, use Kokoro.
     """
 
+    _DEFAULT_VOICE = "Chelsie"
+    _DEFAULT_LANGUAGE = "English"
+
     def __init__(self) -> None:
         self._model: object | None = None
         self._model_path: str = ""
         self._variant: str = "custom_voice"
-        self._default_voice: str = "vivian"
-        self._default_language: str = "English"
+        self._default_voice: str = self._DEFAULT_VOICE
+        self._default_language: str = self._DEFAULT_LANGUAGE
         self._sample_rate: int = TTS_DEFAULT_SAMPLE_RATE
 
     async def capabilities(self) -> TTSEngineCapabilities:
@@ -101,8 +103,8 @@ class Qwen3TTSBackend(TTSBackend):
             raise ModelLoadError(model_path, msg)
 
         self._variant = variant
-        self._default_voice = str(config.get("default_voice", "Chelsie"))
-        self._default_language = str(config.get("default_language", "English"))
+        self._default_voice = str(config.get("default_voice", self._DEFAULT_VOICE))
+        self._default_language = str(config.get("default_language", self._DEFAULT_LANGUAGE))
 
         device = resolve_device(device_str)
 

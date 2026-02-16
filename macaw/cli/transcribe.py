@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from pathlib import Path
@@ -13,6 +14,12 @@ from macaw.cli.main import cli
 
 DEFAULT_SERVER_URL = os.environ.get("MACAW_SERVER_URL", "http://localhost:8000")
 _HTTP_TIMEOUT_S = float(os.environ.get("MACAW_HTTP_TIMEOUT_S", "120.0"))
+
+# --- Streaming constants ---
+_STREAM_FRAME_DURATION_MS = 40
+_WS_SESSION_CREATED_TIMEOUT_S = 10.0
+_AUDIO_POLL_INTERVAL_S = 0.01
+_ANSI_CLEAR_LINE = "\r\033[K"
 
 
 def _post_audio(
@@ -135,8 +142,7 @@ async def _stream_microphone_async(
     from websockets.client import connect as ws_connect
 
     sample_rate = STT_SAMPLE_RATE
-    frame_duration_ms = 40
-    frame_size = int(sample_rate * frame_duration_ms / 1000)
+    frame_size = int(sample_rate * _STREAM_FRAME_DURATION_MS / 1000)
     audio_queue: queue.Queue[bytes] = queue.Queue()
 
     def audio_callback(
@@ -175,7 +181,7 @@ async def _stream_microphone_async(
                 await ws.send(json.dumps(config))
 
             # Wait for session.created
-            msg = await asyncio.wait_for(ws.recv(), timeout=10.0)
+            msg = await asyncio.wait_for(ws.recv(), timeout=_WS_SESSION_CREATED_TIMEOUT_S)
             event = json.loads(msg)
             if event.get("type") == "session.created":
                 session_id = event.get("session_id", "?")
@@ -192,7 +198,7 @@ async def _stream_microphone_async(
                         data = audio_queue.get_nowait()
                         await ws.send(data)
                     except queue.Empty:
-                        await asyncio.sleep(0.01)
+                        await asyncio.sleep(_AUDIO_POLL_INTERVAL_S)
 
             async def receive_events() -> None:
                 """Receive and display server events."""
@@ -208,13 +214,13 @@ async def _stream_microphone_async(
                         text = event.get("text", "")
                         if text != last_partial:
                             # Clear line and show partial
-                            click.echo(f"\r\033[K  ... {text}", nl=False)
+                            click.echo(f"{_ANSI_CLEAR_LINE}  ... {text}", nl=False)
                             last_partial = text
 
                     elif event_type == "transcript.final":
                         text = event.get("text", "")
                         # Clear partial line and show final
-                        click.echo(f"\r\033[K> {text}")
+                        click.echo(f"{_ANSI_CLEAR_LINE}> {text}")
                         last_partial = ""
 
                     elif event_type == "vad.speech_start":
@@ -264,9 +270,7 @@ async def _stream_microphone_async(
                 stream.close()
 
                 # Send session.close
-                import contextlib
-
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(OSError, ConnectionError):
                     await ws.send(json.dumps({"type": "session.close"}))
 
     except KeyboardInterrupt:

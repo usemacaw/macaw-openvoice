@@ -587,16 +587,6 @@ async def test_session_works_without_prometheus():
     assert session.is_closed
 
 
-async def test_metrics_module_has_metrics_flag():
-    """Modulo metrics exporta HAS_METRICS indicando disponibilidade."""
-    from macaw.session import metrics as metrics_mod
-
-    # Com prometheus_client instalado, HAS_METRICS deve ser True
-    # Se nao estiver instalado, deve ser False
-    # Nao sabemos em qual ambiente rodamos, mas o flag deve existir
-    assert isinstance(metrics_mod.HAS_METRICS, bool)
-
-
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_metrics_objects_are_not_none():
     """Quando prometheus_client esta instalado, metricas nao sao None."""

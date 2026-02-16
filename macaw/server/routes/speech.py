@@ -44,9 +44,6 @@ router = APIRouter(tags=["Audio"])
 
 logger = get_logger("server.routes.speech")
 
-# Supported response formats (enforced by Literal type in SpeechRequest)
-_SUPPORTED_FORMATS = frozenset({"wav", "pcm"})
-
 
 @router.post("/v1/audio/speech")
 async def create_speech(

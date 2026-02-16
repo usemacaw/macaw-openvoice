@@ -87,8 +87,6 @@ try:
         "Frames discarded by mute-on-speak (TTS active)",
     )
 
-    HAS_METRICS = True
-
 except ImportError:
     from macaw._null_metrics import NullMetric as _Null
 
@@ -101,5 +99,3 @@ except ImportError:
     stt_confidence_avg = _Null()  # type: ignore[assignment]
     stt_worker_recoveries_total = _Null()  # type: ignore[assignment]
     stt_muted_frames_total = _Null()  # type: ignore[assignment]
-
-    HAS_METRICS = False

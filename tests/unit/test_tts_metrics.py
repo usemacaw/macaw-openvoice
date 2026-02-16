@@ -14,7 +14,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from macaw.scheduler.tts_metrics import (
-    HAS_TTS_METRICS,
     tts_active_sessions,
     tts_requests_total,
     tts_synthesis_duration_seconds,
@@ -23,10 +22,6 @@ from macaw.scheduler.tts_metrics import (
 
 
 class TestTTSMetricsAvailability:
-    def test_has_tts_metrics_flag_is_true(self) -> None:
-        """HAS_TTS_METRICS is True when prometheus_client is installed."""
-        assert HAS_TTS_METRICS is True
-
     def test_ttfb_metric_not_none(self) -> None:
         """tts_ttfb_seconds is created when prometheus is available."""
         assert tts_ttfb_seconds is not None
@@ -106,7 +101,6 @@ class TestTTSMetricsNoPrometheus:
                 assert "tts_synthesis_duration_seconds" in assignments
                 assert "tts_requests_total" in assignments
                 assert "tts_active_sessions" in assignments
-                assert "HAS_TTS_METRICS" in assignments
 
         assert found_except, "No except ImportError block found"
 

@@ -67,8 +67,6 @@ try:
         "Requests promoted from BATCH to REALTIME priority by aging",
     )
 
-    HAS_METRICS = True
-
 except ImportError:
     from macaw._null_metrics import NullMetric as _Null
 
@@ -79,5 +77,3 @@ except ImportError:
     scheduler_batch_size = _Null()  # type: ignore[assignment]
     scheduler_requests_total = _Null()  # type: ignore[assignment]
     scheduler_aging_promotions_total = _Null()  # type: ignore[assignment]
-
-    HAS_METRICS = False

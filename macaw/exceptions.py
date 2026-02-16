@@ -21,6 +21,7 @@ Hierarchy:
     |   +-- SessionClosedError
     |   +-- InvalidTransitionError
     |   +-- BufferOverrunError
+    +-- VoiceNotFoundError
     +-- TTSError
     |   +-- TTSSynthesisError (client input errors -> INVALID_ARGUMENT)
     |   +-- TTSEngineError   (server engine errors -> INTERNAL)

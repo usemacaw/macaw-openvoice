@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 import grpc.aio
 
 from macaw._audio_constants import BYTES_PER_SAMPLE_INT16, STT_SAMPLE_RATE
+from macaw._grpc_constants import GRPC_BATCH_CHANNEL_OPTIONS
 from macaw.exceptions import WorkerCrashError, WorkerTimeoutError, WorkerUnavailableError
 from macaw.logging import get_logger
 from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
@@ -43,15 +44,6 @@ if TYPE_CHECKING:
 
 logger = get_logger("scheduler")
 
-# gRPC channel options — gRPC defaults are 4MB (insufficient for 25MB audio)
-_GRPC_CHANNEL_OPTIONS = [
-    ("grpc.max_send_message_length", 30 * 1024 * 1024),
-    ("grpc.max_receive_message_length", 30 * 1024 * 1024),
-    ("grpc.keepalive_time_ms", 30_000),
-    ("grpc.keepalive_timeout_ms", 10_000),
-    ("grpc.keepalive_permit_without_calls", 1),
-]
-
 # Minimum timeout for TranscribeFile (seconds)
 _MIN_GRPC_TIMEOUT = 30.0
 
@@ -66,6 +58,10 @@ _LATENCY_CLEANUP_INTERVAL_S = 30.0
 
 # Timeout for graceful shutdown (seconds)
 _SHUTDOWN_TIMEOUT_S = 10.0
+
+# Poll interval for dequeuing requests from the priority queue (seconds).
+# Trade-off: shorter = lower latency but more CPU wake-ups.
+_DEQUEUE_POLL_INTERVAL_S = 0.5
 
 
 class Scheduler:
@@ -315,7 +311,7 @@ class Scheduler:
 
         channel = grpc.aio.insecure_channel(
             f"localhost:{worker.port}",
-            options=_GRPC_CHANNEL_OPTIONS,
+            options=GRPC_BATCH_CHANNEL_OPTIONS,
         )
         try:
             result = await self._send_to_worker(request, channel, worker.worker_id)
@@ -387,7 +383,7 @@ class Scheduler:
                 try:
                     scheduled = await asyncio.wait_for(
                         self._queue.dequeue(),
-                        timeout=0.5,
+                        timeout=_DEQUEUE_POLL_INTERVAL_S,
                     )
                 except TimeoutError:
                     continue
@@ -501,6 +497,22 @@ class Scheduler:
             if future is not None and not future.done():
                 future.set_exception(exc)
 
+            # Log unexpected errors at critical level for visibility
+            if not isinstance(
+                exc,
+                WorkerCrashError
+                | WorkerTimeoutError
+                | WorkerUnavailableError
+                | grpc.aio.AioRpcError
+                | OSError,
+            ):
+                logger.critical(
+                    "dispatch_unexpected_error",
+                    request_id=request.request_id,
+                    error=str(exc),
+                    exc_info=True,
+                )
+
             # Evict stale channel so next request creates a fresh one
             await self.close_channel(address)
 
@@ -555,7 +567,7 @@ class Scheduler:
         if channel is None:
             channel = grpc.aio.insecure_channel(
                 address,
-                options=_GRPC_CHANNEL_OPTIONS,
+                options=GRPC_BATCH_CHANNEL_OPTIONS,
             )
             self._channels[address] = channel
         return channel

@@ -33,6 +33,7 @@ import contextlib
 import time
 from typing import TYPE_CHECKING
 
+import grpc.aio
 import numpy as np
 
 from macaw._audio_constants import PCM_INT16_MAX, PCM_INT16_MIN
@@ -85,6 +86,14 @@ _FLUSH_AND_CLOSE_TIMEOUT_S = 2.0
 
 # Default timeout for worker recovery after crash.
 _DEFAULT_RECOVERY_TIMEOUT_S = 10.0
+
+# Initial size for the pre-allocated int16 conversion buffer (samples).
+# 1024 samples = 64ms at 16kHz. Grows on demand if a larger frame arrives.
+_INITIAL_INT16_BUFFER_SAMPLES = 1024
+
+# Prefix used when injecting hot words into the initial prompt for
+# encoder-decoder engines (e.g., Whisper). Language-specific.
+_HOT_WORDS_PROMPT_PREFIX = "Termos:"
 
 
 class StreamMetricsRecorder:
@@ -431,7 +440,7 @@ class StreamingSession:
         # Pre-allocated int16 buffer for float32->int16 conversion in
         # _send_frame_to_worker(). Avoids allocating a new int16 array
         # per frame. Grows on demand if a larger frame arrives.
-        self._int16_buffer = np.empty(1024, dtype=np.int16)
+        self._int16_buffer = np.empty(_INITIAL_INT16_BUFFER_SAMPLES, dtype=np.int16)
 
         stt_active_sessions.inc()
 
@@ -697,7 +706,7 @@ class StreamingSession:
         if self._stream_handle is not None:
             try:
                 await self._stream_handle.cancel()
-            except Exception:
+            except (WorkerCrashError, grpc.aio.AioRpcError, OSError):
                 logger.debug(
                     "stream_cancel_error_on_close",
                     session_id=self._session_id,
@@ -802,7 +811,7 @@ class StreamingSession:
         if self._stream_handle is not None and not self._stream_handle.is_closed:
             try:
                 await self._stream_handle.cancel()
-            except Exception:
+            except (WorkerCrashError, grpc.aio.AioRpcError, OSError):
                 logger.debug(
                     "cleanup_stream_cancel_error",
                     session_id=self._session_id,
@@ -1000,7 +1009,7 @@ class StreamingSession:
         """
         hot_words_prompt: str | None = None
         if self._hot_words and not self._engine_supports_hot_words:
-            hot_words_prompt = f"Termos: {', '.join(self._hot_words)}."
+            hot_words_prompt = f"{_HOT_WORDS_PROMPT_PREFIX} {', '.join(self._hot_words)}."
 
         # Cross-segment context: only for engines that support initial_prompt
         # (encoder-decoder like Whisper). CTC does not support conditioning via prompt.
@@ -1055,10 +1064,11 @@ class StreamingSession:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.error(
+            logger.critical(
                 "receiver_unexpected_error",
                 session_id=self._session_id,
                 error=str(exc),
+                exc_info=True,
             )
             await self._emit_error(
                 code="internal_error",

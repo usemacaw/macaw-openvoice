@@ -46,10 +46,9 @@ def _spectral_flatness(magnitude: np.ndarray) -> float:
     Returns:
         Spectral flatness in [0.0, 1.0].
     """
-    np.maximum(magnitude, _EPSILON, out=magnitude)
-    arithmetic_mean = np.mean(magnitude)
-    np.log(magnitude, out=magnitude)
-    geometric_mean = np.exp(np.mean(magnitude))
+    clamped = np.maximum(magnitude, _EPSILON)
+    arithmetic_mean = np.mean(clamped)
+    geometric_mean = np.exp(np.mean(np.log(clamped)))
     return float(geometric_mean / arithmetic_mean)
 
 

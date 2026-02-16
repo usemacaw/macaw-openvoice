@@ -1,6 +1,6 @@
 """Tests for M8-08: Scheduler Prometheus Metrics.
 
-Tests cover: metric definitions, lazy import pattern, HAS_METRICS flag,
+Tests cover: metric definitions, lazy import pattern,
 queue_depth inc/dec, queue_wait_seconds observation, grpc_duration_seconds
 observation, cancel_latency_seconds observation, batch_size observation,
 requests_total by priority+status, aging_promotions_total, and no-op
@@ -97,13 +97,6 @@ def _make_scheduler(
 
 class TestMetricDefinitions:
     """Tests for the metrics module itself."""
-
-    def test_has_metrics_flag(self) -> None:
-        """HAS_METRICS reflects whether prometheus_client is available."""
-        from macaw.scheduler.metrics import HAS_METRICS
-
-        # In test env prometheus_client should be installed
-        assert HAS_METRICS is True
 
     def test_all_metrics_defined(self) -> None:
         """All 7 metrics are defined (not None) when prometheus is available."""
@@ -521,7 +514,6 @@ class TestNoOpWithoutPrometheus:
 
             importlib.reload(metrics_mod)
 
-            assert metrics_mod.HAS_METRICS is False
             assert isinstance(metrics_mod.scheduler_queue_depth, NullMetric)
             assert isinstance(metrics_mod.scheduler_queue_wait_seconds, NullMetric)
             assert isinstance(metrics_mod.scheduler_grpc_duration_seconds, NullMetric)

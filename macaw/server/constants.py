@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 
 from macaw._audio_constants import TTS_DEFAULT_SAMPLE_RATE as TTS_DEFAULT_SAMPLE_RATE
-from macaw._grpc_constants import GRPC_TTS_CHANNEL_OPTIONS
 
 # --- Configurable via environment variables ---
 
@@ -26,8 +25,6 @@ ALLOWED_AUDIO_CONTENT_TYPES = frozenset(
         "application/octet-stream",  # generic fallback
     }
 )
-
-TTS_GRPC_CHANNEL_OPTIONS = GRPC_TTS_CHANNEL_OPTIONS  # backward compat
 
 # Timeout for the gRPC Synthesize RPC (seconds). Default: 60s.
 TTS_GRPC_TIMEOUT = float(os.environ.get("MACAW_TTS_GRPC_TIMEOUT_S", "60.0"))

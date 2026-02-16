@@ -46,8 +46,6 @@ try:
         "Number of sessions with active TTS synthesis",
     )
 
-    HAS_TTS_METRICS = True
-
 except ImportError:
     from macaw._null_metrics import NullMetric as _Null
 
@@ -55,5 +53,3 @@ except ImportError:
     tts_synthesis_duration_seconds = _Null()  # type: ignore[assignment]
     tts_requests_total = _Null()  # type: ignore[assignment]
     tts_active_sessions = _Null()  # type: ignore[assignment]
-
-    HAS_TTS_METRICS = False

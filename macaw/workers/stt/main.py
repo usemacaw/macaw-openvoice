@@ -24,6 +24,11 @@ import grpc.aio  # noqa: E402
 from macaw._audio_constants import STT_SAMPLE_RATE  # noqa: E402
 from macaw.logging import configure_logging, get_logger  # noqa: E402
 from macaw.proto import add_STTWorkerServicer_to_server  # noqa: E402
+from macaw.workers._constants import (  # noqa: E402
+    DEFAULT_WARMUP_STEPS,
+    GRPC_WORKER_SERVER_OPTIONS,
+    STOP_GRACE_PERIOD,
+)
 from macaw.workers.stt.servicer import STTWorkerServicer  # noqa: E402
 from macaw.workers.torch_utils import configure_torch_inference  # noqa: E402
 
@@ -31,8 +36,6 @@ if TYPE_CHECKING:
     from macaw.workers.stt.interface import STTBackend
 
 logger = get_logger("worker.stt.main")
-
-STOP_GRACE_PERIOD = 5.0
 
 
 def _create_backend(engine: str) -> STTBackend:
@@ -72,7 +75,7 @@ async def serve(
     await backend.load(model_path, engine_config)
     logger.info("model_loaded", engine=engine)
 
-    warmup_steps = int(engine_config.get("warmup_steps", 3))  # type: ignore[call-overload]
+    warmup_steps = int(engine_config.get("warmup_steps", DEFAULT_WARMUP_STEPS))  # type: ignore[call-overload]
     await _warmup_backend(backend, warmup_steps=warmup_steps)
 
     model_name = str(engine_config.get("model_size", "unknown"))
@@ -82,12 +85,7 @@ async def serve(
         engine=engine,
     )
 
-    server = grpc.aio.server(
-        options=[
-            ("grpc.http2.min_recv_ping_interval_without_data_ms", 5_000),
-            ("grpc.keepalive_permit_without_calls", 1),
-        ]
-    )
+    server = grpc.aio.server(options=GRPC_WORKER_SERVER_OPTIONS)
     add_STTWorkerServicer_to_server(servicer, server)  # type: ignore[no-untyped-call]
     listen_addr = f"[::]:{port}"
     server.add_insecure_port(listen_addr)
@@ -123,7 +121,9 @@ async def serve(
 _WARMUP_AUDIO_DURATIONS = (1.0, 3.0, 5.0)
 
 
-async def _warmup_backend(backend: STTBackend, *, warmup_steps: int = 3) -> None:
+async def _warmup_backend(
+    backend: STTBackend, *, warmup_steps: int = DEFAULT_WARMUP_STEPS
+) -> None:
     """Run warmup inference passes to prime GPU caches, JIT, and memory pools.
 
     Multiple passes with varied audio lengths exercise different CUDA kernel

@@ -21,9 +21,14 @@ from typing import TYPE_CHECKING  # noqa: E402
 
 import grpc.aio  # noqa: E402
 
+from macaw._audio_constants import BYTES_PER_SAMPLE_INT16, TTS_DEFAULT_SAMPLE_RATE  # noqa: E402
 from macaw.logging import configure_logging, get_logger  # noqa: E402
 from macaw.proto import add_TTSWorkerServicer_to_server  # noqa: E402
-from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE  # noqa: E402
+from macaw.workers._constants import (  # noqa: E402
+    DEFAULT_WARMUP_STEPS,
+    GRPC_WORKER_SERVER_OPTIONS,
+    STOP_GRACE_PERIOD,
+)
 from macaw.workers.torch_utils import configure_torch_inference  # noqa: E402
 from macaw.workers.tts.servicer import TTSWorkerServicer  # noqa: E402
 
@@ -31,8 +36,6 @@ if TYPE_CHECKING:
     from macaw.workers.tts.interface import TTSBackend
 
 logger = get_logger("worker.tts.main")
-
-STOP_GRACE_PERIOD = 5.0
 
 
 def _create_backend(engine: str) -> TTSBackend:
@@ -77,7 +80,7 @@ async def serve(
     await backend.load(model_path, engine_config)
     logger.info("model_loaded", engine=engine)
 
-    warmup_steps = int(engine_config.get("warmup_steps", 3))  # type: ignore[call-overload]
+    warmup_steps = int(engine_config.get("warmup_steps", DEFAULT_WARMUP_STEPS))  # type: ignore[call-overload]
     await _warmup_backend(backend, warmup_steps=warmup_steps)
 
     model_name = str(engine_config.get("model_name", "unknown"))
@@ -87,12 +90,7 @@ async def serve(
         engine=engine,
     )
 
-    server = grpc.aio.server(
-        options=[
-            ("grpc.http2.min_recv_ping_interval_without_data_ms", 5_000),
-            ("grpc.keepalive_permit_without_calls", 1),
-        ]
-    )
+    server = grpc.aio.server(options=GRPC_WORKER_SERVER_OPTIONS)
     add_TTSWorkerServicer_to_server(servicer, server)  # type: ignore[no-untyped-call]
     listen_addr = f"[::]:{port}"
     server.add_insecure_port(listen_addr)
@@ -131,11 +129,10 @@ _WARMUP_TEXTS = (
     "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.",
 )
 
-# PCM 16-bit at 24kHz: 2 bytes per sample
-_TTS_BYTES_PER_SAMPLE = 2
 
-
-async def _warmup_backend(backend: TTSBackend, *, warmup_steps: int = 3) -> None:
+async def _warmup_backend(
+    backend: TTSBackend, *, warmup_steps: int = DEFAULT_WARMUP_STEPS
+) -> None:
     """Run warmup synthesis passes to prime GPU caches, JIT, and memory pools.
 
     Multiple passes with varied text lengths exercise different decoder
@@ -164,7 +161,7 @@ async def _warmup_backend(backend: TTSBackend, *, warmup_steps: int = 3) -> None
             elapsed = time.monotonic() - start
 
             if is_last and elapsed > 0 and total_bytes > 0:
-                audio_duration_s = total_bytes / (TTS_DEFAULT_SAMPLE_RATE * _TTS_BYTES_PER_SAMPLE)
+                audio_duration_s = total_bytes / (TTS_DEFAULT_SAMPLE_RATE * BYTES_PER_SAMPLE_INT16)
                 rtfx = audio_duration_s / elapsed
 
             logger.info(

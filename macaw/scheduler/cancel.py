@@ -199,7 +199,7 @@ class CancellationManager:
 
         finally:
             if close_channel and channel is not None:
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(OSError, grpc.aio.AioRpcError):
                     await channel.close()
 
     def unregister(self, request_id: str) -> None:

@@ -1,4 +1,4 @@
-"""Fixtures compartilhadas para todos os testes."""
+"""Shared fixtures for all tests."""
 
 from __future__ import annotations
 
@@ -22,63 +22,63 @@ MANIFESTS_DIR = FIXTURES_DIR / "manifests"
 
 @pytest.fixture
 def audio_16khz() -> Path:
-    """Caminho para audio sample PCM 16-bit, 16kHz, mono."""
+    """Path to PCM 16-bit, 16kHz, mono audio sample."""
     path = AUDIO_DIR / "sample_16khz.wav"
-    assert path.exists(), f"Fixture de audio nao encontrada: {path}"
+    assert path.exists(), f"Audio fixture not found: {path}"
     return path
 
 
 @pytest.fixture
 def audio_8khz() -> Path:
-    """Caminho para audio sample PCM 16-bit, 8kHz, mono."""
+    """Path to PCM 16-bit, 8kHz, mono audio sample."""
     path = AUDIO_DIR / "sample_8khz.wav"
-    assert path.exists(), f"Fixture de audio nao encontrada: {path}"
+    assert path.exists(), f"Audio fixture not found: {path}"
     return path
 
 
 @pytest.fixture
 def audio_44khz() -> Path:
-    """Caminho para audio sample PCM 16-bit, 44.1kHz, mono."""
+    """Path to PCM 16-bit, 44.1kHz, mono audio sample."""
     path = AUDIO_DIR / "sample_44khz.wav"
-    assert path.exists(), f"Fixture de audio nao encontrada: {path}"
+    assert path.exists(), f"Audio fixture not found: {path}"
     return path
 
 
 @pytest.fixture
 def valid_stt_manifest_path() -> Path:
-    """Caminho para manifesto STT valido."""
+    """Path to valid STT manifest."""
     path = MANIFESTS_DIR / "valid_stt.yaml"
-    assert path.exists(), f"Fixture de manifesto nao encontrada: {path}"
+    assert path.exists(), f"Manifest fixture not found: {path}"
     return path
 
 
 @pytest.fixture
 def valid_tts_manifest_path() -> Path:
-    """Caminho para manifesto TTS valido."""
+    """Path to valid TTS manifest."""
     path = MANIFESTS_DIR / "valid_tts.yaml"
-    assert path.exists(), f"Fixture de manifesto nao encontrada: {path}"
+    assert path.exists(), f"Manifest fixture not found: {path}"
     return path
 
 
 @pytest.fixture
 def minimal_manifest_path() -> Path:
-    """Caminho para manifesto com campos minimos."""
+    """Path to manifest with minimal fields."""
     path = MANIFESTS_DIR / "minimal.yaml"
-    assert path.exists(), f"Fixture de manifesto nao encontrada: {path}"
+    assert path.exists(), f"Manifest fixture not found: {path}"
     return path
 
 
 @pytest.fixture
 def invalid_manifest_path() -> Path:
-    """Caminho para manifesto invalido (campos obrigatorios faltando)."""
+    """Path to invalid manifest (missing required fields)."""
     path = MANIFESTS_DIR / "invalid_missing.yaml"
-    assert path.exists(), f"Fixture de manifesto nao encontrada: {path}"
+    assert path.exists(), f"Manifest fixture not found: {path}"
     return path
 
 
 @pytest.fixture
 def sample_audio_bytes() -> bytes:
-    """1 segundo de audio PCM 16-bit, 16kHz, mono (tom 440Hz)."""
+    """1 second of PCM 16-bit, 16kHz, mono audio (440Hz sine tone)."""
     sample_rate = 16000
     duration = 1.0
     frequency = 440.0
@@ -94,7 +94,7 @@ def sample_audio_bytes() -> bytes:
 
 @pytest.fixture
 def sample_batch_result() -> BatchResult:
-    """BatchResult de exemplo para testes de conversao."""
+    """Sample BatchResult for conversion tests."""
     return BatchResult(
         text="Ola, como posso ajudar?",
         language="pt",

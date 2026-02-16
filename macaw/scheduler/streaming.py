@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import grpc
 import grpc.aio
 
+from macaw._grpc_constants import GRPC_STREAMING_CHANNEL_OPTIONS
 from macaw._types import TranscriptSegment, WordTimestamp
 from macaw.exceptions import WorkerCrashError, WorkerTimeoutError
 from macaw.logging import get_logger
@@ -23,20 +24,6 @@ if TYPE_CHECKING:
     from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
 
 logger = get_logger("scheduler.streaming")
-
-# gRPC channel options for streaming — aggressive keepalive to detect
-# worker crash via stream break in <100ms (RULE 1: P99, not average)
-_GRPC_STREAMING_CHANNEL_OPTIONS = [
-    ("grpc.max_send_message_length", 10 * 1024 * 1024),
-    ("grpc.max_receive_message_length", 10 * 1024 * 1024),
-    ("grpc.keepalive_time_ms", 10_000),
-    ("grpc.keepalive_timeout_ms", 5_000),
-    ("grpc.keepalive_permit_without_calls", 1),
-    ("grpc.http2.min_recv_ping_interval_without_data_ms", 5_000),
-    # Allow unlimited keepalive pings without data to prevent silent
-    # connection death during mute-on-speak (no frames sent while TTS active).
-    ("grpc.http2.max_pings_without_data", 0),
-]
 
 
 class StreamHandle:
@@ -204,7 +191,7 @@ class StreamingGRPCClient:
         """
         self._channel = grpc.aio.insecure_channel(
             self._worker_address,
-            options=_GRPC_STREAMING_CHANNEL_OPTIONS,
+            options=GRPC_STREAMING_CHANNEL_OPTIONS,
         )
         from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
 
