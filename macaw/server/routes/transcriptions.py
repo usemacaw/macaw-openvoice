@@ -40,11 +40,14 @@ async def cancel_transcription(
 @router.post("/v1/audio/transcriptions")
 async def create_transcription(
     file: UploadFile,
-    model: str = Form(),
+    model: str = Form(max_length=256),
     language: str | None = Form(default=None),
     prompt: str | None = Form(default=None),
     response_format: str = Form(default="json"),
-    temperature: float = Form(default=0.0),
+    temperature: float = Form(default=0.0, ge=0.0, le=2.0),
+    timestamp_granularities: list[str] = Form(  # noqa: B008
+        default=["segment"], alias="timestamp_granularities[]"
+    ),
     itn: bool = Form(default=True),
     scheduler: Scheduler = Depends(get_scheduler),  # noqa: B008
     preprocessing_pipeline: AudioPreprocessingPipeline | None = Depends(  # noqa: B008
@@ -63,6 +66,7 @@ async def create_transcription(
         prompt=prompt,
         response_format=response_format,
         temperature=temperature,
+        timestamp_granularities=tuple(timestamp_granularities),
         task="transcribe",
         scheduler=scheduler,
         preprocessing_pipeline=preprocessing_pipeline,

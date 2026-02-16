@@ -20,8 +20,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from macaw._types import TTSEngineCapabilities, VoiceInfo
-from macaw.exceptions import ModelLoadError, TTSSynthesisError
+from macaw.exceptions import ModelLoadError, TTSEngineError, TTSSynthesisError
 from macaw.logging import get_logger
+from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw.workers.torch_utils import release_gpu_memory, resolve_device
 from macaw.workers.tts.audio_utils import CHUNK_SIZE_BYTES, float32_to_pcm16_bytes
 from macaw.workers.tts.interface import TTSBackend
@@ -35,8 +36,6 @@ except ImportError:
     kokoro_lib = None
 
 logger = get_logger("worker.tts.kokoro")
-
-_DEFAULT_SAMPLE_RATE = 24000
 
 # Voice prefix -> language code. Kokoro convention: first char = language.
 _VOICE_LANG_MAP: dict[str, str] = {
@@ -127,7 +126,7 @@ class KokoroBackend(TTSBackend):
         text: str,
         voice: str = "default",
         *,
-        sample_rate: int = _DEFAULT_SAMPLE_RATE,
+        sample_rate: int = TTS_DEFAULT_SAMPLE_RATE,
         speed: float = 1.0,
         options: dict[str, object] | None = None,
     ) -> AsyncIterator[bytes]:
@@ -157,11 +156,11 @@ class KokoroBackend(TTSBackend):
         if not text.strip():
             raise TTSSynthesisError(self._model_path, "Empty text")
 
-        if sample_rate != _DEFAULT_SAMPLE_RATE:
+        if sample_rate != TTS_DEFAULT_SAMPLE_RATE:
             logger.warning(
                 "sample_rate=%d ignored; engine outputs at %dHz",
                 sample_rate,
-                _DEFAULT_SAMPLE_RATE,
+                TTS_DEFAULT_SAMPLE_RATE,
             )
 
         voice_path = _resolve_voice_path(
@@ -203,13 +202,13 @@ class KokoroBackend(TTSBackend):
 
         if error_holder[0] is not None:
             exc = error_holder[0]
-            if isinstance(exc, TTSSynthesisError):
+            if isinstance(exc, TTSSynthesisError | TTSEngineError):
                 raise exc
-            raise TTSSynthesisError(self._model_path, str(exc)) from exc
+            raise TTSEngineError(self._model_path, str(exc)) from exc
 
         if not has_audio:
             msg = "Synthesis returned empty audio"
-            raise TTSSynthesisError(self._model_path, msg)
+            raise TTSEngineError(self._model_path, msg)
 
     async def voices(self) -> list[VoiceInfo]:
         if not self._voices_dir or not os.path.isdir(self._voices_dir):

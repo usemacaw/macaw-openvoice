@@ -5,6 +5,7 @@ Pure functions without side effects — easier testing and reuse.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from macaw.proto import (
@@ -21,9 +22,25 @@ if TYPE_CHECKING:
     from macaw.proto.stt_worker_pb2 import TranscribeFileRequest
 
 
+@dataclass(frozen=True, slots=True)
+class TranscribeFileParams:
+    """Typed parameters for STTBackend.transcribe_file().
+
+    Replaces the previous dict[str, object] return type for type safety.
+    All fields mirror the STTBackend.transcribe_file() signature.
+    """
+
+    audio_data: bytes
+    language: str | None
+    initial_prompt: str | None
+    hot_words: list[str] | None
+    temperature: float
+    word_timestamps: bool
+
+
 def proto_request_to_transcribe_params(
     request: TranscribeFileRequest,
-) -> dict[str, object]:
+) -> TranscribeFileParams:
     """Convert gRPC TranscribeFileRequest to params for STTBackend.transcribe_file.
 
     Treat empty strings as None (protobuf default for strings is empty).
@@ -33,14 +50,14 @@ def proto_request_to_transcribe_params(
     hot_words: list[str] | None = list(request.hot_words) if request.hot_words else None
     word_timestamps = "word" in list(request.timestamp_granularities)
 
-    return {
-        "audio_data": bytes(request.audio_data),
-        "language": language,
-        "initial_prompt": initial_prompt,
-        "hot_words": hot_words,
-        "temperature": request.temperature,
-        "word_timestamps": word_timestamps,
-    }
+    return TranscribeFileParams(
+        audio_data=bytes(request.audio_data),
+        language=language,
+        initial_prompt=initial_prompt,
+        hot_words=hot_words,
+        temperature=request.temperature,
+        word_timestamps=word_timestamps,
+    )
 
 
 def segment_detail_to_proto(segment: SegmentDetail) -> Segment:

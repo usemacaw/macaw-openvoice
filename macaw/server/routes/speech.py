@@ -23,7 +23,7 @@ from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
 from macaw.registry.registry import ModelRegistry  # noqa: TC001
 from macaw.scheduler.tts_converters import build_tts_proto_request
-from macaw.server.constants import TTS_GRPC_TIMEOUT
+from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE, TTS_GRPC_TIMEOUT
 from macaw.server.dependencies import get_registry, get_worker_manager
 from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.speech import SpeechRequest  # noqa: TC001
@@ -39,10 +39,7 @@ router = APIRouter()
 
 logger = get_logger("server.routes.speech")
 
-# Default sample rate for TTS (24kHz is the default for most TTS engines)
-_DEFAULT_SAMPLE_RATE = 24000
-
-# Supported response formats
+# Supported response formats (enforced by Literal type in SpeechRequest)
 _SUPPORTED_FORMATS = frozenset({"wav", "pcm"})
 
 
@@ -73,16 +70,11 @@ async def create_speech(
         response_format=body.response_format,
     )
 
-    # Validate non-empty text
+    # Validate non-empty text (whitespace-only not caught by min_length)
     if not body.input.strip():
         raise InvalidRequestError("The 'input' field cannot be empty.")
 
-    # Validate response format
-    if body.response_format not in _SUPPORTED_FORMATS:
-        valid = ", ".join(sorted(_SUPPORTED_FORMATS))
-        raise InvalidRequestError(
-            f"Invalid response_format '{body.response_format}'. Accepted values: {valid}"
-        )
+    # response_format validated by Pydantic Literal["wav", "pcm"]
 
     # Resolve TTS model + worker
     _manifest, worker, worker_address = resolve_tts_resources(registry, worker_manager, body.model)
@@ -136,7 +128,7 @@ async def create_speech(
         request_id=request_id,
         text=body.input,
         voice=voice,
-        sample_rate=_DEFAULT_SAMPLE_RATE,
+        sample_rate=TTS_DEFAULT_SAMPLE_RATE,
         speed=body.speed,
         language=language,
         ref_audio=ref_audio_bytes,
@@ -166,7 +158,7 @@ async def create_speech(
             response_stream=response_stream,
             first_audio_chunk=first_audio_chunk,
             is_wav=is_wav,
-            sample_rate=_DEFAULT_SAMPLE_RATE,
+            sample_rate=TTS_DEFAULT_SAMPLE_RATE,
             request_id=request_id,
         ),
         media_type=media_type,

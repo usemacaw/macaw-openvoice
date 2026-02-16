@@ -63,6 +63,8 @@ async def list_models(request: Request) -> dict[str, Any]:
                 "object": "model",
                 "owned_by": "macaw",
                 "created": 0,
+                "type": m.model_type.value,
+                "engine": m.engine,
             }
         )
 

@@ -98,7 +98,7 @@ class STTWorkerServicer(_BaseServicer):
         logger.info(
             "transcribe_file_start",
             request_id=request_id,
-            language=params.get("language"),
+            language=params.language,
             audio_bytes=len(request.audio_data),
         )
 
@@ -119,7 +119,14 @@ class STTWorkerServicer(_BaseServicer):
                     await context.abort(grpc.StatusCode.CANCELLED, "Request cancelled")
                     return TranscribeFileResponse()  # pragma: no cover
 
-                result = await self._backend.transcribe_file(**params)  # type: ignore[arg-type]
+                result = await self._backend.transcribe_file(
+                    audio_data=params.audio_data,
+                    language=params.language,
+                    initial_prompt=params.initial_prompt,
+                    hot_words=params.hot_words,
+                    temperature=params.temperature,
+                    word_timestamps=params.word_timestamps,
+                )
 
             # Check cancellation after inference
             if self.is_cancelled(request_id):
@@ -174,6 +181,7 @@ class STTWorkerServicer(_BaseServicer):
         hot_words: list[str] | None = (
             list(first_frame.hot_words) if first_frame.hot_words else None
         )
+        language: str | None = first_frame.language if first_frame.language else None
 
         # If the first frame already signals end, there is no audio to process
         if first_frame.is_last:
@@ -206,7 +214,7 @@ class STTWorkerServicer(_BaseServicer):
             # We detect coroutines and await them, matching the TTS servicer pattern.
             result = self._backend.transcribe_stream(
                 audio_chunks=audio_chunk_generator(),
-                language=None,
+                language=language,
                 initial_prompt=initial_prompt,
                 hot_words=hot_words,
             )

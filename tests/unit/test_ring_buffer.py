@@ -50,12 +50,12 @@ class TestRingBufferInit:
 
     def test_zero_duration_raises_value_error(self) -> None:
         """Duracao zero deve levantar ValueError."""
-        with pytest.raises(ValueError, match="positiva"):
+        with pytest.raises(ValueError, match="positive"):
             RingBuffer(duration_s=0.0)
 
     def test_negative_duration_raises_value_error(self) -> None:
         """Duracao negativa deve levantar ValueError."""
-        with pytest.raises(ValueError, match="positiva"):
+        with pytest.raises(ValueError, match="positive"):
             RingBuffer(duration_s=-1.0)
 
 
@@ -239,21 +239,21 @@ class TestRingBufferRead:
         """Offset negativo levanta ValueError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=100, bytes_per_sample=1)
         rb.write(b"\x01\x02\x03")
-        with pytest.raises(ValueError, match="negativo"):
+        with pytest.raises(ValueError, match="negative"):
             rb.read(-1, 1)
 
     def test_read_negative_length_raises_value_error(self) -> None:
         """Length negativo levanta ValueError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=100, bytes_per_sample=1)
         rb.write(b"\x01\x02\x03")
-        with pytest.raises(ValueError, match="negativo"):
+        with pytest.raises(ValueError, match="negative"):
             rb.read(0, -1)
 
     def test_read_beyond_total_written_raises_buffer_overrun(self) -> None:
         """Leitura alem do total escrito levanta BufferOverrunError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=100, bytes_per_sample=1)
         rb.write(b"\x01\x02\x03")
-        with pytest.raises(BufferOverrunError, match="alem do escrito"):
+        with pytest.raises(BufferOverrunError, match="Read beyond"):
             rb.read(0, 10)
 
     def test_read_overwritten_data_raises_buffer_overrun(self) -> None:
@@ -271,7 +271,7 @@ class TestRingBufferRead:
         rb.write(b"\x02" * 5)
 
         # Offset 0 foi sobrescrito (oldest_available = 15 - 10 = 5)
-        with pytest.raises(BufferOverrunError, match="sobrescritos"):
+        with pytest.raises(BufferOverrunError, match="overwritten"):
             rb.read(0, 5)
 
     def test_read_partial_data_from_middle(self) -> None:
@@ -341,14 +341,14 @@ class TestRingBufferReadFromOffset:
         rb.write(b"\x02" * 10)
         # total_written=20, oldest_available=10
 
-        with pytest.raises(BufferOverrunError, match="sobrescritos"):
+        with pytest.raises(BufferOverrunError, match="overwritten"):
             rb.read_from_offset(5)
 
     def test_read_from_offset_negative_raises_value_error(self) -> None:
         """Offset negativo levanta ValueError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=100, bytes_per_sample=1)
         rb.write(b"\x01\x02\x03")
-        with pytest.raises(ValueError, match="negativo"):
+        with pytest.raises(ValueError, match="negative"):
             rb.read_from_offset(-1)
 
 

@@ -40,21 +40,20 @@ def ps(server: str) -> None:
         sys.exit(1)
 
     data = response.json()
-    models = data.get("models", [])
+    models = data.get("data", [])
 
     if not models:
         click.echo("No models loaded.")
         return
 
     # Header
-    name_w = max(len(m.get("name", "")) for m in models)
+    name_w = max(len(m.get("id", "")) for m in models)
     name_w = max(name_w, 4)
-    header = f"{'NAME':<{name_w}}  {'TYPE':<5}  {'ENGINE':<16}  {'STATUS'}"
+    header = f"{'NAME':<{name_w}}  {'TYPE':<5}  {'ENGINE':<16}"
     click.echo(header)
 
     for m in models:
-        name = m.get("name", "?")
+        name = m.get("id", "?")
         model_type = m.get("type", "?")
         engine = m.get("engine", "?")
-        status = m.get("status", "loaded")
-        click.echo(f"{name:<{name_w}}  {model_type:<5}  {engine:<16}  {status}")
+        click.echo(f"{name:<{name_w}}  {model_type:<5}  {engine:<16}")

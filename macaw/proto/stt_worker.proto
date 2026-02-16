@@ -46,6 +46,7 @@ message AudioFrame {
   bool is_last = 3;             // Signals end of stream
   string initial_prompt = 4;    // Context from previous segment
   repeated string hot_words = 5;
+  string language = 6;          // ISO 639-1 language code (empty = auto-detect)
 }
 
 message TranscriptEvent {

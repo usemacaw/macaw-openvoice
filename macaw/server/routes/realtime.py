@@ -25,7 +25,11 @@ from macaw.scheduler.tts_metrics import (
     tts_synthesis_duration_seconds,
     tts_ttfb_seconds,
 )
-from macaw.server.constants import TTS_GRPC_CHANNEL_OPTIONS, TTS_GRPC_TIMEOUT
+from macaw.server.constants import (
+    TTS_DEFAULT_SAMPLE_RATE,
+    TTS_GRPC_TIMEOUT,
+)
+from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.events import (
     InputAudioBufferCommitCommand,
     SessionCancelCommand,
@@ -50,6 +54,7 @@ from macaw.server.ws_protocol import (
     dispatch_message,
 )
 from macaw.session.backpressure import FramesDroppedAction, RateLimitAction
+from macaw.session.state_machine import timeouts_from_configure_command
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -289,11 +294,7 @@ async def _send_event(
 
 
 async def _inactivity_monitor(
-    websocket: WebSocket,
-    session_id: str,
-    session_start: float,
-    last_audio_time_ref: list[float],
-    session_ref: list[StreamingSession | None],
+    ctx: SessionContext,
 ) -> str:
     """Background task que monitora inatividade e envia pings WebSocket.
 
@@ -304,17 +305,15 @@ async def _inactivity_monitor(
     Se inatividade for detectada, emite session.closed e fecha o WebSocket.
 
     Args:
-        websocket: Conexao WebSocket ativa.
-        session_id: ID da sessao para logging.
-        session_start: Timestamp monotonic de inicio da sessao.
-        last_audio_time_ref: Lista com um elemento float, usada como referencia
-            mutavel para o ultimo timestamp de audio recebido.
-        session_ref: Lista com referencia a StreamingSession (pode ser None).
+        ctx: Session context with mutable per-session state.
 
     Returns:
         Razao de fechamento ("inactivity_timeout" ou "client_disconnect").
     """
     from starlette.websockets import WebSocketState as _WSState
+
+    websocket = ctx.websocket
+    session_id = ctx.session_id
 
     inactivity_timeout, heartbeat_interval, check_interval = _get_ws_timeouts(websocket)
     last_ping_sent = time.monotonic()
@@ -328,19 +327,19 @@ async def _inactivity_monitor(
         now = time.monotonic()
 
         # Verificar inatividade (sem audio frames recebidos)
-        if now - last_audio_time_ref[0] > inactivity_timeout:
+        if now - ctx.last_audio_time > inactivity_timeout:
             logger.info(
                 "inactivity_timeout",
                 session_id=session_id,
                 timeout_s=inactivity_timeout,
             )
             # Fechar StreamingSession se existir
-            session = session_ref[0]
+            session = ctx.session
             segments = session.segment_id if session is not None else 0
             if session is not None and not session.is_closed:
                 await session.close()
 
-            total_duration_ms = int((now - session_start) * 1000)
+            total_duration_ms = int((now - ctx.session_start) * 1000)
             closed_event = SessionClosedEvent(
                 reason="inactivity_timeout",
                 total_duration_ms=total_duration_ms,
@@ -429,7 +428,108 @@ def _create_streaming_session(
 # TTS Full-Duplex Support
 # ---------------------------------------------------------------------------
 
-_TTS_SAMPLE_RATE = 24000
+
+async def _prepare_tts_request(
+    *,
+    websocket: WebSocket,
+    session_id: str,
+    request_id: str,
+    text: str,
+    voice: str,
+    model_tts: str | None,
+    send_event: Callable[[ServerEvent], Awaitable[None]],
+    language: str | None = None,
+    ref_audio: str | None = None,
+    ref_text: str | None = None,
+    instruction: str | None = None,
+) -> tuple[str, Any] | None:
+    """Resolve TTS model/worker and build gRPC proto request.
+
+    Returns (worker_address, proto_request) on success, or None after
+    sending an error event to the client.
+    """
+    import base64 as _b64
+
+    state = websocket.app.state
+    registry = getattr(state, "registry", None)
+    worker_manager = getattr(state, "worker_manager", None)
+
+    if registry is None or worker_manager is None:
+        await send_event(
+            StreamingErrorEvent(
+                code="service_unavailable",
+                message="TTS service not available",
+                recoverable=True,
+            )
+        )
+        return None
+
+    if model_tts is None:
+        model_tts = find_default_tts_model(registry)
+        if model_tts is None:
+            await send_event(
+                StreamingErrorEvent(
+                    code="model_not_found",
+                    message="No TTS model available",
+                    recoverable=True,
+                )
+            )
+            return None
+
+    try:
+        _manifest, _worker, worker_address = resolve_tts_resources(
+            registry, worker_manager, model_tts
+        )
+    except ModelNotFoundError:
+        await send_event(
+            StreamingErrorEvent(
+                code="model_not_found",
+                message=f"TTS model '{model_tts}' not found",
+                recoverable=True,
+            )
+        )
+        return None
+    except WorkerUnavailableError:
+        await send_event(
+            StreamingErrorEvent(
+                code="worker_unavailable",
+                message=f"No ready TTS worker for model '{model_tts}'",
+                recoverable=True,
+            )
+        )
+        return None
+
+    ref_audio_bytes: bytes | None = None
+    if ref_audio:
+        try:
+            ref_audio_bytes = _b64.b64decode(ref_audio)
+        except Exception:
+            logger.warning(
+                "tts_invalid_ref_audio_base64",
+                session_id=session_id,
+                request_id=request_id,
+            )
+            await send_event(
+                StreamingErrorEvent(
+                    code="invalid_request",
+                    message="Invalid base64 in 'ref_audio'",
+                    recoverable=True,
+                )
+            )
+            return None
+
+    proto_request = build_tts_proto_request(
+        request_id=request_id,
+        text=text,
+        voice=voice,
+        sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+        speed=1.0,
+        language=language,
+        ref_audio=ref_audio_bytes,
+        ref_text=ref_text,
+        instruction=instruction,
+    )
+    return worker_address, proto_request
 
 
 async def _tts_speak_task(
@@ -443,41 +543,18 @@ async def _tts_speak_task(
     model_tts: str | None,
     send_event: Callable[[ServerEvent], Awaitable[None]],
     cancel_event: asyncio.Event,
-    tts_channel_ref: list[tuple[str, grpc.aio.Channel] | None],
     language: str | None = None,
     ref_audio: str | None = None,
     ref_text: str | None = None,
     instruction: str | None = None,
 ) -> None:
-    """Background task que executa sintese TTS e envia chunks ao cliente.
+    """Background task that runs TTS synthesis and streams audio to the client.
 
-    Fluxo:
-        1. Resolve modelo TTS via registry
-        2. Resolve worker TTS via WorkerManager
-        3. Mute STT (antes de enviar primeiro byte)
-        4. Abre gRPC Synthesize stream (reuses channel via tts_channel_ref)
-        5. Envia chunks como binary frames ao WebSocket
-        6. Emite tts.speaking_start / tts.speaking_end
-        7. Unmute STT em finally (garante unmute mesmo em erro/cancel)
-
-    Args:
-        websocket: Conexao WebSocket ativa.
-        session_id: ID da sessao para logging.
-        session: StreamingSession (pode ser None se worker STT indisponivel).
-        request_id: ID unico do request TTS.
-        text: Texto para sintetizar.
-        voice: Voz a usar.
-        model_tts: Nome do modelo TTS (None usa default do registry).
-        send_event: Callback para enviar eventos ao cliente.
-        cancel_event: Event para sinalizar cancelamento externo.
-        tts_channel_ref: Mutable ref for TTS gRPC channel reuse.
-            Format: [(worker_address, channel)] or [None].
-            Channel is reused across tts.speak calls to avoid TCP+HTTP/2
-            handshake overhead (~5-20ms per request).
-        language: Target language for LLM-based TTS.
-        ref_audio: Base64-encoded reference audio for voice cloning.
-        ref_text: Reference transcript for voice cloning.
-        instruction: Voice design / style instruction.
+    Flow:
+        1. Resolve model + build proto request (_prepare_tts_request)
+        2. Open gRPC Synthesize stream (pooled channel from app.state)
+        3. Stream chunks as binary frames to WebSocket
+        4. Mute STT on first chunk, unmute in finally
     """
     from starlette.websockets import WebSocketState as _WSState
 
@@ -486,110 +563,34 @@ async def _tts_speak_task(
     first_chunk_sent = False
 
     try:
-        # 1. Resolve modelo TTS + worker
-        state = websocket.app.state
-        registry = getattr(state, "registry", None)
-        worker_manager = getattr(state, "worker_manager", None)
-
-        if registry is None or worker_manager is None:
-            await send_event(
-                StreamingErrorEvent(
-                    code="service_unavailable",
-                    message="TTS service not available",
-                    recoverable=True,
-                )
-            )
-            return
-
-        if model_tts is None:
-            model_tts = find_default_tts_model(registry)
-            if model_tts is None:
-                await send_event(
-                    StreamingErrorEvent(
-                        code="model_not_found",
-                        message="No TTS model available",
-                        recoverable=True,
-                    )
-                )
-                return
-
-        try:
-            _manifest, _worker, worker_address = resolve_tts_resources(
-                registry, worker_manager, model_tts
-            )
-        except ModelNotFoundError:
-            await send_event(
-                StreamingErrorEvent(
-                    code="model_not_found",
-                    message=f"TTS model '{model_tts}' not found",
-                    recoverable=True,
-                )
-            )
-            return
-        except WorkerUnavailableError:
-            await send_event(
-                StreamingErrorEvent(
-                    code="worker_unavailable",
-                    message=f"No ready TTS worker for model '{model_tts}'",
-                    recoverable=True,
-                )
-            )
-            return
-
-        # 3. Build proto request
-        import base64 as _b64
-
-        ref_audio_bytes: bytes | None = None
-        if ref_audio:
-            try:
-                ref_audio_bytes = _b64.b64decode(ref_audio)
-            except Exception:
-                logger.warning(
-                    "tts_invalid_ref_audio_base64",
-                    session_id=session_id,
-                    request_id=request_id,
-                )
-                await send_event(
-                    StreamingErrorEvent(
-                        code="invalid_request",
-                        message="Invalid base64 in 'ref_audio'",
-                        recoverable=True,
-                    )
-                )
-                return
-
-        proto_request = build_tts_proto_request(
+        # 1. Resolve model/worker and build proto request
+        result = await _prepare_tts_request(
+            websocket=websocket,
+            session_id=session_id,
             request_id=request_id,
             text=text,
             voice=voice,
-            sample_rate=_TTS_SAMPLE_RATE,
-            speed=1.0,
+            model_tts=model_tts,
+            send_event=send_event,
             language=language,
-            ref_audio=ref_audio_bytes,
+            ref_audio=ref_audio,
             ref_text=ref_text,
             instruction=instruction,
         )
+        if result is None:
+            return
+        worker_address, proto_request = result
 
-        # 4. Open gRPC stream (reuse channel if same worker address)
-        cached = tts_channel_ref[0]
-        if cached is not None and cached[0] == worker_address:
-            channel = cached[1]
-        else:
-            # Close old channel if worker address changed
-            if cached is not None:
-                with contextlib.suppress(Exception):
-                    await cached[1].close()
-            channel = grpc.aio.insecure_channel(
-                worker_address,
-                options=TTS_GRPC_CHANNEL_OPTIONS,
-            )
-            tts_channel_ref[0] = (worker_address, channel)
+        # 2. Open gRPC stream (pooled channel — shared with REST)
+        tts_channels: dict[str, grpc.aio.Channel] = getattr(
+            websocket.app.state, "tts_channels", {}
+        )
+        channel = get_or_create_tts_channel(tts_channels, worker_address)
         stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
         response_stream = stub.Synthesize(proto_request, timeout=TTS_GRPC_TIMEOUT)
 
-        # 5. Stream chunks to client
+        # 3. Stream chunks to client
         async for chunk in response_stream:
-            # Check cancel
             if cancel_event.is_set():
                 cancelled = True
                 break
@@ -687,9 +688,6 @@ async def _tts_speak_task(
             else:
                 tts_requests_total.labels(status="error").inc()
 
-        # Channel is NOT closed here — it's reused across tts.speak calls
-        # and closed by realtime_endpoint's finally block.
-
         logger.debug(
             "tts_task_done",
             session_id=session_id,
@@ -704,8 +702,6 @@ async def _cancel_active_tts(ctx: SessionContext) -> None:
         ctx.tts_cancel_event.set()
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await ctx.tts_task
-    # Sync channel ref back (task may have opened/changed the channel)
-    ctx.tts_channel = ctx._tts_channel_ref[0]
     ctx.tts_task = None
     ctx.tts_cancel_event = None
 
@@ -728,15 +724,9 @@ class SessionContext:
     last_audio_time: float = 0.0
     tts_task: asyncio.Task[None] | None = None
     tts_cancel_event: asyncio.Event | None = None
-    tts_channel: tuple[str, grpc.aio.Channel] | None = None
     model_tts: str | None = None
     backpressure: Any = field(default=None)
     closed_reason: str = "client_disconnect"
-    _tts_channel_ref: list[tuple[str, grpc.aio.Channel] | None] = field(
-        default_factory=lambda: [None],
-        init=False,
-        repr=False,
-    )
 
     async def send_event(self, event: ServerEvent) -> None:
         """Send an event to the client WebSocket."""
@@ -764,6 +754,13 @@ async def _handle_configure_command(
             ctx.session.update_hot_words(cmd.hot_words)
         if cmd.enable_itn is not None:
             ctx.session.update_itn(cmd.enable_itn)
+        if cmd.silence_timeout_ms is not None or cmd.hold_timeout_ms is not None:
+            new_timeouts = timeouts_from_configure_command(
+                ctx.session.current_timeouts,
+                silence_timeout_ms=cmd.silence_timeout_ms,
+                hold_timeout_ms=cmd.hold_timeout_ms,
+            )
+            ctx.session.update_session_timeouts(new_timeouts)
     if cmd.model_tts is not None:
         ctx.model_tts = cmd.model_tts
     return False
@@ -786,9 +783,6 @@ async def _handle_tts_speak_command(
 
     cancel_ev = asyncio.Event()
     ctx.tts_cancel_event = cancel_ev
-    # Shared mutable ref so _tts_speak_task can update the channel
-    channel_ref: list[tuple[str, grpc.aio.Channel] | None] = [ctx.tts_channel]
-    ctx._tts_channel_ref = channel_ref  # keep ref for sync-back
     ctx.tts_task = asyncio.create_task(
         _tts_speak_task(
             websocket=ctx.websocket,
@@ -800,7 +794,6 @@ async def _handle_tts_speak_command(
             model_tts=ctx.model_tts,
             send_event=ctx.send_event,
             cancel_event=cancel_ev,
-            tts_channel_ref=channel_ref,
             language=cmd.language,
             ref_audio=cmd.ref_audio,
             ref_text=cmd.ref_text,
@@ -824,6 +817,23 @@ async def _handle_tts_cancel_command(
     return False
 
 
+async def _close_session(ctx: SessionContext, reason: str) -> bool:
+    """Close session, emit SessionClosedEvent, return True (breaks loop).
+
+    Shared logic for session.cancel and session.close commands.
+    """
+    segments = ctx.session.segment_id if ctx.session is not None else 0
+    if ctx.session is not None and not ctx.session.is_closed:
+        await ctx.session.close()
+    closed = SessionClosedEvent(
+        reason=reason,
+        total_duration_ms=int((time.monotonic() - ctx.session_start) * 1000),
+        segments_transcribed=segments,
+    )
+    await ctx.send_event(closed)
+    return True
+
+
 async def _handle_session_cancel_command(
     ctx: SessionContext,
     cmd: SessionCancelCommand,
@@ -831,16 +841,7 @@ async def _handle_session_cancel_command(
     """Handle session.cancel. Returns True (breaks loop)."""
     logger.info("session_cancel", session_id=ctx.session_id)
     ctx.closed_reason = "cancelled"
-    segments = ctx.session.segment_id if ctx.session is not None else 0
-    if ctx.session is not None and not ctx.session.is_closed:
-        await ctx.session.close()
-    closed = SessionClosedEvent(
-        reason="cancelled",
-        total_duration_ms=int((time.monotonic() - ctx.session_start) * 1000),
-        segments_transcribed=segments,
-    )
-    await ctx.send_event(closed)
-    return True
+    return await _close_session(ctx, reason="cancelled")
 
 
 async def _handle_session_close_command(
@@ -850,16 +851,7 @@ async def _handle_session_close_command(
     """Handle session.close. Returns True (breaks loop)."""
     logger.info("session_close", session_id=ctx.session_id)
     ctx.closed_reason = "client_request"
-    segments = ctx.session.segment_id if ctx.session is not None else 0
-    if ctx.session is not None and not ctx.session.is_closed:
-        await ctx.session.close()
-    closed = SessionClosedEvent(
-        reason="client_request",
-        total_duration_ms=int((time.monotonic() - ctx.session_start) * 1000),
-        segments_transcribed=segments,
-    )
-    await ctx.send_event(closed)
-    return True
+    return await _close_session(ctx, reason="client_request")
 
 
 async def _handle_commit_command(
@@ -987,17 +979,8 @@ async def realtime_endpoint(
         backpressure=BackpressureController(),
     )
 
-    session_ref: list[StreamingSession | None] = [session]
-    last_audio_time_ref: list[float] = [ctx.last_audio_time]
-
     monitor_task = asyncio.create_task(
-        _inactivity_monitor(
-            websocket=websocket,
-            session_id=session_id,
-            session_start=session_start,
-            last_audio_time_ref=last_audio_time_ref,
-            session_ref=session_ref,
-        ),
+        _inactivity_monitor(ctx),
     )
 
     # --- Main loop ---
@@ -1029,7 +1012,6 @@ async def realtime_endpoint(
                     continue
 
                 ctx.last_audio_time = time.monotonic()
-                last_audio_time_ref[0] = ctx.last_audio_time
                 logger.debug(
                     "audio_frame_received", session_id=session_id, size_bytes=len(result.data)
                 )
@@ -1073,12 +1055,6 @@ async def realtime_endpoint(
         )
     finally:
         await _cancel_active_tts(ctx)
-
-        # Close reusable TTS gRPC channel
-        if ctx.tts_channel is not None:
-            with contextlib.suppress(Exception):
-                await ctx.tts_channel[1].close()
-            ctx.tts_channel = None
 
         if session is not None and not session.is_closed:
             await session.close()

@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from macaw._types import VoiceInfo
-from macaw.exceptions import ModelLoadError, TTSSynthesisError
+from macaw.exceptions import ModelLoadError, TTSEngineError, TTSSynthesisError
 from macaw.workers.torch_utils import resolve_device
 from macaw.workers.tts.audio_utils import float32_to_pcm16_bytes
 from macaw.workers.tts.qwen3 import (
@@ -347,7 +347,7 @@ class TestSynthesize:
     async def test_inference_error_raises_synthesis_error(self) -> None:
         backend = self._make_loaded_backend()
         backend._model.generate_custom_voice.side_effect = RuntimeError("GPU OOM")  # type: ignore[union-attr]
-        with pytest.raises(TTSSynthesisError, match="GPU OOM"):
+        with pytest.raises(TTSEngineError, match="GPU OOM"):
             async for _ in backend.synthesize("Hello"):
                 pass
 
@@ -358,7 +358,7 @@ class TestSynthesize:
             [empty_audio],
             24000,
         )
-        with pytest.raises(TTSSynthesisError, match="empty audio"):
+        with pytest.raises(TTSEngineError, match="empty audio"):
             async for _ in backend.synthesize("Hello"):
                 pass
 

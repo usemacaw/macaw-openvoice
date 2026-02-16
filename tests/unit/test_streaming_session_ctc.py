@@ -16,31 +16,7 @@ import numpy as np
 
 from macaw._types import STTArchitecture, TranscriptSegment
 from macaw.session.streaming import StreamingSession
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista.
-
-    Necessario porque AsyncMock.return_value nao suporta async generators
-    diretamente. Python resolve __aiter__/__anext__ na CLASSE, nao na
-    instancia — entao precisamos de uma classe real.
-    """
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):  # type: ignore[no-untyped-def]
-        return self
-
-    async def __anext__(self):  # type: ignore[no-untyped-def]
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
+from tests.helpers import AsyncIterFromList
 
 
 def _make_stream_handle(
@@ -53,7 +29,7 @@ def _make_stream_handle(
 
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
 
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()

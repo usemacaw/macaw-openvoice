@@ -11,48 +11,15 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, Mock
 
-import numpy as np
-
 from macaw._types import TranscriptSegment
 from macaw.session.cross_segment import CrossSegmentContext
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADEvent, VADEventType
+from tests.helpers import AsyncIterFromList, make_float32_frame, make_raw_bytes
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-_FRAME_SIZE = 1024
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
@@ -62,7 +29,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
     handle.session_id = "test_session"
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
     handle.cancel = AsyncMock()
@@ -238,7 +205,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         cross_ctx = CrossSegmentContext(max_tokens=224)
         on_event = AsyncMock()
@@ -259,7 +226,7 @@ class TestStreamingSessionCrossSegment:
             type=VADEventType.SPEECH_START,
             timestamp_ms=1000,
         )
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Dar tempo para receiver task processar o transcript.final
         await asyncio.sleep(0.05)
@@ -295,7 +262,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         cross_ctx = CrossSegmentContext(max_tokens=224)
         on_event = AsyncMock()
@@ -316,7 +283,7 @@ class TestStreamingSessionCrossSegment:
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
         )
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
         vad.process_frame.return_value = VADEvent(
@@ -324,7 +291,7 @@ class TestStreamingSessionCrossSegment:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Contexto agora tem "primeiro segmento"
         assert cross_ctx.get_prompt() == "primeiro segmento"
@@ -335,7 +302,7 @@ class TestStreamingSessionCrossSegment:
             timestamp_ms=2000,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: primeiro frame do segundo segmento deve ter initial_prompt
         calls = stream_handle2.send_frame.call_args_list
@@ -365,7 +332,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         session = StreamingSession(
             session_id="test_session",
@@ -385,7 +352,7 @@ class TestStreamingSessionCrossSegment:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: initial_prompt combina hot words e contexto
         calls = stream_handle.send_frame.call_args_list
@@ -414,7 +381,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         session = StreamingSession(
             session_id="test_session",
@@ -433,7 +400,7 @@ class TestStreamingSessionCrossSegment:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: initial_prompt tem apenas hot words
         calls = stream_handle.send_frame.call_args_list
@@ -457,7 +424,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         session = StreamingSession(
             session_id="test_session",
@@ -475,7 +442,7 @@ class TestStreamingSessionCrossSegment:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: initial_prompt e None
         calls = stream_handle.send_frame.call_args_list
@@ -501,7 +468,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         session = StreamingSession(
             session_id="test_session",
@@ -520,7 +487,7 @@ class TestStreamingSessionCrossSegment:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert
         calls = stream_handle.send_frame.call_args_list
@@ -554,7 +521,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         postprocessor = Mock()
         postprocessor.process.side_effect = lambda text: "2025"
@@ -578,7 +545,7 @@ class TestStreamingSessionCrossSegment:
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
         )
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
         # Assert: contexto armazena texto pos-processado (ITN aplicado)
@@ -603,7 +570,7 @@ class TestStreamingSessionCrossSegment:
         vad.reset.return_value = None
 
         preprocessor = Mock()
-        preprocessor.process_frame.return_value = _make_float32_frame()
+        preprocessor.process_frame.return_value = make_float32_frame()
 
         session = StreamingSession(
             session_id="test_session",
@@ -622,11 +589,11 @@ class TestStreamingSessionCrossSegment:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         vad.process_frame.return_value = None
-        await session.process_frame(_make_raw_bytes())
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: primeiro frame tem prompt, demais nao
         calls = stream_handle.send_frame.call_args_list

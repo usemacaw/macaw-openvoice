@@ -23,6 +23,7 @@ import grpc.aio  # noqa: E402
 
 from macaw.logging import configure_logging, get_logger  # noqa: E402
 from macaw.proto import add_TTSWorkerServicer_to_server  # noqa: E402
+from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE  # noqa: E402
 from macaw.workers.torch_utils import configure_torch_inference  # noqa: E402
 from macaw.workers.tts.servicer import TTSWorkerServicer  # noqa: E402
 
@@ -132,7 +133,6 @@ _WARMUP_TEXTS = (
 )
 
 # PCM 16-bit at 24kHz: 2 bytes per sample
-_TTS_SAMPLE_RATE = 24000
 _TTS_BYTES_PER_SAMPLE = 2
 
 
@@ -165,7 +165,7 @@ async def _warmup_backend(backend: TTSBackend, *, warmup_steps: int = 3) -> None
             elapsed = time.monotonic() - start
 
             if is_last and elapsed > 0 and total_bytes > 0:
-                audio_duration_s = total_bytes / (_TTS_SAMPLE_RATE * _TTS_BYTES_PER_SAMPLE)
+                audio_duration_s = total_bytes / (TTS_DEFAULT_SAMPLE_RATE * _TTS_BYTES_PER_SAMPLE)
                 rtfx = audio_duration_s / elapsed
 
             logger.info(

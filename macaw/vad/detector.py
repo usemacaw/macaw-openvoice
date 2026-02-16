@@ -17,7 +17,6 @@ import enum
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from macaw._types import VADSensitivity
 from macaw.logging import get_logger
 
 if TYPE_CHECKING:
@@ -68,7 +67,6 @@ class VADDetector:
         self,
         energy_pre_filter: EnergyPreFilter,
         silero_classifier: SileroVADClassifier,
-        sensitivity: VADSensitivity = VADSensitivity.NORMAL,
         sample_rate: int = 16000,
         min_speech_duration_ms: int = 250,
         min_silence_duration_ms: int = 300,
@@ -79,8 +77,6 @@ class VADDetector:
         Args:
             energy_pre_filter: Energy pre-filter (drops obvious silence).
             silero_classifier: Silero VAD classifier.
-            sensitivity: Sensitivity level (informational; thresholds are
-                         from injected components).
             sample_rate: Sample rate in Hz (must be 16000).
             min_speech_duration_ms: Minimum consecutive speech duration before
                                     emitting SPEECH_START (default: 250ms).

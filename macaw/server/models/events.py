@@ -250,7 +250,7 @@ class TTSSpeakCommand(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     type: Literal["tts.speak"] = "tts.speak"
-    text: str
+    text: str = Field(min_length=1, max_length=4096)
     voice: str = "default"
     request_id: str | None = None
     # Extended options for LLM-based TTS engines (e.g., Qwen3-TTS)

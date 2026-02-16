@@ -14,7 +14,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, Mock, patch
 
-import numpy as np
 import pytest
 
 from macaw._types import TranscriptSegment
@@ -24,6 +23,12 @@ from macaw.server.models.events import (
 )
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADEvent, VADEventType
+from tests.helpers import (
+    AsyncIterFromList,
+    make_preprocessor_mock,
+    make_raw_bytes,
+    make_vad_mock,
+)
 
 # Verificar se prometheus_client esta disponivel para testes de valores
 try:
@@ -32,56 +37,6 @@ try:
     _HAS_PROMETHEUS = True
 except ImportError:
     _HAS_PROMETHEUS = False
-
-
-# Frame size padrao: 1024 samples a 16kHz = 64ms
-_FRAME_SIZE = 1024
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-def _make_preprocessor_mock() -> Mock:
-    """Cria mock de StreamingPreprocessor."""
-    mock = Mock()
-    mock.process_frame.return_value = _make_float32_frame()
-    return mock
-
-
-def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    """Cria mock de VADDetector."""
-    mock = Mock()
-    mock.process_frame.return_value = None
-    mock.is_speaking = is_speaking
-    mock.reset.return_value = None
-    return mock
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
-
-    def __init__(self, items: list[object]) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self) -> _AsyncIterFromList:
-        return self
-
-    async def __anext__(self) -> object:
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
 
 
 def _make_stream_handle_mock(
@@ -94,7 +49,7 @@ def _make_stream_handle_mock(
 
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
 
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
@@ -136,14 +91,14 @@ def _make_session(
     Returns:
         (session, vad, stream_handle, on_event)
     """
-    _vad = vad or _make_vad_mock()
+    _vad = vad or make_vad_mock()
     _stream_handle = stream_handle or _make_stream_handle_mock()
     _on_event = on_event or _make_on_event()
     grpc_client = _make_grpc_client_mock(_stream_handle)
 
     session = StreamingSession(
         session_id=session_id,
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=_vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -265,7 +220,7 @@ async def test_vad_speech_start_increments_counter():
         "macaw_stt_vad_events",
         {"event_type": "speech_start"},
     )
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     session, _, _, _ = _make_session(vad=vad, session_id="vad_start_test")
 
     # Act: trigger speech_start
@@ -274,7 +229,7 @@ async def test_vad_speech_start_increments_counter():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # Assert
@@ -296,7 +251,7 @@ async def test_vad_speech_end_increments_counter():
         "macaw_stt_vad_events",
         {"event_type": "speech_end"},
     )
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock()
     session, _, _, _ = _make_session(
         vad=vad,
@@ -310,7 +265,7 @@ async def test_vad_speech_end_increments_counter():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # Act: trigger speech_end
@@ -319,7 +274,7 @@ async def test_vad_speech_end_increments_counter():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert
     current_ends = _get_counter_value(
@@ -345,7 +300,7 @@ async def test_ttfb_recorded_on_first_partial():
         start_ms=1000,
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[partial_seg])
 
     initial_count = _get_histogram_count("macaw_stt_ttfb_seconds")
@@ -362,7 +317,7 @@ async def test_ttfb_recorded_on_first_partial():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Dar tempo para receiver task processar
     await asyncio.sleep(0.05)
@@ -400,7 +355,7 @@ async def test_ttfb_recorded_once_per_segment():
         start_ms=1500,
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[partial1, partial2])
 
     initial_count = _get_histogram_count("macaw_stt_ttfb_seconds")
@@ -417,7 +372,7 @@ async def test_ttfb_recorded_once_per_segment():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.05)
 
@@ -440,7 +395,7 @@ async def test_ttfb_value_reflects_elapsed_time():
         start_ms=1000,
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[partial_seg])
 
     initial_sum = _get_histogram_sum("macaw_stt_ttfb_seconds")
@@ -458,7 +413,7 @@ async def test_ttfb_value_reflects_elapsed_time():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.05)
 
@@ -489,7 +444,7 @@ async def test_final_delay_recorded_when_final_after_speech_end():
         confidence=0.95,
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[final_seg])
 
     session, _, _, on_event = _make_session(
@@ -504,7 +459,7 @@ async def test_final_delay_recorded_when_final_after_speech_end():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Dar tempo para receiver task consumir o final
     await asyncio.sleep(0.05)
@@ -515,7 +470,7 @@ async def test_final_delay_recorded_when_final_after_speech_end():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: final_delay pode ou nao ter sido registrado dependendo do timing.
     # O final pode ter chegado ANTES do speech_end, nesse caso final_delay
@@ -539,7 +494,7 @@ async def test_final_delay_not_recorded_when_no_speech_end():
         end_ms=2000,
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[final_seg])
 
     initial_count = _get_histogram_count("macaw_stt_final_delay_seconds")
@@ -556,7 +511,7 @@ async def test_final_delay_not_recorded_when_no_speech_end():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.05)
 
@@ -592,14 +547,14 @@ async def test_session_works_without_prometheus():
         patch("macaw.session.streaming.stt_confidence_avg", None),
         patch("macaw.session.streaming.stt_worker_recoveries_total", None),
     ):
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         stream_handle = _make_stream_handle_mock()
         on_event = _make_on_event()
 
         # Act: criar sessao, processar frames, fechar
         session = StreamingSession(
             session_id="no_metrics_test",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=_make_grpc_client_mock(stream_handle),
             postprocessor=_make_postprocessor_mock(),
@@ -612,7 +567,7 @@ async def test_session_works_without_prometheus():
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.01)
 
         # Trigger speech_end
@@ -621,7 +576,7 @@ async def test_session_works_without_prometheus():
             timestamp_ms=2000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Close
         await session.close()
@@ -674,7 +629,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
     )
     stream_handle1 = _make_stream_handle_mock(events=[partial1])
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     grpc_client = _make_grpc_client_mock(stream_handle1)
     on_event = _make_on_event()
 
@@ -682,7 +637,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
 
     session = StreamingSession(
         session_id="ttfb_multi_seg_test",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -695,7 +650,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
     # Preparar novo stream_handle para segundo segmento
@@ -713,7 +668,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Segmento 2: speech_start -> partial
     vad.process_frame.return_value = VADEvent(
@@ -721,7 +676,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
         timestamp_ms=3000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
     # Assert: TTFB registrado 2x (uma por segmento)
@@ -788,7 +743,7 @@ async def test_confidence_recorded_on_final_transcript():
         confidence=0.92,
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[final_seg])
     initial_count = _get_histogram_count("macaw_stt_confidence_avg")
 
@@ -804,7 +759,7 @@ async def test_confidence_recorded_on_final_transcript():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
     # Assert: confidence registrado
@@ -826,7 +781,7 @@ async def test_confidence_not_recorded_when_none():
         confidence=None,  # sem confidence
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock(events=[final_seg])
     initial_count = _get_histogram_count("macaw_stt_confidence_avg")
 
@@ -841,7 +796,7 @@ async def test_confidence_not_recorded_when_none():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
     # Assert: confidence NAO registrado
@@ -866,7 +821,7 @@ async def test_force_commit_counter_increments():
         {},
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock()
 
     # Criar ring buffer de 1s — 16000 * 2 = 32000 bytes.
@@ -876,7 +831,7 @@ async def test_force_commit_counter_increments():
 
     session = StreamingSession(
         session_id="force_commit_metric_test",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=_make_grpc_client_mock(stream_handle),
         postprocessor=_make_postprocessor_mock(),
@@ -890,14 +845,14 @@ async def test_force_commit_counter_increments():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Enviar frames para atingir >90% de uncommitted data.
     # A 90% o callback dispara e seta flag -> process_frame chama commit()
     # que avanca o fence liberando espaco para mais writes.
     vad.process_frame.return_value = None
     for _ in range(14):
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.01)
 
@@ -926,7 +881,7 @@ async def test_recovery_success_increments_counter():
         {"result": "success"},
     )
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     # Primeiro stream handle: crash no receive_events
     crash_handle = _make_stream_handle_mock(events=[WorkerCrashError("w1")])
     # Segundo stream handle: recovery normal (vazio)
@@ -942,7 +897,7 @@ async def test_recovery_success_increments_counter():
 
     session = StreamingSession(
         session_id="recovery_metric_test",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -956,7 +911,7 @@ async def test_recovery_success_increments_counter():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Dar tempo para receiver task crashar e recovery executar
     await asyncio.sleep(0.15)

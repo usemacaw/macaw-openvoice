@@ -43,18 +43,20 @@ class TranscribeFileResponse(_message.Message):
     def __init__(self, text: _Optional[str] = ..., language: _Optional[str] = ..., duration: _Optional[float] = ..., segments: _Optional[_Iterable[_Union[Segment, _Mapping]]] = ..., words: _Optional[_Iterable[_Union[Word, _Mapping]]] = ...) -> None: ...
 
 class AudioFrame(_message.Message):
-    __slots__ = ("session_id", "data", "is_last", "initial_prompt", "hot_words")
+    __slots__ = ("session_id", "data", "is_last", "initial_prompt", "hot_words", "language")
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     DATA_FIELD_NUMBER: _ClassVar[int]
     IS_LAST_FIELD_NUMBER: _ClassVar[int]
     INITIAL_PROMPT_FIELD_NUMBER: _ClassVar[int]
     HOT_WORDS_FIELD_NUMBER: _ClassVar[int]
+    LANGUAGE_FIELD_NUMBER: _ClassVar[int]
     session_id: str
     data: bytes
     is_last: bool
     initial_prompt: str
     hot_words: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, session_id: _Optional[str] = ..., data: _Optional[bytes] = ..., is_last: bool = ..., initial_prompt: _Optional[str] = ..., hot_words: _Optional[_Iterable[str]] = ...) -> None: ...
+    language: str
+    def __init__(self, session_id: _Optional[str] = ..., data: _Optional[bytes] = ..., is_last: bool = ..., initial_prompt: _Optional[str] = ..., hot_words: _Optional[_Iterable[str]] = ..., language: _Optional[str] = ...) -> None: ...
 
 class TranscriptEvent(_message.Message):
     __slots__ = ("session_id", "event_type", "text", "segment_id", "start_ms", "end_ms", "language", "confidence", "words")

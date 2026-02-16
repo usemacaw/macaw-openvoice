@@ -16,20 +16,25 @@ class TestPsCommand:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "models": [
+            "object": "list",
+            "data": [
                 {
-                    "name": "faster-whisper-tiny",
+                    "id": "faster-whisper-tiny",
+                    "object": "model",
+                    "owned_by": "macaw",
+                    "created": 0,
                     "type": "stt",
                     "engine": "faster-whisper",
-                    "status": "loaded",
                 },
                 {
-                    "name": "kokoro-v1",
+                    "id": "kokoro-v1",
+                    "object": "model",
+                    "owned_by": "macaw",
+                    "created": 0,
                     "type": "tts",
                     "engine": "kokoro",
-                    "status": "loaded",
                 },
-            ]
+            ],
         }
         mock_get.return_value = mock_response
 
@@ -44,7 +49,7 @@ class TestPsCommand:
     def test_ps_no_models(self, mock_get: MagicMock) -> None:
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"models": []}
+        mock_response.json.return_value = {"object": "list", "data": []}
         mock_get.return_value = mock_response
 
         runner = CliRunner()
@@ -77,7 +82,7 @@ class TestPsCommand:
     def test_ps_custom_server(self, mock_get: MagicMock) -> None:
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"models": []}
+        mock_response.json.return_value = {"object": "list", "data": []}
         mock_get.return_value = mock_response
 
         runner = CliRunner()
@@ -90,14 +95,17 @@ class TestPsCommand:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "models": [
+            "object": "list",
+            "data": [
                 {
-                    "name": "a-very-long-model-name",
+                    "id": "a-very-long-model-name",
+                    "object": "model",
+                    "owned_by": "macaw",
+                    "created": 0,
                     "type": "stt",
                     "engine": "faster-whisper",
-                    "status": "loaded",
                 },
-            ]
+            ],
         }
         mock_get.return_value = mock_response
 

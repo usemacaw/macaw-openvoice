@@ -150,7 +150,7 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_ttfb_seconds") as mock_ttfb,
             patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
@@ -173,7 +173,6 @@ class TestTTSMetricsInstrumentation:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         mock_ttfb.observe.assert_called_once()
@@ -216,7 +215,7 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch(
                 "macaw.server.routes.realtime.tts_synthesis_duration_seconds",
             ) as mock_dur,
@@ -241,7 +240,6 @@ class TestTTSMetricsInstrumentation:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         mock_dur.observe.assert_called_once()
@@ -282,7 +280,7 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
             patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
@@ -305,7 +303,6 @@ class TestTTSMetricsInstrumentation:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         mock_counter.labels.assert_called_with(status="ok")
@@ -346,7 +343,6 @@ class TestTTSMetricsInstrumentation:
                 model_tts="kokoro-v1",
                 send_event=send_event,
                 cancel_event=cancel,
-                tts_channel_ref=[None],
             )
 
         mock_counter.labels.assert_called_with(status="error")
@@ -388,7 +384,7 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_active_sessions") as mock_gauge,
             patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
@@ -411,7 +407,6 @@ class TestTTSMetricsInstrumentation:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         mock_gauge.inc.assert_called_once()
@@ -454,7 +449,7 @@ class TestTTSMetricsInstrumentation:
         stream = _make_mock_grpc_stream([chunk])
 
         with (
-            patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch,
+            patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
             patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
@@ -477,7 +472,6 @@ class TestTTSMetricsInstrumentation:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         mock_counter.labels.assert_called_with(status="cancelled")

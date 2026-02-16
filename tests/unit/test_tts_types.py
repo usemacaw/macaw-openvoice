@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from macaw._types import TTSEngineCapabilities, TTSSpeechResult, VoiceInfo
-from macaw.exceptions import MacawError, TTSError, TTSSynthesisError
+from macaw._types import TTSEngineCapabilities, VoiceInfo
+from macaw.exceptions import MacawError, TTSEngineError, TTSError, TTSSynthesisError
 from macaw.workers.tts.interface import TTSBackend
 
 if TYPE_CHECKING:
@@ -90,37 +90,7 @@ class TestTTSEngineCapabilities:
         assert caps.supports_streaming is False
 
 
-# --- TTSSpeechResult ---
-
-
-class TestTTSSpeechResult:
-    def test_creation(self) -> None:
-        result = TTSSpeechResult(
-            audio_data=b"\x00\x01",
-            sample_rate=24000,
-            duration=1.5,
-            voice="default",
-        )
-        assert result.audio_data == b"\x00\x01"
-        assert result.sample_rate == 24000
-        assert result.duration == 1.5
-        assert result.voice == "default"
-
-    def test_frozen(self) -> None:
-        result = TTSSpeechResult(
-            audio_data=b"\x00", sample_rate=24000, duration=1.0, voice="default"
-        )
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            result.duration = 2.0  # type: ignore[misc]
-
-    def test_slots(self) -> None:
-        result = TTSSpeechResult(
-            audio_data=b"\x00", sample_rate=24000, duration=1.0, voice="default"
-        )
-        assert not hasattr(result, "__dict__")
-
-
-# --- TTSError / TTSSynthesisError ---
+# --- TTSError / TTSSynthesisError / TTSEngineError ---
 
 
 class TestTTSExceptions:
@@ -140,6 +110,25 @@ class TestTTSExceptions:
     def test_tts_error_catchable_as_macaw_error(self) -> None:
         with pytest.raises(MacawError):
             raise TTSSynthesisError("model", "reason")
+
+
+class TestTTSEngineError:
+    def test_tts_engine_error_is_tts_error(self) -> None:
+        assert issubclass(TTSEngineError, TTSError)
+
+    def test_tts_engine_error_is_not_synthesis_error(self) -> None:
+        assert not issubclass(TTSEngineError, TTSSynthesisError)
+
+    def test_tts_engine_error_attributes(self) -> None:
+        err = TTSEngineError(model_name="kokoro-v1", reason="GPU OOM")
+        assert err.model_name == "kokoro-v1"
+        assert err.reason == "GPU OOM"
+        assert "kokoro-v1" in str(err)
+        assert "GPU OOM" in str(err)
+
+    def test_tts_engine_error_catchable_as_macaw_error(self) -> None:
+        with pytest.raises(MacawError):
+            raise TTSEngineError("model", "reason")
 
 
 # --- TTSBackend ABC ---

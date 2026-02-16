@@ -38,28 +38,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista.
-
-    Necessario porque Python resolve __aiter__/__anext__ na CLASSE,
-    nao na instancia — entao precisamos de uma classe real.
-    """
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):  # type: ignore[no-untyped-def]
-        return self
-
-    async def __anext__(self):  # type: ignore[no-untyped-def]
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
+from tests.helpers import AsyncIterFromList
 
 
 def _make_stream_handle(events: list | None = None) -> Mock:
@@ -67,7 +46,7 @@ def _make_stream_handle(events: list | None = None) -> Mock:
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test-ctc-adv"
-    handle.receive_events.return_value = _AsyncIterFromList(events or [])
+    handle.receive_events.return_value = AsyncIterFromList(events or [])
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
     handle.cancel = AsyncMock()

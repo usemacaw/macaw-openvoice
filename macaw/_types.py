@@ -166,17 +166,3 @@ class VoiceInfo:
     name: str
     language: str
     gender: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class TTSSpeechResult:
-    """TTS synthesis result (full audio).
-
-    Used by the REST endpoint POST /v1/audio/speech.
-    For streaming, TTSBackend.synthesize() returns AsyncIterator[bytes].
-    """
-
-    audio_data: bytes
-    sample_rate: int
-    duration: float
-    voice: str

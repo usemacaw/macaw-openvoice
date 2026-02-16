@@ -27,3 +27,6 @@ TTS_GRPC_CHANNEL_OPTIONS = [
 
 # Timeout for the gRPC Synthesize call (seconds)
 TTS_GRPC_TIMEOUT = 60.0
+
+# Default sample rate for TTS engines (24kHz is the standard for Kokoro, Qwen3-TTS, etc.)
+TTS_DEFAULT_SAMPLE_RATE: int = 24000

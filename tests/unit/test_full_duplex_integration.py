@@ -84,7 +84,7 @@ async def _run_tts_speak(
     if stream is None:
         stream = _make_mock_grpc_stream()
 
-    with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+    with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch:
         mock_channel = AsyncMock()
         mock_ch.return_value = mock_channel
         mock_stub = MagicMock()
@@ -108,7 +108,6 @@ async def _run_tts_speak(
                 model_tts=model_tts,
                 send_event=send_event,
                 cancel_event=cancel,
-                tts_channel_ref=[None],
             )
 
 
@@ -390,7 +389,6 @@ class TestFullDuplexErrorRecovery:
             model_tts="kokoro-v1",
             send_event=send_event2,
             cancel_event=cancel2,
-            tts_channel_ref=[None],
         )
         assert session.is_muted is False
 
@@ -558,7 +556,6 @@ class TestFullDuplexEdgeCases:
             model_tts="kokoro-v1",
             send_event=send_event,
             cancel_event=cancel,
-            tts_channel_ref=[None],
         )
 
         assert session.is_muted is False

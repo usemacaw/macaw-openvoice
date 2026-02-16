@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from macaw._types import VoiceInfo
-from macaw.exceptions import ModelLoadError, TTSSynthesisError
+from macaw.exceptions import ModelLoadError, TTSEngineError, TTSSynthesisError
 from macaw.workers.torch_utils import resolve_device
 from macaw.workers.tts.audio_utils import float32_to_pcm16_bytes
 from macaw.workers.tts.kokoro import (
@@ -358,7 +358,7 @@ class TestSynthesize:
         backend._pipeline = mock_pipeline  # type: ignore[assignment]
         backend._model_path = "/models/kokoro-v1"
 
-        with pytest.raises(TTSSynthesisError, match="GPU OOM"):
+        with pytest.raises(TTSEngineError, match="GPU OOM"):
             async for _ in backend.synthesize("Hello"):
                 pass
 
@@ -372,7 +372,7 @@ class TestSynthesize:
         backend._pipeline = mock_pipeline  # type: ignore[assignment]
         backend._model_path = "/models/kokoro-v1"
 
-        with pytest.raises(TTSSynthesisError, match="empty audio"):
+        with pytest.raises(TTSEngineError, match="empty audio"):
             async for _ in backend.synthesize("Hello"):
                 pass
 

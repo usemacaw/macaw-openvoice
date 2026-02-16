@@ -1,10 +1,12 @@
-"""FastAPI dependencies para injecao do Registry e Scheduler."""
+"""FastAPI dependencies for injection of Registry, Scheduler, and WorkerManager."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from fastapi import Request  # noqa: TC002
+
+from macaw.exceptions import ServiceNotConfiguredError
 
 if TYPE_CHECKING:
     from macaw.postprocessing.pipeline import PostProcessingPipeline
@@ -26,26 +28,26 @@ def get_postprocessing_pipeline(request: Request) -> PostProcessingPipeline | No
 
 
 def get_registry(request: Request) -> ModelRegistry:
-    """Retorna o ModelRegistry do app state.
+    """Return the ModelRegistry from app state.
 
     Raises:
-        RuntimeError: Se registry nao foi configurado em create_app().
+        ServiceNotConfiguredError: If registry was not configured in create_app().
     """
     registry = request.app.state.registry
     if registry is None:
-        raise RuntimeError("Registry nao configurado. Passe registry= em create_app().")
+        raise ServiceNotConfiguredError("Registry")
     return registry  # type: ignore[no-any-return]
 
 
 def get_scheduler(request: Request) -> Scheduler:
-    """Retorna o Scheduler do app state.
+    """Return the Scheduler from app state.
 
     Raises:
-        RuntimeError: Se scheduler nao foi configurado em create_app().
+        ServiceNotConfiguredError: If scheduler was not configured in create_app().
     """
     scheduler = request.app.state.scheduler
     if scheduler is None:
-        raise RuntimeError("Scheduler nao configurado. Passe scheduler= em create_app().")
+        raise ServiceNotConfiguredError("Scheduler")
     return scheduler  # type: ignore[no-any-return]
 
 
@@ -65,12 +67,12 @@ def require_voice_store(request: Request) -> VoiceStore:
 
 
 def get_worker_manager(request: Request) -> WorkerManager:
-    """Retorna o WorkerManager do app state.
+    """Return the WorkerManager from app state.
 
     Raises:
-        RuntimeError: Se worker_manager nao foi configurado em create_app().
+        ServiceNotConfiguredError: If worker_manager was not configured in create_app().
     """
     worker_manager = request.app.state.worker_manager
     if worker_manager is None:
-        raise RuntimeError("WorkerManager nao configurado. Passe worker_manager= em create_app().")
+        raise ServiceNotConfiguredError("WorkerManager")
     return worker_manager  # type: ignore[no-any-return]

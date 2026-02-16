@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import time
+from typing import Any
 from unittest.mock import MagicMock
 
+import pytest
 from starlette.testclient import TestClient
 
 from macaw.exceptions import ModelNotFoundError
@@ -389,3 +392,158 @@ def test_max_size_binary_frame_accepted() -> None:
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
+
+
+# ---------------------------------------------------------------------------
+# F-12: _handle_configure_command wires timeout fields
+# ---------------------------------------------------------------------------
+
+
+def _make_session_context_with_mock_session() -> tuple[Any, MagicMock, Any]:
+    """Create a minimal SessionContext with a mocked session for configure tests.
+
+    Returns (ctx, mock_session, current_timeouts).
+    """
+    from macaw.server.routes.realtime import SessionContext
+    from macaw.session.state_machine import SessionTimeouts
+
+    current_timeouts = SessionTimeouts(
+        init_timeout_s=30.0,
+        silence_timeout_s=30.0,
+        hold_timeout_s=300.0,
+        closing_timeout_s=2.0,
+    )
+
+    mock_session = MagicMock()
+    mock_session.current_timeouts = current_timeouts
+    mock_session.update_session_timeouts = MagicMock()
+    mock_session.update_hot_words = MagicMock()
+    mock_session.update_itn = MagicMock()
+
+    mock_websocket = MagicMock()
+    ctx = SessionContext(
+        session_id="sess_test123",
+        session_start=time.monotonic(),
+        websocket=mock_websocket,
+        session=mock_session,
+    )
+    return ctx, mock_session, current_timeouts
+
+
+class TestConfigureCommandTimeouts:
+    """Tests for _handle_configure_command timeout wiring (F-12)."""
+
+    @pytest.fixture()
+    def _ctx_and_mocks(self) -> tuple[Any, MagicMock, Any]:
+        return _make_session_context_with_mock_session()
+
+    async def test_silence_timeout_only_updates_timeouts(
+        self,
+        _ctx_and_mocks: tuple[Any, MagicMock, Any],
+    ) -> None:
+        """When only silence_timeout_ms is provided, update_session_timeouts is called."""
+        from macaw.server.models.events import SessionConfigureCommand
+        from macaw.server.routes.realtime import _handle_configure_command
+
+        ctx, mock_session, current_timeouts = _ctx_and_mocks
+        cmd = SessionConfigureCommand(silence_timeout_ms=5000)
+
+        result = await _handle_configure_command(ctx, cmd)
+
+        assert result is False
+        mock_session.update_session_timeouts.assert_called_once()
+        new_timeouts = mock_session.update_session_timeouts.call_args[0][0]
+        assert new_timeouts.silence_timeout_s == 5.0
+        assert new_timeouts.hold_timeout_s == current_timeouts.hold_timeout_s
+
+    async def test_hold_timeout_only_updates_timeouts(
+        self,
+        _ctx_and_mocks: tuple[Any, MagicMock, Any],
+    ) -> None:
+        """When only hold_timeout_ms is provided, update_session_timeouts is called."""
+        from macaw.server.models.events import SessionConfigureCommand
+        from macaw.server.routes.realtime import _handle_configure_command
+
+        ctx, mock_session, current_timeouts = _ctx_and_mocks
+        cmd = SessionConfigureCommand(hold_timeout_ms=600_000)
+
+        result = await _handle_configure_command(ctx, cmd)
+
+        assert result is False
+        mock_session.update_session_timeouts.assert_called_once()
+        new_timeouts = mock_session.update_session_timeouts.call_args[0][0]
+        assert new_timeouts.hold_timeout_s == 600.0
+        assert new_timeouts.silence_timeout_s == current_timeouts.silence_timeout_s
+
+    async def test_both_timeouts_updates_together(
+        self,
+        _ctx_and_mocks: tuple[Any, MagicMock, Any],
+    ) -> None:
+        """When both silence_timeout_ms and hold_timeout_ms are provided, both update."""
+        from macaw.server.models.events import SessionConfigureCommand
+        from macaw.server.routes.realtime import _handle_configure_command
+
+        ctx, mock_session, _current_timeouts = _ctx_and_mocks
+        cmd = SessionConfigureCommand(silence_timeout_ms=2000, hold_timeout_ms=120_000)
+
+        result = await _handle_configure_command(ctx, cmd)
+
+        assert result is False
+        mock_session.update_session_timeouts.assert_called_once()
+        new_timeouts = mock_session.update_session_timeouts.call_args[0][0]
+        assert new_timeouts.silence_timeout_s == 2.0
+        assert new_timeouts.hold_timeout_s == 120.0
+
+    async def test_no_timeouts_does_not_update(
+        self,
+        _ctx_and_mocks: tuple[Any, MagicMock, Any],
+    ) -> None:
+        """When neither timeout is provided, update_session_timeouts is NOT called."""
+        from macaw.server.models.events import SessionConfigureCommand
+        from macaw.server.routes.realtime import _handle_configure_command
+
+        ctx, mock_session, _current_timeouts = _ctx_and_mocks
+        cmd = SessionConfigureCommand(hot_words=["Macaw", "OpenVoice"])
+
+        result = await _handle_configure_command(ctx, cmd)
+
+        assert result is False
+        mock_session.update_session_timeouts.assert_not_called()
+        mock_session.update_hot_words.assert_called_once_with(["Macaw", "OpenVoice"])
+
+    async def test_no_session_skips_all_updates(self) -> None:
+        """When ctx.session is None, no session methods are called."""
+        from macaw.server.models.events import SessionConfigureCommand
+        from macaw.server.routes.realtime import SessionContext, _handle_configure_command
+
+        mock_websocket = MagicMock()
+        ctx = SessionContext(
+            session_id="sess_nosession",
+            session_start=time.monotonic(),
+            websocket=mock_websocket,
+            session=None,
+        )
+        cmd = SessionConfigureCommand(silence_timeout_ms=5000, hold_timeout_ms=120_000)
+
+        result = await _handle_configure_command(ctx, cmd)
+
+        assert result is False
+
+    async def test_model_tts_updated_regardless_of_session(self) -> None:
+        """model_tts is updated on ctx even when session is None."""
+        from macaw.server.models.events import SessionConfigureCommand
+        from macaw.server.routes.realtime import SessionContext, _handle_configure_command
+
+        mock_websocket = MagicMock()
+        ctx = SessionContext(
+            session_id="sess_ttsonly",
+            session_start=time.monotonic(),
+            websocket=mock_websocket,
+            session=None,
+        )
+        cmd = SessionConfigureCommand(model_tts="kokoro-v1")
+
+        result = await _handle_configure_command(ctx, cmd)
+
+        assert result is False
+        assert ctx.model_tts == "kokoro-v1"
