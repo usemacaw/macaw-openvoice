@@ -8,8 +8,7 @@ import click
 
 from macaw.cli.main import cli
 from macaw.cli.transcribe import DEFAULT_SERVER_URL
-
-_PS_TIMEOUT_S = 10.0
+from macaw.config.settings import get_settings
 
 
 @cli.command()
@@ -29,7 +28,7 @@ def ps(server: str) -> None:
     url = f"{server}/v1/models"
 
     try:
-        response = httpx.get(url, timeout=_PS_TIMEOUT_S)
+        response = httpx.get(url, timeout=get_settings().cli.http_timeout_s)
     except httpx.ConnectError:
         click.echo(
             f"Error: server not available at {server}. Run 'macaw serve' first.",

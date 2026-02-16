@@ -21,9 +21,18 @@ PCM_INT32_SCALE: float = 2147483648.0
 # Bytes per sample for 16-bit PCM.
 BYTES_PER_SAMPLE_INT16: int = 2
 
+# PCM 8-bit (unsigned): center value and scale for [-1.0, ~1.0] normalization.
+# uint8 range is [0, 255]; midpoint 128 maps to 0.0.
+PCM_UINT8_SCALE: float = 128.0
+
 # --- Standard sample rates ---
 # STT pipeline: Whisper, Silero VAD, and all preprocessing stages expect 16kHz.
 STT_SAMPLE_RATE: int = 16000
 
 # TTS pipeline: Kokoro, Qwen3-TTS, and other modern TTS engines output 24kHz.
 TTS_DEFAULT_SAMPLE_RATE: int = 24000
+
+# --- VAD constants ---
+# Silero VAD maximum input chunk size (samples at 16kHz).
+# Silero expects exactly 512 samples (32ms). Longer frames are split.
+SILERO_VAD_CHUNK_SIZE: int = 512

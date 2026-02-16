@@ -66,13 +66,19 @@ class ServerSettings(BaseSettings):
 
 
 class TTSSettings(BaseSettings):
-    """TTS gRPC timeout settings."""
+    """TTS gRPC timeout and streaming settings."""
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     grpc_timeout_s: float = Field(default=60.0, gt=0, validation_alias="MACAW_TTS_GRPC_TIMEOUT_S")
     list_voices_timeout_s: float = Field(
         default=10.0, gt=0, validation_alias="MACAW_TTS_LIST_VOICES_TIMEOUT_S"
+    )
+    chunk_size_bytes: int = Field(
+        default=4096,
+        ge=512,
+        le=65536,
+        validation_alias="MACAW_TTS_CHUNK_SIZE_BYTES",
     )
 
 
@@ -97,6 +103,12 @@ class WorkerSettings(BaseSettings):
     worker_host: str = Field(
         default="localhost",
         validation_alias="MACAW_WORKER_HOST",
+    )
+    stt_max_concurrent: int = Field(
+        default=1,
+        ge=1,
+        le=16,
+        validation_alias="MACAW_STT_WORKER_MAX_CONCURRENT",
     )
 
     @property
@@ -133,6 +145,12 @@ class WorkerLifecycleSettings(BaseSettings):
     )
     default_warmup_steps: int = Field(
         default=3, ge=0, le=20, validation_alias="MACAW_WORKER_WARMUP_STEPS"
+    )
+    health_probe_rpc_timeout_s: float = Field(
+        default=2.0,
+        gt=0,
+        le=30,
+        validation_alias="MACAW_WORKER_HEALTH_PROBE_RPC_TIMEOUT_S",
     )
 
     @model_validator(mode="after")
@@ -291,6 +309,40 @@ class SchedulerSettings(BaseSettings):
     )
 
 
+class PreprocessingSettings(BaseSettings):
+    """Audio preprocessing pipeline tuning.
+
+    Controls DC-remove cutoff frequency and gain normalization target.
+    These defaults match the pipeline config in ``macaw.config.preprocessing``.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    dc_cutoff_hz: int = Field(
+        default=20,
+        ge=1,
+        le=500,
+        validation_alias="MACAW_PREPROCESSING_DC_CUTOFF_HZ",
+    )
+    target_dbfs: float = Field(
+        default=-3.0,
+        ge=-60.0,
+        le=0.0,
+        validation_alias="MACAW_PREPROCESSING_TARGET_DBFS",
+    )
+
+
+class PostProcessingSettings(BaseSettings):
+    """Text post-processing pipeline tuning."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    itn_language: str = Field(
+        default="pt",
+        validation_alias="MACAW_ITN_LANGUAGE",
+    )
+
+
 class MacawSettings(BaseSettings):
     """Root settings — aggregates all subsystem settings.
 
@@ -312,6 +364,8 @@ class MacawSettings(BaseSettings):
     session: SessionSettings = Field(default_factory=SessionSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     vad: VADSettings = Field(default_factory=VADSettings)
+    preprocessing: PreprocessingSettings = Field(default_factory=PreprocessingSettings)
+    postprocessing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
 
 
 @lru_cache(maxsize=1)

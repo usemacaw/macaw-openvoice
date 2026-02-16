@@ -27,6 +27,7 @@ from macaw.proto import add_STTWorkerServicer_to_server  # noqa: E402
 from macaw.workers._constants import (  # noqa: E402
     DEFAULT_WARMUP_STEPS,
     GRPC_WORKER_SERVER_OPTIONS,
+    MIN_REALTIME_RTF,
     STOP_GRACE_PERIOD,
 )
 from macaw.workers.stt.servicer import STTWorkerServicer  # noqa: E402
@@ -78,11 +79,15 @@ async def serve(
     warmup_steps = int(engine_config.get("warmup_steps", DEFAULT_WARMUP_STEPS))  # type: ignore[call-overload]
     await _warmup_backend(backend, warmup_steps=warmup_steps)
 
+    from macaw.config.settings import get_settings
+
     model_name = str(engine_config.get("model_size", "unknown"))
+    max_concurrent = get_settings().worker.stt_max_concurrent
     servicer = STTWorkerServicer(
         backend=backend,
         model_name=model_name,
         engine=engine,
+        max_concurrent=max_concurrent,
     )
 
     server = grpc.aio.server(options=GRPC_WORKER_SERVER_OPTIONS)
@@ -168,7 +173,7 @@ async def _warmup_backend(
             return
 
     if rtfx is not None:
-        if rtfx < 1.0:
+        if rtfx < MIN_REALTIME_RTF:
             logger.warning(
                 "warmup_rtfx_below_realtime",
                 rtfx=round(rtfx, 2),

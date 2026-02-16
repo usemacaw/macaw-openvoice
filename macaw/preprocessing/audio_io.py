@@ -11,7 +11,7 @@ import wave
 import numpy as np
 import soundfile as sf
 
-from macaw._audio_constants import PCM_INT16_SCALE
+from macaw._audio_constants import PCM_INT16_SCALE, PCM_UINT8_SCALE
 from macaw.exceptions import AudioFormatError
 from macaw.logging import get_logger
 
@@ -93,7 +93,7 @@ def _decode_wav_stdlib(audio_bytes: bytes) -> tuple[np.ndarray, int]:
         data = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32) / PCM_INT16_SCALE
     elif sampwidth == 1:
         # PCM 8-bit (unsigned) -- zero-copy via np.frombuffer
-        data = np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) / 128.0 - 1.0
+        data = np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) / PCM_UINT8_SCALE - 1.0
     else:
         raise AudioFormatError(f"Sample width {sampwidth} bytes not supported (expected 1 or 2)")
 

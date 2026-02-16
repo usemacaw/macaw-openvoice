@@ -150,8 +150,9 @@ async def _spawn_all_workers(
 
 def _build_pipelines() -> tuple[AudioPreprocessingPipeline, PostProcessingPipeline]:
     """Build preprocessing and postprocessing pipelines from default config."""
-    from macaw.config.postprocessing import PostProcessingConfig
+    from macaw.config.postprocessing import ITNConfig, PostProcessingConfig
     from macaw.config.preprocessing import PreprocessingConfig
+    from macaw.config.settings import get_settings
     from macaw.postprocessing.itn import ITNStage
     from macaw.postprocessing.pipeline import PostProcessingPipeline as PostPipeline
     from macaw.postprocessing.stages import TextStage  # noqa: TC001
@@ -161,7 +162,11 @@ def _build_pipelines() -> tuple[AudioPreprocessingPipeline, PostProcessingPipeli
     from macaw.preprocessing.resample import ResampleStage
     from macaw.preprocessing.stages import AudioStage  # noqa: TC001
 
-    pre_config = PreprocessingConfig()
+    settings = get_settings()
+    pre_config = PreprocessingConfig(
+        dc_remove_cutoff_hz=settings.preprocessing.dc_cutoff_hz,
+        target_dbfs=settings.preprocessing.target_dbfs,
+    )
     pre_stages: list[AudioStage] = []
     if pre_config.resample:
         pre_stages.append(ResampleStage(pre_config.target_sample_rate))
@@ -171,7 +176,9 @@ def _build_pipelines() -> tuple[AudioPreprocessingPipeline, PostProcessingPipeli
         pre_stages.append(GainNormalizeStage(pre_config.target_dbfs))
     preprocessing = PrePipeline(pre_config, pre_stages)
 
-    post_config = PostProcessingConfig()
+    post_config = PostProcessingConfig(
+        itn=ITNConfig(language=settings.postprocessing.itn_language),
+    )
     post_stages: list[TextStage] = []
     if post_config.itn.enabled:
         post_stages.append(ITNStage(post_config.itn.language))
