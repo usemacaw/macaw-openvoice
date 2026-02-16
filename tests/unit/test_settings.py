@@ -9,9 +9,12 @@ from pydantic import ValidationError
 
 from macaw.config.settings import (
     CLISettings,
+    GRPCSettings,
     MacawSettings,
+    SchedulerSettings,
     ServerSettings,
     TTSSettings,
+    WorkerLifecycleSettings,
     WorkerSettings,
     get_settings,
 )
@@ -192,11 +195,223 @@ class TestMacawSettingsRoot:
         assert isinstance(settings.tts, TTSSettings)
         assert isinstance(settings.cli, CLISettings)
         assert isinstance(settings.worker, WorkerSettings)
+        assert isinstance(settings.worker_lifecycle, WorkerLifecycleSettings)
+        assert isinstance(settings.grpc, GRPCSettings)
+        assert isinstance(settings.scheduler, SchedulerSettings)
 
     def test_extra_env_vars_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MACAW_UNKNOWN_VAR", "ignored")
         settings = MacawSettings()
         assert not hasattr(settings, "MACAW_UNKNOWN_VAR")
+
+
+class TestWorkerLifecycleSettingsDefaults:
+    def test_default_max_crashes_in_window(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.max_crashes_in_window == 3
+
+    def test_default_crash_window_s(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.crash_window_s == 60.0
+
+    def test_default_health_probe_initial_delay_s(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.health_probe_initial_delay_s == 0.5
+
+    def test_default_health_probe_max_delay_s(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.health_probe_max_delay_s == 5.0
+
+    def test_default_health_probe_timeout_s(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.health_probe_timeout_s == 120.0
+
+    def test_default_monitor_interval_s(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.monitor_interval_s == 1.0
+
+    def test_default_stop_grace_period_s(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.stop_grace_period_s == 5.0
+
+    def test_default_warmup_steps(self) -> None:
+        s = WorkerLifecycleSettings()
+        assert s.default_warmup_steps == 3
+
+
+class TestWorkerLifecycleSettingsValidation:
+    def test_max_crashes_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_crashes_in_window"):
+            WorkerLifecycleSettings(max_crashes_in_window=0)  # type: ignore[call-arg]
+
+    def test_max_crashes_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_crashes_in_window"):
+            WorkerLifecycleSettings(max_crashes_in_window=101)  # type: ignore[call-arg]
+
+    def test_crash_window_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="crash_window_s"):
+            WorkerLifecycleSettings(crash_window_s=0)  # type: ignore[call-arg]
+
+    def test_crash_window_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="crash_window_s"):
+            WorkerLifecycleSettings(crash_window_s=3601)  # type: ignore[call-arg]
+
+    def test_warmup_steps_negative_raises(self) -> None:
+        with pytest.raises(ValidationError, match="default_warmup_steps"):
+            WorkerLifecycleSettings(default_warmup_steps=-1)  # type: ignore[call-arg]
+
+    def test_warmup_steps_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="default_warmup_steps"):
+            WorkerLifecycleSettings(default_warmup_steps=21)  # type: ignore[call-arg]
+
+    def test_initial_delay_must_be_lt_max_delay(self) -> None:
+        with pytest.raises(
+            ValidationError,
+            match="health_probe_initial_delay_s must be < health_probe_max_delay_s",
+        ):
+            WorkerLifecycleSettings(
+                health_probe_initial_delay_s=5.0,  # type: ignore[call-arg]
+                health_probe_max_delay_s=5.0,  # type: ignore[call-arg]
+            )
+
+    def test_initial_delay_greater_than_max_raises(self) -> None:
+        with pytest.raises(ValidationError):
+            WorkerLifecycleSettings(
+                health_probe_initial_delay_s=10.0,  # type: ignore[call-arg]
+                health_probe_max_delay_s=5.0,  # type: ignore[call-arg]
+            )
+
+
+class TestWorkerLifecycleSettingsEnvOverrides:
+    def test_max_crashes_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_WORKER_MAX_CRASHES", "5")
+        s = WorkerLifecycleSettings()
+        assert s.max_crashes_in_window == 5
+
+    def test_stop_grace_period_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_WORKER_STOP_GRACE_PERIOD_S", "10.0")
+        s = WorkerLifecycleSettings()
+        assert s.stop_grace_period_s == 10.0
+
+    def test_warmup_steps_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_WORKER_WARMUP_STEPS", "0")
+        s = WorkerLifecycleSettings()
+        assert s.default_warmup_steps == 0
+
+
+class TestGRPCSettingsDefaults:
+    def test_default_max_batch_message_mb(self) -> None:
+        s = GRPCSettings()
+        assert s.max_batch_message_mb == 30
+
+    def test_default_max_streaming_message_mb(self) -> None:
+        s = GRPCSettings()
+        assert s.max_streaming_message_mb == 10
+
+    def test_max_batch_message_bytes_property(self) -> None:
+        s = GRPCSettings()
+        assert s.max_batch_message_bytes == 30 * 1024 * 1024
+
+    def test_max_streaming_message_bytes_property(self) -> None:
+        s = GRPCSettings()
+        assert s.max_streaming_message_bytes == 10 * 1024 * 1024
+
+
+class TestGRPCSettingsValidation:
+    def test_batch_mb_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_batch_message_mb"):
+            GRPCSettings(max_batch_message_mb=0)  # type: ignore[call-arg]
+
+    def test_batch_mb_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_batch_message_mb"):
+            GRPCSettings(max_batch_message_mb=501)  # type: ignore[call-arg]
+
+    def test_streaming_mb_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_streaming_message_mb"):
+            GRPCSettings(max_streaming_message_mb=0)  # type: ignore[call-arg]
+
+    def test_streaming_mb_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_streaming_message_mb"):
+            GRPCSettings(max_streaming_message_mb=101)  # type: ignore[call-arg]
+
+
+class TestGRPCSettingsEnvOverrides:
+    def test_batch_mb_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_GRPC_MAX_BATCH_MESSAGE_MB", "50")
+        s = GRPCSettings()
+        assert s.max_batch_message_mb == 50
+        assert s.max_batch_message_bytes == 50 * 1024 * 1024
+
+    def test_streaming_mb_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_GRPC_MAX_STREAMING_MESSAGE_MB", "20")
+        s = GRPCSettings()
+        assert s.max_streaming_message_mb == 20
+        assert s.max_streaming_message_bytes == 20 * 1024 * 1024
+
+
+class TestSchedulerSettingsDefaults:
+    def test_default_min_grpc_timeout(self) -> None:
+        s = SchedulerSettings()
+        assert s.min_grpc_timeout_s == 30.0
+
+    def test_default_timeout_factor(self) -> None:
+        s = SchedulerSettings()
+        assert s.timeout_factor == 2.0
+
+    def test_default_shutdown_timeout(self) -> None:
+        s = SchedulerSettings()
+        assert s.shutdown_timeout_s == 10.0
+
+    def test_default_aging_threshold(self) -> None:
+        s = SchedulerSettings()
+        assert s.aging_threshold_s == 30.0
+
+    def test_default_batch_accumulate_ms(self) -> None:
+        s = SchedulerSettings()
+        assert s.batch_accumulate_ms == 50.0
+
+    def test_default_batch_max_size(self) -> None:
+        s = SchedulerSettings()
+        assert s.batch_max_size == 8
+
+
+class TestSchedulerSettingsValidation:
+    def test_min_grpc_timeout_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="min_grpc_timeout_s"):
+            SchedulerSettings(min_grpc_timeout_s=0)  # type: ignore[call-arg]
+
+    def test_timeout_factor_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="timeout_factor"):
+            SchedulerSettings(timeout_factor=0)  # type: ignore[call-arg]
+
+    def test_timeout_factor_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="timeout_factor"):
+            SchedulerSettings(timeout_factor=11)  # type: ignore[call-arg]
+
+    def test_batch_max_size_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="batch_max_size"):
+            SchedulerSettings(batch_max_size=0)  # type: ignore[call-arg]
+
+    def test_batch_max_size_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="batch_max_size"):
+            SchedulerSettings(batch_max_size=65)  # type: ignore[call-arg]
+
+
+class TestSchedulerSettingsEnvOverrides:
+    def test_min_grpc_timeout_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SCHEDULER_MIN_GRPC_TIMEOUT_S", "60.0")
+        s = SchedulerSettings()
+        assert s.min_grpc_timeout_s == 60.0
+
+    def test_aging_threshold_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SCHEDULER_AGING_THRESHOLD_S", "15.0")
+        s = SchedulerSettings()
+        assert s.aging_threshold_s == 15.0
+
+    def test_batch_max_size_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SCHEDULER_BATCH_MAX_SIZE", "16")
+        s = SchedulerSettings()
+        assert s.batch_max_size == 16
 
 
 class TestGetSettingsSingleton:

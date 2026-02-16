@@ -122,7 +122,9 @@ _WARMUP_AUDIO_DURATIONS = (1.0, 3.0, 5.0)
 
 
 async def _warmup_backend(
-    backend: STTBackend, *, warmup_steps: int = DEFAULT_WARMUP_STEPS
+    backend: STTBackend,
+    *,
+    warmup_steps: int = DEFAULT_WARMUP_STEPS,  # type: ignore[assignment]
 ) -> None:
     """Run warmup inference passes to prime GPU caches, JIT, and memory pools.
 

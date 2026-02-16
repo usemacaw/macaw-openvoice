@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import grpc.aio
 
 from macaw._audio_constants import BYTES_PER_SAMPLE_INT16, STT_SAMPLE_RATE
-from macaw._grpc_constants import GRPC_BATCH_CHANNEL_OPTIONS
+from macaw._grpc_constants import get_batch_channel_options
 from macaw.exceptions import WorkerCrashError, WorkerTimeoutError, WorkerUnavailableError
 from macaw.logging import get_logger
 from macaw.proto.stt_worker_pb2_grpc import STTWorkerStub
@@ -44,20 +44,11 @@ if TYPE_CHECKING:
 
 logger = get_logger("scheduler")
 
-# Minimum timeout for TranscribeFile (seconds)
-_MIN_GRPC_TIMEOUT = 30.0
-
-# Factor applied to estimated audio duration to compute timeout
-_TIMEOUT_FACTOR = 2.0
-
 # Backoff when no worker is available (seconds)
 _NO_WORKER_BACKOFF_S = 0.1
 
 # Interval for LatencyTracker cleanup (seconds)
 _LATENCY_CLEANUP_INTERVAL_S = 30.0
-
-# Timeout for graceful shutdown (seconds)
-_SHUTDOWN_TIMEOUT_S = 10.0
 
 # Poll interval for dequeuing requests from the priority queue (seconds).
 # Trade-off: shorter = lower latency but more CPU wake-ups.
@@ -76,7 +67,7 @@ class Scheduler:
 
     Lifecycle:
     - ``start()`` starts the dispatch loop as a background task.
-    - ``stop()`` stops the loop and waits for in-flight requests (graceful, 10s timeout).
+    - ``stop()`` stops the loop and waits for in-flight requests (graceful shutdown).
     """
 
     def __init__(
@@ -84,21 +75,37 @@ class Scheduler:
         worker_manager: WorkerManager,
         registry: ModelRegistry,
         *,
-        aging_threshold_s: float = 30.0,
-        batch_accumulate_ms: float = 50.0,
-        batch_max_size: int = 8,
+        aging_threshold_s: float | None = None,
+        batch_accumulate_ms: float | None = None,
+        batch_max_size: int | None = None,
     ) -> None:
+        from macaw.config.settings import get_settings
+
         self._worker_manager = worker_manager
         self._registry = registry
-        self._queue = SchedulerQueue(aging_threshold_s=aging_threshold_s)
+        self._settings = get_settings().scheduler
+
+        _aging = (
+            aging_threshold_s
+            if aging_threshold_s is not None
+            else self._settings.aging_threshold_s
+        )
+        _accumulate = (
+            batch_accumulate_ms
+            if batch_accumulate_ms is not None
+            else self._settings.batch_accumulate_ms
+        )
+        _max_size = batch_max_size if batch_max_size is not None else self._settings.batch_max_size
+
+        self._queue = SchedulerQueue(aging_threshold_s=_aging)
         self._channels: dict[str, grpc.aio.Channel] = {}
         self._dispatch_task: asyncio.Task[None] | None = None
         self._running = False
         self._in_flight_tasks: set[asyncio.Task[Any]] = set()
         self._cancellation = CancellationManager()
         self._batch_accumulator = BatchAccumulator(
-            accumulate_ms=batch_accumulate_ms,
-            max_batch_size=batch_max_size,
+            accumulate_ms=_accumulate,
+            max_batch_size=_max_size,
             on_flush=self._dispatch_batch,
         )
         self._latency = LatencyTracker()
@@ -190,7 +197,7 @@ class Scheduler:
     async def stop(self) -> None:
         """Stop the dispatch loop and wait for in-flight requests.
 
-        Graceful shutdown with a 10s timeout. Requests not completed
+        Graceful shutdown with configurable timeout. Requests not completed
         after the timeout are cancelled.
         """
         if not self._running:
@@ -214,7 +221,7 @@ class Scheduler:
             logger.info("scheduler_draining", in_flight=len(self._in_flight_tasks))
             _done, pending = await asyncio.wait(
                 self._in_flight_tasks,
-                timeout=_SHUTDOWN_TIMEOUT_S,
+                timeout=self._settings.shutdown_timeout_s,
             )
             for task in pending:
                 task.cancel()
@@ -277,7 +284,10 @@ class Scheduler:
         audio_duration_estimate = len(request.audio_data) / (
             STT_SAMPLE_RATE * BYTES_PER_SAMPLE_INT16
         )
-        timeout = max(_MIN_GRPC_TIMEOUT, audio_duration_estimate * _TIMEOUT_FACTOR)
+        timeout = max(
+            self._settings.min_grpc_timeout_s,
+            audio_duration_estimate * self._settings.timeout_factor,
+        )
 
         stub = STTWorkerStub(channel)  # type: ignore[no-untyped-call]
         try:
@@ -311,7 +321,7 @@ class Scheduler:
 
         channel = grpc.aio.insecure_channel(
             f"localhost:{worker.port}",
-            options=GRPC_BATCH_CHANNEL_OPTIONS,
+            options=get_batch_channel_options(),
         )
         try:
             result = await self._send_to_worker(request, channel, worker.worker_id)
@@ -567,7 +577,7 @@ class Scheduler:
         if channel is None:
             channel = grpc.aio.insecure_channel(
                 address,
-                options=GRPC_BATCH_CHANNEL_OPTIONS,
+                options=get_batch_channel_options(),
             )
             self._channels[address] = channel
         return channel

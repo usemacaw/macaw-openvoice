@@ -23,17 +23,8 @@ from pathlib import Path
 from typing import Any
 
 from macaw.logging import get_logger
-from macaw.workers._constants import STOP_GRACE_PERIOD
 
 logger = get_logger("worker.manager")
-
-# Constants
-MAX_CRASHES_IN_WINDOW = 3
-CRASH_WINDOW_SECONDS = 60.0
-HEALTH_PROBE_INITIAL_DELAY = 0.5
-HEALTH_PROBE_MAX_DELAY = 5.0
-HEALTH_PROBE_TIMEOUT = 120.0
-MONITOR_INTERVAL = 1.0
 
 
 class WorkerType(Enum):
@@ -80,8 +71,11 @@ class WorkerManager:
     """
 
     def __init__(self) -> None:
+        from macaw.config.settings import get_settings
+
         self._workers: dict[str, WorkerHandle] = {}
         self._tasks: dict[str, list[asyncio.Task[None]]] = {}
+        self._lifecycle = get_settings().worker_lifecycle
 
     async def spawn_worker(
         self,
@@ -174,7 +168,7 @@ class WorkerManager:
             try:
                 await asyncio.wait_for(
                     asyncio.get_running_loop().run_in_executor(None, process.wait),
-                    timeout=STOP_GRACE_PERIOD,
+                    timeout=self._lifecycle.stop_grace_period_s,
                 )
             except asyncio.TimeoutError:  # noqa: UP041
                 logger.warning("worker_force_kill", worker_id=worker_id)
@@ -182,7 +176,7 @@ class WorkerManager:
                 try:
                     await asyncio.wait_for(
                         asyncio.get_running_loop().run_in_executor(None, process.wait),
-                        timeout=STOP_GRACE_PERIOD,
+                        timeout=self._lifecycle.stop_grace_period_s,
                     )
                 except asyncio.TimeoutError:  # noqa: UP041
                     logger.warning("worker_force_kill_timeout", worker_id=worker_id)
@@ -228,12 +222,12 @@ class WorkerManager:
         if handle is None:
             return
 
-        delay = HEALTH_PROBE_INITIAL_DELAY
+        delay = self._lifecycle.health_probe_initial_delay_s
         start = time.monotonic()
 
         while handle.state == WorkerState.STARTING:
             elapsed = time.monotonic() - start
-            if elapsed > HEALTH_PROBE_TIMEOUT:
+            if elapsed > self._lifecycle.health_probe_timeout_s:
                 logger.error("health_probe_timeout", worker_id=worker_id)
                 handle.state = WorkerState.CRASHED
                 return
@@ -252,7 +246,7 @@ class WorkerManager:
             except Exception:
                 logger.debug("health_probe_error", worker_id=worker_id, exc_info=True)
 
-            delay = min(delay * 2, HEALTH_PROBE_MAX_DELAY)
+            delay = min(delay * 2, self._lifecycle.health_probe_max_delay_s)
 
     async def _monitor_worker(self, worker_id: str) -> None:
         """Monitor the worker process and detect crashes."""
@@ -262,7 +256,7 @@ class WorkerManager:
 
         try:
             while handle.state not in (WorkerState.STOPPING, WorkerState.STOPPED):
-                await asyncio.sleep(MONITOR_INTERVAL)
+                await asyncio.sleep(self._lifecycle.monitor_interval_s)
 
                 process = handle.process
                 if process is None:
@@ -292,7 +286,7 @@ class WorkerManager:
     async def _attempt_restart(self, worker_id: str) -> None:
         """Attempt to restart a worker with rate limiting.
 
-        Do not restart if MAX_CRASHES_IN_WINDOW is exceeded within CRASH_WINDOW_SECONDS.
+        Do not restart if max_crashes_in_window is exceeded within crash_window_s.
         """
         handle = self._workers.get(worker_id)
         if handle is None:
@@ -302,23 +296,25 @@ class WorkerManager:
         handle.crash_count += 1
         handle.crash_timestamps.append(now)
 
-        # Clear timestamps outside the window
-        handle.crash_timestamps = [
-            ts for ts in handle.crash_timestamps if now - ts < CRASH_WINDOW_SECONDS
-        ]
+        crash_window = self._lifecycle.crash_window_s
 
-        if len(handle.crash_timestamps) >= MAX_CRASHES_IN_WINDOW:
+        # Clear timestamps outside the window
+        handle.crash_timestamps = [ts for ts in handle.crash_timestamps if now - ts < crash_window]
+
+        if len(handle.crash_timestamps) >= self._lifecycle.max_crashes_in_window:
             logger.error(
                 "worker_max_crashes_exceeded",
                 worker_id=worker_id,
                 crashes=handle.crash_count,
-                window_seconds=CRASH_WINDOW_SECONDS,
+                window_seconds=crash_window,
             )
             handle.state = WorkerState.CRASHED
             return
 
         # Backoff based on the number of recent crashes
-        backoff = HEALTH_PROBE_INITIAL_DELAY * (2 ** len(handle.crash_timestamps))
+        backoff = self._lifecycle.health_probe_initial_delay_s * (
+            2 ** len(handle.crash_timestamps)
+        )
         logger.info(
             "worker_restarting",
             worker_id=worker_id,
