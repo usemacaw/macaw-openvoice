@@ -13,16 +13,13 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from macaw._types import VADSensitivity
 from macaw.vad.detector import VADDetector, VADEvent, VADEventType
+from tests.helpers import FRAME_SIZE, SAMPLE_RATE
 
-# Frame size padrao: 1024 samples a 16kHz = 64ms
-_FRAME_SIZE = 1024
-_SAMPLE_RATE = 16000
-_FRAME_DURATION_MS = _FRAME_SIZE * 1000 // _SAMPLE_RATE  # 64ms
+_FRAME_DURATION_MS = FRAME_SIZE * 1000 // SAMPLE_RATE  # 64ms
 
 
-def _make_frames(n: int, frame_size: int = _FRAME_SIZE) -> list[np.ndarray]:
+def _make_frames(n: int, frame_size: int = FRAME_SIZE) -> list[np.ndarray]:
     """Gera N frames de zeros float32."""
     return [np.zeros(frame_size, dtype=np.float32) for _ in range(n)]
 
@@ -55,8 +52,7 @@ def _make_detector(
     detector = VADDetector(
         energy_pre_filter=energy_mock,
         silero_classifier=silero_mock,
-        sensitivity=VADSensitivity.NORMAL,
-        sample_rate=_SAMPLE_RATE,
+        sample_rate=SAMPLE_RATE,
         min_speech_duration_ms=min_speech_duration_ms,
         min_silence_duration_ms=min_silence_duration_ms,
         max_speech_duration_ms=max_speech_duration_ms,
@@ -67,7 +63,7 @@ def _make_detector(
 def _process_n_frames(
     detector: VADDetector,
     n: int,
-    frame_size: int = _FRAME_SIZE,
+    frame_size: int = FRAME_SIZE,
 ) -> list[VADEvent]:
     """Processa N frames e retorna lista de eventos emitidos (sem None)."""
     events = []
@@ -174,8 +170,7 @@ class TestSpeechEnd:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
             min_silence_duration_ms=300,
         )
@@ -201,8 +196,7 @@ class TestSpeechEnd:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
             min_silence_duration_ms=300,
         )
@@ -227,8 +221,7 @@ class TestSpeechEnd:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
             min_silence_duration_ms=300,
         )
@@ -253,8 +246,7 @@ class TestEnergyPreFilterIntegration:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
         )
 
         # Act
@@ -271,8 +263,7 @@ class TestEnergyPreFilterIntegration:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
         )
 
         # Act
@@ -351,8 +342,7 @@ class TestReset:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
         )
 
@@ -378,8 +368,7 @@ class TestReset:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
         )
 
@@ -425,8 +414,7 @@ class TestTimestamps:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
             min_silence_duration_ms=300,
         )
@@ -454,8 +442,8 @@ class TestTimestamps:
         _process_n_frames(detector, n=100)
 
         # Assert -- samples processados = 100 * 1024 = 102400
-        expected_ms = 100 * _FRAME_SIZE * 1000 // _SAMPLE_RATE  # 6400ms
-        assert detector._samples_processed == 100 * _FRAME_SIZE
+        expected_ms = 100 * FRAME_SIZE * 1000 // SAMPLE_RATE  # 6400ms
+        assert detector._samples_processed == 100 * FRAME_SIZE
         assert detector._samples_to_ms(detector._samples_processed) == expected_ms
 
 
@@ -470,8 +458,7 @@ class TestSpeechSilenceCycles:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
             min_silence_duration_ms=300,
         )
@@ -509,8 +496,7 @@ class TestSpeechSilenceCycles:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
         )
 
@@ -526,7 +512,7 @@ class TestSpeechSilenceCycles:
 
         # 1 frame de silencio (reseta contador)
         silero_mock.is_speech.return_value = False
-        event = detector.process_frame(np.zeros(_FRAME_SIZE, dtype=np.float32))
+        event = detector.process_frame(np.zeros(FRAME_SIZE, dtype=np.float32))
         if event is not None:
             all_events.append(event)
 

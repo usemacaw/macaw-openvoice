@@ -14,6 +14,7 @@ from macaw.proto.tts_worker_pb2 import (
     SynthesizeChunk,
     VoiceInfoProto,
 )
+from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw.workers.proto_utils import build_health_response
 
 if TYPE_CHECKING:
@@ -42,7 +43,7 @@ def proto_request_to_synthesize_params(
     into an options dict only when at least one is present.
     """
     voice: str = request.voice if request.voice else "default"
-    sample_rate: int = request.sample_rate if request.sample_rate > 0 else 24000
+    sample_rate: int = request.sample_rate if request.sample_rate > 0 else TTS_DEFAULT_SAMPLE_RATE
     speed: float = request.speed if request.speed > 0.0 else 1.0
 
     options: dict[str, object] | None = None

@@ -491,6 +491,11 @@ class StreamingSession:
         """State machine (read-only access for recovery handler)."""
         return self._state_machine
 
+    @property
+    def current_timeouts(self) -> SessionTimeouts:
+        """Current session timeouts (read-only)."""
+        return self._state_machine.timeouts
+
     def update_hot_words(self, hot_words: list[str] | None) -> None:
         """Atualiza hot words para a sessao (chamado via session.configure).
 

@@ -90,4 +90,7 @@ class DCRemoveStage(AudioStage):
 
         filtered, self._zi = sosfilt(sos, audio, zi=self._zi)
 
-        return filtered.astype(np.float32), sample_rate
+        if filtered.dtype != np.float32:
+            filtered = filtered.astype(np.float32)
+
+        return filtered, sample_rate

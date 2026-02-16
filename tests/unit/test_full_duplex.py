@@ -177,9 +177,9 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -194,7 +194,6 @@ class TestTTSSpeakTaskHappyPath:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         # Audio chunks sent via send_bytes
@@ -217,9 +216,9 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -234,7 +233,6 @@ class TestTTSSpeakTaskHappyPath:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         event_types = [e.type for e in events]
@@ -258,9 +256,9 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -275,7 +273,6 @@ class TestTTSSpeakTaskHappyPath:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         # After TTS completes, session is unmuted (unmute in finally)
@@ -298,9 +295,9 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -315,7 +312,6 @@ class TestTTSSpeakTaskHappyPath:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         assert session.is_muted is False
@@ -337,9 +333,9 @@ class TestTTSSpeakTaskHappyPath:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -354,7 +350,6 @@ class TestTTSSpeakTaskHappyPath:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         end_events = [e for e in events if e.type == "tts.speaking_end"]
@@ -411,9 +406,9 @@ class TestTTSSpeakTaskCancel:
 
         stream = _CancelStream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -428,7 +423,6 @@ class TestTTSSpeakTaskCancel:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         end_events = [e for e in events if e.type == "tts.speaking_end"]
@@ -457,9 +451,9 @@ class TestTTSSpeakTaskCancel:
 
         stream = _make_mock_grpc_stream([chunk])
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -474,7 +468,6 @@ class TestTTSSpeakTaskCancel:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         assert session.is_muted is False
@@ -505,7 +498,6 @@ class TestTTSSpeakTaskErrors:
             model_tts=None,
             send_event=send_event,
             cancel_event=cancel,
-            tts_channel_ref=[None],
         )
 
         error_events = [e for e in events if e.type == "error"]
@@ -536,7 +528,6 @@ class TestTTSSpeakTaskErrors:
             model_tts="kokoro-v1",
             send_event=send_event,
             cancel_event=cancel,
-            tts_channel_ref=[None],
         )
 
         error_events = [e for e in events if e.type == "error"]
@@ -561,9 +552,9 @@ class TestTTSSpeakTaskErrors:
         # Use a RuntimeError caught by generic except, since mocking
         # grpc.aio.AioRpcError is complex due to exception class patching.
         # The generic except block also calls unmute and emits error.
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.side_effect = RuntimeError("gRPC connection refused")
 
@@ -578,7 +569,6 @@ class TestTTSSpeakTaskErrors:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         assert session.is_muted is False
@@ -606,7 +596,6 @@ class TestTTSSpeakTaskErrors:
             model_tts="kokoro-v1",
             send_event=send_event,
             cancel_event=cancel,
-            tts_channel_ref=[None],
         )
 
         error_events = [e for e in events if e.type == "error"]
@@ -631,9 +620,9 @@ class TestTTSSpeakTaskSessionNone:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -648,7 +637,6 @@ class TestTTSSpeakTaskSessionNone:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         # Should still send audio and emit events
@@ -676,9 +664,9 @@ class TestTTSSpeakTaskAutoDiscover:
 
         stream = _make_mock_grpc_stream()
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -693,7 +681,6 @@ class TestTTSSpeakTaskAutoDiscover:
                     model_tts=None,  # Auto-discover
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         # Should have found and used the model
@@ -728,9 +715,9 @@ class TestTTSSpeakTaskEmptyChunks:
 
         stream = _make_mock_grpc_stream([empty_chunk, real_chunk])
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -745,7 +732,6 @@ class TestTTSSpeakTaskEmptyChunks:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         # Only the real chunk should be sent
@@ -770,9 +756,9 @@ class TestTTSSpeakTaskGenericError:
 
         # Patch only the channel creation (not grpc.aio itself) to avoid
         # breaking the except grpc.aio.AioRpcError clause.
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.side_effect = RuntimeError("Unexpected!")
 
@@ -787,7 +773,6 @@ class TestTTSSpeakTaskGenericError:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=[None],
                 )
 
         assert session.is_muted is False
@@ -926,7 +911,6 @@ class TestModelTTSTracking:
             model_tts="nonexistent-tts",
             send_event=send_event,
             cancel_event=cancel,
-            tts_channel_ref=[None],
         )
 
         error_events = [e for e in events if e.type == "error"]
@@ -935,8 +919,8 @@ class TestModelTTSTracking:
 
 
 class TestTTSSpeakTaskChannelReuse:
-    async def test_channel_cached_for_reuse(self) -> None:
-        """gRPC channel is cached in tts_channel_ref (not closed per-request)."""
+    async def test_uses_pooled_channel(self) -> None:
+        """gRPC channel is obtained from the shared pool via get_or_create_tts_channel."""
         ws = _make_mock_websocket()
         session = _make_mock_session()
         send_event, _ = _make_send_event()
@@ -951,11 +935,10 @@ class TestTTSSpeakTaskChannelReuse:
         ws.app.state.worker_manager = wm
 
         stream = _make_mock_grpc_stream()
-        tts_channel_ref: list[tuple[str, Any] | None] = [None]
 
-        with patch("macaw.server.routes.realtime.grpc.aio.insecure_channel") as mock_ch:
+        with patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_get_ch:
             mock_channel = AsyncMock()
-            mock_ch.return_value = mock_channel
+            mock_get_ch.return_value = mock_channel
             mock_stub = MagicMock()
             mock_stub.Synthesize.return_value = stream
 
@@ -970,13 +953,12 @@ class TestTTSSpeakTaskChannelReuse:
                     model_tts="kokoro-v1",
                     send_event=send_event,
                     cancel_event=cancel,
-                    tts_channel_ref=tts_channel_ref,
                 )
 
-        # Channel cached for reuse, not closed per-request
-        assert tts_channel_ref[0] is not None
-        assert tts_channel_ref[0][1] is mock_channel
-        mock_channel.close.assert_not_called()
+        # Verify pooled channel was used
+        mock_get_ch.assert_called_once()
+        call_args = mock_get_ch.call_args
+        assert call_args[0][1] == "localhost:50052"
 
 
 # ---------------------------------------------------------------------------
@@ -997,7 +979,6 @@ class TestSessionContext:
         assert ctx.session is None
         assert ctx.tts_task is None
         assert ctx.tts_cancel_event is None
-        assert ctx.tts_channel is None
         assert ctx.model_tts is None
         assert ctx.closed_reason == "client_disconnect"
         assert ctx.last_audio_time == 0.0

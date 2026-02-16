@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -12,12 +14,12 @@ class SpeechRequest(BaseModel):
     """
 
     model: str = Field(description="Nome do modelo TTS no registry.")
-    input: str = Field(max_length=4096, description="Texto a ser sintetizado.")
+    input: str = Field(min_length=1, max_length=4096, description="Texto a ser sintetizado.")
     voice: str = Field(
         default="default",
         description="Identificador da voz.",
     )
-    response_format: str = Field(
+    response_format: Literal["wav", "pcm"] = Field(
         default="wav",
         description="Formato de audio de saida (wav ou pcm).",
     )

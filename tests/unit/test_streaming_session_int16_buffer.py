@@ -13,32 +13,13 @@ import numpy as np
 
 from macaw._types import SessionState
 from macaw.session.streaming import StreamingSession
-
-_FRAME_SIZE = 1024
-
-
-class _AsyncIterFromList:
-    """Async iterator from a list."""
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        return item
+from tests.helpers import FRAME_SIZE, AsyncIterFromList
 
 
 def _make_session() -> tuple[StreamingSession, Mock]:
     """Create a StreamingSession with mocks, returning (session, stream_handle)."""
     preprocessor = Mock()
-    preprocessor.process_frame.return_value = np.zeros(_FRAME_SIZE, dtype=np.float32)
+    preprocessor.process_frame.return_value = np.zeros(FRAME_SIZE, dtype=np.float32)
 
     vad = Mock()
     vad.process_frame.return_value = None
@@ -48,7 +29,7 @@ def _make_session() -> tuple[StreamingSession, Mock]:
     stream_handle = Mock()
     stream_handle.is_closed = False
     stream_handle.session_id = "test"
-    stream_handle.receive_events.return_value = _AsyncIterFromList([])
+    stream_handle.receive_events.return_value = AsyncIterFromList([])
     stream_handle.send_frame = AsyncMock()
     stream_handle.close = AsyncMock()
     stream_handle.cancel = AsyncMock()
@@ -143,7 +124,7 @@ class TestInt16BufferPreallocation:
         session._stream_handle = stream_handle
 
         # Create a known signal frame
-        frame = np.sin(np.linspace(0, 2 * np.pi, _FRAME_SIZE)).astype(np.float32) * 0.8
+        frame = np.sin(np.linspace(0, 2 * np.pi, FRAME_SIZE)).astype(np.float32) * 0.8
 
         # Compute expected PCM bytes using original approach
         frame_expected = frame.copy()
@@ -173,7 +154,7 @@ class TestInt16BufferPreallocation:
 
         # Send multiple frames of the same size
         for _ in range(5):
-            frame = np.random.randn(_FRAME_SIZE).astype(np.float32) * 0.5
+            frame = np.random.randn(FRAME_SIZE).astype(np.float32) * 0.5
             await session._send_frame_to_worker(frame)
 
         # Buffer should not have been reallocated

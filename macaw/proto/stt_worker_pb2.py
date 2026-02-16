@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10stt_worker.proto\x12\tmacaw.stt\"\xd9\x01\n\x15TranscribeFileRequest\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x12\n\naudio_data\x18\x02 \x01(\x0c\x12\x10\n\x08language\x18\x03 \x01(\t\x12\x17\n\x0fresponse_format\x18\x04 \x01(\t\x12\x13\n\x0btemperature\x18\x05 \x01(\x02\x12\x1f\n\x17timestamp_granularities\x18\x06 \x03(\t\x12\x16\n\x0einitial_prompt\x18\x07 \x01(\t\x12\x11\n\thot_words\x18\x08 \x03(\t\x12\x0c\n\x04task\x18\t \x01(\t\"\x90\x01\n\x16TranscribeFileResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x10\n\x08language\x18\x02 \x01(\t\x12\x10\n\x08\x64uration\x18\x03 \x01(\x02\x12$\n\x08segments\x18\x04 \x03(\x0b\x32\x12.macaw.stt.Segment\x12\x1e\n\x05words\x18\x05 \x03(\x0b\x32\x0f.macaw.stt.Word\"j\n\nAudioFrame\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\x12\x0f\n\x07is_last\x18\x03 \x01(\x08\x12\x16\n\x0einitial_prompt\x18\x04 \x01(\t\x12\x11\n\thot_words\x18\x05 \x03(\t\"\xc3\x01\n\x0fTranscriptEvent\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x12\n\nevent_type\x18\x02 \x01(\t\x12\x0c\n\x04text\x18\x03 \x01(\t\x12\x12\n\nsegment_id\x18\x04 \x01(\x05\x12\x10\n\x08start_ms\x18\x05 \x01(\x03\x12\x0e\n\x06\x65nd_ms\x18\x06 \x01(\x03\x12\x10\n\x08language\x18\x07 \x01(\t\x12\x12\n\nconfidence\x18\x08 \x01(\x02\x12\x1e\n\x05words\x18\t \x03(\x0b\x32\x0f.macaw.stt.Word\"\x87\x01\n\x07Segment\x12\n\n\x02id\x18\x01 \x01(\x05\x12\r\n\x05start\x18\x02 \x01(\x02\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x02\x12\x0c\n\x04text\x18\x04 \x01(\t\x12\x13\n\x0b\x61vg_logprob\x18\x05 \x01(\x02\x12\x16\n\x0eno_speech_prob\x18\x06 \x01(\x02\x12\x19\n\x11\x63ompression_ratio\x18\x07 \x01(\x02\"E\n\x04Word\x12\x0c\n\x04word\x18\x01 \x01(\t\x12\r\n\x05start\x18\x02 \x01(\x02\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x02\x12\x13\n\x0bprobability\x18\x04 \x01(\x02\"7\n\rCancelRequest\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x12\n\nsession_id\x18\x02 \x01(\t\"&\n\x0e\x43\x61ncelResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\"\x0f\n\rHealthRequest\"\xb0\x01\n\x0eHealthResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x12\n\nmodel_name\x18\x02 \x01(\t\x12\x0e\n\x06\x65ngine\x18\x03 \x01(\t\x12\x39\n\x08metadata\x18\x04 \x03(\x0b\x32\'.macaw.stt.HealthResponse.MetadataEntry\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x32\xab\x02\n\tSTTWorker\x12U\n\x0eTranscribeFile\x12 .macaw.stt.TranscribeFileRequest\x1a!.macaw.stt.TranscribeFileResponse\x12I\n\x10TranscribeStream\x12\x15.macaw.stt.AudioFrame\x1a\x1a.macaw.stt.TranscriptEvent(\x01\x30\x01\x12=\n\x06\x43\x61ncel\x12\x18.macaw.stt.CancelRequest\x1a\x19.macaw.stt.CancelResponse\x12=\n\x06Health\x12\x18.macaw.stt.HealthRequest\x1a\x19.macaw.stt.HealthResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10stt_worker.proto\x12\tmacaw.stt\"\xd9\x01\n\x15TranscribeFileRequest\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x12\n\naudio_data\x18\x02 \x01(\x0c\x12\x10\n\x08language\x18\x03 \x01(\t\x12\x17\n\x0fresponse_format\x18\x04 \x01(\t\x12\x13\n\x0btemperature\x18\x05 \x01(\x02\x12\x1f\n\x17timestamp_granularities\x18\x06 \x03(\t\x12\x16\n\x0einitial_prompt\x18\x07 \x01(\t\x12\x11\n\thot_words\x18\x08 \x03(\t\x12\x0c\n\x04task\x18\t \x01(\t\"\x90\x01\n\x16TranscribeFileResponse\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x10\n\x08language\x18\x02 \x01(\t\x12\x10\n\x08\x64uration\x18\x03 \x01(\x02\x12$\n\x08segments\x18\x04 \x03(\x0b\x32\x12.macaw.stt.Segment\x12\x1e\n\x05words\x18\x05 \x03(\x0b\x32\x0f.macaw.stt.Word\"|\n\nAudioFrame\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\x12\x0f\n\x07is_last\x18\x03 \x01(\x08\x12\x16\n\x0einitial_prompt\x18\x04 \x01(\t\x12\x11\n\thot_words\x18\x05 \x03(\t\x12\x10\n\x08language\x18\x06 \x01(\t\"\xc3\x01\n\x0fTranscriptEvent\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x12\n\nevent_type\x18\x02 \x01(\t\x12\x0c\n\x04text\x18\x03 \x01(\t\x12\x12\n\nsegment_id\x18\x04 \x01(\x05\x12\x10\n\x08start_ms\x18\x05 \x01(\x03\x12\x0e\n\x06\x65nd_ms\x18\x06 \x01(\x03\x12\x10\n\x08language\x18\x07 \x01(\t\x12\x12\n\nconfidence\x18\x08 \x01(\x02\x12\x1e\n\x05words\x18\t \x03(\x0b\x32\x0f.macaw.stt.Word\"\x87\x01\n\x07Segment\x12\n\n\x02id\x18\x01 \x01(\x05\x12\r\n\x05start\x18\x02 \x01(\x02\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x02\x12\x0c\n\x04text\x18\x04 \x01(\t\x12\x13\n\x0b\x61vg_logprob\x18\x05 \x01(\x02\x12\x16\n\x0eno_speech_prob\x18\x06 \x01(\x02\x12\x19\n\x11\x63ompression_ratio\x18\x07 \x01(\x02\"E\n\x04Word\x12\x0c\n\x04word\x18\x01 \x01(\t\x12\r\n\x05start\x18\x02 \x01(\x02\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x02\x12\x13\n\x0bprobability\x18\x04 \x01(\x02\"7\n\rCancelRequest\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x12\n\nsession_id\x18\x02 \x01(\t\"&\n\x0e\x43\x61ncelResponse\x12\x14\n\x0c\x61\x63knowledged\x18\x01 \x01(\x08\"\x0f\n\rHealthRequest\"\xb0\x01\n\x0eHealthResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x12\n\nmodel_name\x18\x02 \x01(\t\x12\x0e\n\x06\x65ngine\x18\x03 \x01(\t\x12\x39\n\x08metadata\x18\x04 \x03(\x0b\x32\'.macaw.stt.HealthResponse.MetadataEntry\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x32\xab\x02\n\tSTTWorker\x12U\n\x0eTranscribeFile\x12 .macaw.stt.TranscribeFileRequest\x1a!.macaw.stt.TranscribeFileResponse\x12I\n\x10TranscribeStream\x12\x15.macaw.stt.AudioFrame\x1a\x1a.macaw.stt.TranscriptEvent(\x01\x30\x01\x12=\n\x06\x43\x61ncel\x12\x18.macaw.stt.CancelRequest\x1a\x19.macaw.stt.CancelResponse\x12=\n\x06Health\x12\x18.macaw.stt.HealthRequest\x1a\x19.macaw.stt.HealthResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -38,23 +38,23 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_TRANSCRIBEFILERESPONSE']._serialized_start=252
   _globals['_TRANSCRIBEFILERESPONSE']._serialized_end=396
   _globals['_AUDIOFRAME']._serialized_start=398
-  _globals['_AUDIOFRAME']._serialized_end=504
-  _globals['_TRANSCRIPTEVENT']._serialized_start=507
-  _globals['_TRANSCRIPTEVENT']._serialized_end=702
-  _globals['_SEGMENT']._serialized_start=705
-  _globals['_SEGMENT']._serialized_end=840
-  _globals['_WORD']._serialized_start=842
-  _globals['_WORD']._serialized_end=911
-  _globals['_CANCELREQUEST']._serialized_start=913
-  _globals['_CANCELREQUEST']._serialized_end=968
-  _globals['_CANCELRESPONSE']._serialized_start=970
-  _globals['_CANCELRESPONSE']._serialized_end=1008
-  _globals['_HEALTHREQUEST']._serialized_start=1010
-  _globals['_HEALTHREQUEST']._serialized_end=1025
-  _globals['_HEALTHRESPONSE']._serialized_start=1028
-  _globals['_HEALTHRESPONSE']._serialized_end=1204
-  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_start=1157
-  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_end=1204
-  _globals['_STTWORKER']._serialized_start=1207
-  _globals['_STTWORKER']._serialized_end=1506
+  _globals['_AUDIOFRAME']._serialized_end=522
+  _globals['_TRANSCRIPTEVENT']._serialized_start=525
+  _globals['_TRANSCRIPTEVENT']._serialized_end=720
+  _globals['_SEGMENT']._serialized_start=723
+  _globals['_SEGMENT']._serialized_end=858
+  _globals['_WORD']._serialized_start=860
+  _globals['_WORD']._serialized_end=929
+  _globals['_CANCELREQUEST']._serialized_start=931
+  _globals['_CANCELREQUEST']._serialized_end=986
+  _globals['_CANCELRESPONSE']._serialized_start=988
+  _globals['_CANCELRESPONSE']._serialized_end=1026
+  _globals['_HEALTHREQUEST']._serialized_start=1028
+  _globals['_HEALTHREQUEST']._serialized_end=1043
+  _globals['_HEALTHRESPONSE']._serialized_start=1046
+  _globals['_HEALTHRESPONSE']._serialized_end=1222
+  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_start=1175
+  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_end=1222
+  _globals['_STTWORKER']._serialized_start=1225
+  _globals['_STTWORKER']._serialized_end=1524
 # @@protoc_insertion_point(module_scope)

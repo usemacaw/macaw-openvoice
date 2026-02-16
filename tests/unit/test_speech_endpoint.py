@@ -2,7 +2,7 @@
 
 Valida:
 - Pydantic model SpeechRequest (validacao, defaults)
-- build_tts_proto_request e tts_proto_chunks_to_result (conversores)
+- build_tts_proto_request (conversor)
 - Rota POST /v1/audio/speech (sucesso, erros, formatos)
 """
 
@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from macaw._types import ModelType, TTSSpeechResult
+from macaw._types import ModelType
 from macaw.server.app import create_app
 from macaw.server.models.speech import SpeechRequest
 
@@ -38,20 +38,6 @@ def _make_mock_worker_manager(*, has_worker: bool = True) -> MagicMock:
     else:
         manager.get_ready_worker.return_value = None
     return manager
-
-
-def _make_tts_result(
-    audio_data: bytes = b"\x00\x01" * 100,
-    sample_rate: int = 24000,
-    duration: float = 0.5,
-    voice: str = "default",
-) -> TTSSpeechResult:
-    return TTSSpeechResult(
-        audio_data=audio_data,
-        sample_rate=sample_rate,
-        duration=duration,
-        voice=voice,
-    )
 
 
 def _make_open_tts_stream_mock(
@@ -161,47 +147,6 @@ class TestTTSConverters:
         assert proto.voice == "alloy"
         assert proto.sample_rate == 22050
 
-    def test_tts_proto_chunks_to_result_single_chunk(self) -> None:
-        from macaw.scheduler.tts_converters import tts_proto_chunks_to_result
-
-        audio = b"\x00\x01" * 50
-        result = tts_proto_chunks_to_result(
-            [audio],
-            sample_rate=24000,
-            voice="default",
-            total_duration=0.5,
-        )
-        assert result.audio_data == audio
-        assert result.sample_rate == 24000
-        assert result.voice == "default"
-        assert result.duration == 0.5
-
-    def test_tts_proto_chunks_to_result_multiple_chunks(self) -> None:
-        from macaw.scheduler.tts_converters import tts_proto_chunks_to_result
-
-        chunk1 = b"\x00\x01" * 50
-        chunk2 = b"\x02\x03" * 50
-        result = tts_proto_chunks_to_result(
-            [chunk1, chunk2],
-            sample_rate=24000,
-            voice="alloy",
-            total_duration=1.0,
-        )
-        assert result.audio_data == chunk1 + chunk2
-        assert result.duration == 1.0
-
-    def test_tts_proto_chunks_to_result_empty(self) -> None:
-        from macaw.scheduler.tts_converters import tts_proto_chunks_to_result
-
-        result = tts_proto_chunks_to_result(
-            [],
-            sample_rate=24000,
-            voice="default",
-            total_duration=0.0,
-        )
-        assert result.audio_data == b""
-        assert result.duration == 0.0
-
 
 # ─── POST /v1/audio/speech Route ───
 
@@ -304,8 +249,9 @@ class TestSpeechRoute:
                 },
             )
 
-        assert response.status_code == 400
-        assert "response_format" in response.json()["error"]["message"]
+        assert response.status_code == 422
+        body = response.json()
+        assert body["detail"][0]["loc"][-1] == "response_format"
 
     async def test_speech_model_not_found_returns_404(self) -> None:
         from macaw.exceptions import ModelNotFoundError
@@ -495,7 +441,9 @@ class TestGetWorkerManagerDependency:
         mock_request = MagicMock()
         mock_request.app.state.worker_manager = None
 
-        with pytest.raises(RuntimeError, match="WorkerManager"):
+        from macaw.exceptions import ServiceNotConfiguredError
+
+        with pytest.raises(ServiceNotConfiguredError, match="WorkerManager"):
             get_worker_manager(mock_request)
 
 

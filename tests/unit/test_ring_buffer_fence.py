@@ -16,7 +16,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, Mock
 
-import numpy as np
 import pytest
 
 from macaw._types import TranscriptSegment
@@ -25,59 +24,17 @@ from macaw.server.models.events import TranscriptFinalEvent
 from macaw.session.ring_buffer import _FORCE_COMMIT_THRESHOLD, RingBuffer
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADEvent, VADEventType
+from tests.helpers import (
+    FRAME_SIZE,
+    AsyncIterFromList,
+    make_preprocessor_mock,
+    make_raw_bytes,
+    make_vad_mock,
+)
 
 # ---------------------------------------------------------------------------
-# Helpers (compartilhados com test_streaming_session.py)
+# Helpers
 # ---------------------------------------------------------------------------
-
-_FRAME_SIZE = 1024
-_SAMPLE_RATE = 16000
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-def _make_preprocessor_mock() -> Mock:
-    """Cria mock de StreamingPreprocessor."""
-    mock = Mock()
-    mock.process_frame.return_value = _make_float32_frame()
-    return mock
-
-
-def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    """Cria mock de VADDetector."""
-    mock = Mock()
-    mock.process_frame.return_value = None
-    mock.is_speaking = is_speaking
-    mock.reset.return_value = None
-    return mock
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
@@ -87,7 +44,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
     handle.session_id = "test_session"
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
     handle.cancel = AsyncMock()
@@ -144,14 +101,14 @@ class TestReadFence:
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 5)
         rb.commit(3)
-        with pytest.raises(ValueError, match="menor"):
+        with pytest.raises(ValueError, match="cannot be less"):
             rb.commit(2)
 
     def test_commit_above_total_written_raises(self) -> None:
         """commit() com offset maior que total_written levanta ValueError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 5)
-        with pytest.raises(ValueError, match="maior"):
+        with pytest.raises(ValueError, match="cannot exceed"):
             rb.commit(10)
 
     def test_commit_same_fence_is_noop(self) -> None:
@@ -241,7 +198,7 @@ class TestWriteProtection:
         # capacity = 10
         rb.write(b"\x01" * 10)
         # uncommitted = 10, available = 0
-        with pytest.raises(BufferOverrunError, match="sobrescreveria"):
+        with pytest.raises(BufferOverrunError, match="would overwrite"):
             rb.write(b"\x02" * 1)
 
     def test_write_succeeds_after_partial_commit(self) -> None:
@@ -259,7 +216,7 @@ class TestWriteProtection:
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 8)
         # uncommitted = 8, available = 2
-        with pytest.raises(BufferOverrunError, match="sobrescreveria"):
+        with pytest.raises(BufferOverrunError, match="would overwrite"):
             rb.write(b"\x02" * 3)
 
     def test_write_exactly_available_succeeds(self) -> None:
@@ -413,11 +370,11 @@ class TestStreamingSessionRingBuffer:
         rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
         stream_handle = _make_stream_handle_mock()
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -431,16 +388,16 @@ class TestStreamingSessionRingBuffer:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Enviar mais frames durante fala
         vad.process_frame.return_value = None
-        await session.process_frame(_make_raw_bytes())
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: ring buffer tem dados escritos.
         # Cada frame e 1024 samples * 2 bytes = 2048 bytes PCM int16.
-        expected_bytes = 3 * _FRAME_SIZE * 2  # 3 frames
+        expected_bytes = 3 * FRAME_SIZE * 2  # 3 frames
         assert rb.total_written == expected_bytes
 
         # Cleanup
@@ -450,11 +407,11 @@ class TestStreamingSessionRingBuffer:
         """StreamingSession funciona normalmente sem ring buffer (backward compat)."""
         stream_handle = _make_stream_handle_mock()
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -468,10 +425,10 @@ class TestStreamingSessionRingBuffer:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         vad.process_frame.return_value = None
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: frames enviados ao worker normalmente
         assert stream_handle.send_frame.call_count == 2
@@ -494,12 +451,12 @@ class TestStreamingSessionRingBuffer:
         rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
         stream_handle = _make_stream_handle_mock(events=[final_segment])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = AsyncMock()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -514,11 +471,11 @@ class TestStreamingSessionRingBuffer:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Enviar mais frames
         vad.process_frame.return_value = None
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Aguardar receiver task processar o transcript.final
         await asyncio.sleep(0.05)
@@ -545,11 +502,11 @@ class TestStreamingSessionRingBuffer:
 
         stream_handle = _make_stream_handle_mock()
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -575,7 +532,7 @@ class TestStreamingSessionRingBuffer:
 
         # O force commit seta _force_commit_pending = True
         # E no final de process_frame, commit() e chamado.
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Apos process_frame com force commit:
         # - commit() fecha o stream handle e aguarda receiver
@@ -591,8 +548,8 @@ class TestStreamingSessionRingBuffer:
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=AsyncMock(),
@@ -611,8 +568,8 @@ class TestStreamingSessionRingBuffer:
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=AsyncMock(),
@@ -630,7 +587,7 @@ class TestStreamingSessionRingBuffer:
         vad.is_speaking = True
 
         # process_frame will: preprocess, VAD, send to worker, check flag
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Flag consumed by process_frame via consume_force_commit()
         assert session._metrics.consume_force_commit() is False

@@ -206,3 +206,42 @@ async def test_transcribe_text_format() -> None:
 
     assert response.status_code == 200
     assert response.text == "Hello world"
+
+
+async def test_transcribe_passes_timestamp_granularities() -> None:
+    scheduler = _make_mock_scheduler()
+    app = create_app(registry=_make_mock_registry(), scheduler=scheduler)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        await client.post(
+            "/v1/audio/transcriptions",
+            files={"file": ("audio.wav", b"fake-audio-data", "audio/wav")},
+            data={
+                "model": "faster-whisper-tiny",
+                "timestamp_granularities[]": ["word", "segment"],
+            },
+        )
+
+    call_args = scheduler.transcribe.call_args[0][0]
+    assert call_args.timestamp_granularities == ("word", "segment")
+
+
+async def test_transcribe_timestamp_granularities_defaults_to_segment() -> None:
+    scheduler = _make_mock_scheduler()
+    app = create_app(registry=_make_mock_registry(), scheduler=scheduler)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        await client.post(
+            "/v1/audio/transcriptions",
+            files={"file": ("audio.wav", b"fake-audio-data", "audio/wav")},
+            data={"model": "faster-whisper-tiny"},
+        )
+
+    call_args = scheduler.transcribe.call_args[0][0]
+    assert call_args.timestamp_granularities == ("segment",)

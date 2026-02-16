@@ -35,6 +35,7 @@ async def handle_audio_request(
     preprocessing_pipeline: AudioPreprocessingPipeline | None = None,
     postprocessing_pipeline: PostProcessingPipeline | None = None,
     itn: bool = True,
+    timestamp_granularities: tuple[str, ...] = ("segment",),
 ) -> Any:
     """Processa request de audio (transcricao ou traducao).
 
@@ -105,6 +106,7 @@ async def handle_audio_request(
         language=language,
         response_format=fmt,
         temperature=temperature,
+        timestamp_granularities=timestamp_granularities,
         initial_prompt=prompt,
         task=task,
     )

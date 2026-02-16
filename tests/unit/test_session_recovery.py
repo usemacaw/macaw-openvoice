@@ -18,66 +18,20 @@ import asyncio
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, Mock
 
-import numpy as np
-
 from macaw._types import SessionState
 from macaw.exceptions import WorkerCrashError
 from macaw.server.models.events import StreamingErrorEvent
 from macaw.session.ring_buffer import RingBuffer
 from macaw.session.streaming import StreamingSession
 from macaw.session.wal import SessionWAL
+from tests.helpers import (
+    AsyncIterFromList,
+    make_preprocessor_mock,
+    make_vad_mock,
+)
 
 if TYPE_CHECKING:
     from macaw.session.state_machine import SessionStateMachine
-
-# Frame size padrao: 1024 samples a 16kHz = 64ms
-_FRAME_SIZE = 1024
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-def _make_preprocessor_mock() -> Mock:
-    """Cria mock de StreamingPreprocessor."""
-    mock = Mock()
-    mock.process_frame.return_value = _make_float32_frame()
-    return mock
-
-
-def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    """Cria mock de VADDetector."""
-    mock = Mock()
-    mock.process_frame.return_value = None
-    mock.is_speaking = is_speaking
-    mock.reset.return_value = None
-    return mock
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
@@ -87,7 +41,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
     handle.session_id = "test-recovery"
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
     handle.cancel = AsyncMock()
@@ -130,8 +84,8 @@ def _create_recovery_session(
 
     session = StreamingSession(
         session_id="test-recovery",
-        preprocessor=_make_preprocessor_mock(),
-        vad=_make_vad_mock(),
+        preprocessor=make_preprocessor_mock(),
+        vad=make_vad_mock(),
         grpc_client=_grpc_client,
         postprocessor=_make_postprocessor_mock(),
         on_event=_on_event,
@@ -303,7 +257,7 @@ async def test_recover_emits_recoverable_error():
     """WorkerCrashError no receiver emite erro recoverable com resume_segment_id."""
     # Arrange
     crash_handle = _make_stream_handle_mock()
-    crash_handle.receive_events.return_value = _AsyncIterFromList(
+    crash_handle.receive_events.return_value = AsyncIterFromList(
         [WorkerCrashError("test-recovery")]
     )
 
@@ -464,7 +418,7 @@ async def test_receiver_crash_triggers_recovery():
     """WorkerCrashError durante receive_events dispara recover() automaticamente."""
     # Arrange
     crash_handle = _make_stream_handle_mock()
-    crash_handle.receive_events.return_value = _AsyncIterFromList(
+    crash_handle.receive_events.return_value = AsyncIterFromList(
         [WorkerCrashError("test-recovery")]
     )
 
@@ -565,7 +519,7 @@ async def test_recovery_failed_emits_irrecoverable_error():
     """Quando recovery falha, erro irrecuperavel e emitido."""
     # Arrange
     crash_handle = _make_stream_handle_mock()
-    crash_handle.receive_events.return_value = _AsyncIterFromList(
+    crash_handle.receive_events.return_value = AsyncIterFromList(
         [WorkerCrashError("test-recovery")]
     )
 

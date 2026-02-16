@@ -17,10 +17,10 @@ from macaw.session.backpressure import (
     FramesDroppedAction,
     RateLimitAction,
 )
+from tests.helpers import SAMPLE_RATE
 
 # PCM 16-bit mono 16kHz: 1 segundo = 32000 bytes
-_SAMPLE_RATE = 16000
-_BYTES_PER_SECOND = _SAMPLE_RATE * 2  # 2 bytes per sample (int16)
+_BYTES_PER_SECOND = SAMPLE_RATE * 2  # 2 bytes per sample (int16)
 _BYTES_PER_20MS = _BYTES_PER_SECOND // 50  # 640 bytes = 20ms frame
 
 
@@ -48,7 +48,7 @@ class TestBackpressureControllerNormalSpeed:
         """Primeiro frame nunca deve emitir acao (sem historico)."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             clock=clock,
         )
 
@@ -62,7 +62,7 @@ class TestBackpressureControllerNormalSpeed:
         """Audio em velocidade 1x real-time nao deve emitir eventos."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             clock=clock,
         )
 
@@ -79,7 +79,7 @@ class TestBackpressureControllerNormalSpeed:
         """Audio a 1.1x (abaixo do threshold 1.2x) nao deve emitir eventos."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             rate_limit_threshold=1.2,
             clock=clock,
         )
@@ -100,7 +100,7 @@ class TestBackpressureControllerRateLimit:
         """Audio a 2x real-time deve emitir RateLimitAction."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             rate_limit_threshold=1.2,
             max_backlog_s=10.0,
             clock=clock,
@@ -124,7 +124,7 @@ class TestBackpressureControllerRateLimit:
         """RateLimitAction deve ter delay_ms positivo."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             rate_limit_threshold=1.2,
             clock=clock,
         )
@@ -146,7 +146,7 @@ class TestBackpressureControllerRateLimit:
         """Apos desacelerar para 1x, nao deve mais emitir rate_limit."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             rate_limit_threshold=1.2,
             max_backlog_s=100.0,  # backlog alto para nao dropar
             clock=clock,
@@ -178,7 +178,7 @@ class TestBackpressureControllerFramesDrop:
         """Backlog > max_backlog_s deve dropar frames."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=1.0,  # apenas 1 segundo de backlog
             rate_limit_threshold=1.2,
             clock=clock,
@@ -204,7 +204,7 @@ class TestBackpressureControllerFramesDrop:
         """Contador de frames dropados deve ser incrementado corretamente."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=0.5,  # meio segundo de backlog
             clock=clock,
         )
@@ -224,7 +224,7 @@ class TestBackpressureControllerFramesDrop:
         """dropped_ms deve refletir a duracao do frame dropado."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=0.5,
             clock=clock,
         )
@@ -245,7 +245,7 @@ class TestBackpressureControllerFramesDrop:
         """Backlog dentro do limite nao deve dropar frames."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=10.0,
             clock=clock,
         )
@@ -265,7 +265,7 @@ class TestBackpressureControllerEdgeCases:
         """Um unico frame nao deve emitir nenhuma acao."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             clock=clock,
         )
 
@@ -277,7 +277,7 @@ class TestBackpressureControllerEdgeCases:
         """Dois frames no mesmo instante nao deve crashar (divisao por zero)."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=10.0,
             clock=clock,
         )
@@ -290,7 +290,7 @@ class TestBackpressureControllerEdgeCases:
 
     def test_counters_start_at_zero(self) -> None:
         """Contadores devem comecar em zero."""
-        ctrl = BackpressureController(sample_rate=_SAMPLE_RATE)
+        ctrl = BackpressureController(sample_rate=SAMPLE_RATE)
 
         assert ctrl.frames_received == 0
         assert ctrl.frames_dropped == 0
@@ -299,7 +299,7 @@ class TestBackpressureControllerEdgeCases:
         """Frames grandes devem ter duracao calculada corretamente."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=2.0,
             clock=clock,
         )
@@ -319,7 +319,7 @@ class TestBackpressureControllerEdgeCases:
         """Rate limit deve respeitar cooldown de 1s entre emissoes."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             rate_limit_threshold=1.2,
             max_backlog_s=100.0,  # alto para nao dropar
             clock=clock,
@@ -340,7 +340,7 @@ class TestBackpressureControllerEdgeCases:
         """FramesDroppedAction deve ter prioridade sobre RateLimitAction."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=0.5,
             rate_limit_threshold=1.2,
             clock=clock,

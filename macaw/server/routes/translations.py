@@ -22,11 +22,11 @@ router = APIRouter()
 @router.post("/v1/audio/translations")
 async def create_translation(
     file: UploadFile,
-    model: str = Form(),
+    model: str = Form(max_length=256),
     language: str | None = Form(default=None),
     prompt: str | None = Form(default=None),
     response_format: str = Form(default="json"),
-    temperature: float = Form(default=0.0),
+    temperature: float = Form(default=0.0, ge=0.0, le=2.0),
     itn: bool = Form(default=True),
     scheduler: Scheduler = Depends(get_scheduler),  # noqa: B008
     preprocessing_pipeline: AudioPreprocessingPipeline | None = Depends(  # noqa: B008

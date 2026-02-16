@@ -16,6 +16,7 @@ from macaw._types import (
     WordTimestamp,
 )
 from macaw.proto.stt_worker_pb2 import (
+    AudioFrame,
     HealthRequest,
     TranscribeFileRequest,
 )
@@ -269,3 +270,78 @@ class TestHealth:
         response = await servicer.Health(HealthRequest(), ctx)
         assert response.model_name == "large-v3"
         assert response.engine == "faster-whisper"
+
+
+class TestTranscribeStreamLanguage:
+    """Tests for language field extraction from AudioFrame in TranscribeStream."""
+
+    async def test_passes_language_to_backend(self) -> None:
+        backend = MockBackend()
+        backend.transcribe_stream = AsyncMock(
+            return_value=AsyncMock(
+                __aiter__=lambda self: self, __anext__=AsyncMock(side_effect=StopAsyncIteration)
+            )
+        )  # type: ignore[method-assign]
+        servicer = STTWorkerServicer(
+            backend=backend,
+            model_name="large-v3",
+            engine="faster-whisper",
+        )
+        ctx = _make_context()
+
+        async def frame_iterator() -> AsyncIterator[AudioFrame]:
+            yield AudioFrame(
+                session_id="sess-1",
+                data=b"\x00\x01" * 100,
+                is_last=False,
+                language="en",
+            )
+            yield AudioFrame(
+                session_id="sess-1",
+                data=b"",
+                is_last=True,
+            )
+
+        events = []
+        async for event in servicer.TranscribeStream(frame_iterator(), ctx):
+            events.append(event)
+
+        backend.transcribe_stream.assert_called_once()
+        call_kwargs = backend.transcribe_stream.call_args.kwargs
+        assert call_kwargs["language"] == "en"
+
+    async def test_empty_language_becomes_none(self) -> None:
+        backend = MockBackend()
+        backend.transcribe_stream = AsyncMock(
+            return_value=AsyncMock(
+                __aiter__=lambda self: self, __anext__=AsyncMock(side_effect=StopAsyncIteration)
+            )
+        )  # type: ignore[method-assign]
+        servicer = STTWorkerServicer(
+            backend=backend,
+            model_name="large-v3",
+            engine="faster-whisper",
+        )
+        ctx = _make_context()
+
+        async def frame_iterator() -> AsyncIterator[AudioFrame]:
+            # Proto default for string is "" — should become None
+            yield AudioFrame(
+                session_id="sess-2",
+                data=b"\x00\x01" * 100,
+                is_last=False,
+                language="",
+            )
+            yield AudioFrame(
+                session_id="sess-2",
+                data=b"",
+                is_last=True,
+            )
+
+        events = []
+        async for event in servicer.TranscribeStream(frame_iterator(), ctx):
+            events.append(event)
+
+        backend.transcribe_stream.assert_called_once()
+        call_kwargs = backend.transcribe_stream.call_args.kwargs
+        assert call_kwargs["language"] is None

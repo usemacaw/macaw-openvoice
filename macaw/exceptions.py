@@ -2,6 +2,7 @@
 
 Hierarchy:
     MacawError (base)
+    +-- ServiceNotConfiguredError
     +-- ConfigError
     |   +-- ManifestParseError
     |   +-- ManifestValidationError
@@ -21,7 +22,8 @@ Hierarchy:
     |   +-- InvalidTransitionError
     |   +-- BufferOverrunError
     +-- TTSError
-    |   +-- TTSSynthesisError
+    |   +-- TTSSynthesisError (client input errors -> INVALID_ARGUMENT)
+    |   +-- TTSEngineError   (server engine errors -> INTERNAL)
     +-- InvalidRequestError
 """
 
@@ -30,6 +32,20 @@ from __future__ import annotations
 
 class MacawError(Exception):
     """Base for all Macaw OpenVoice exceptions."""
+
+
+class ServiceNotConfiguredError(MacawError):
+    """A required service (Registry, Scheduler, etc.) was not configured at startup.
+
+    Raised by FastAPI dependencies when app.state is missing a required component.
+    Maps to HTTP 503 (Service Unavailable) in error handlers.
+    """
+
+    def __init__(self, service_name: str) -> None:
+        self.service_name = service_name
+        super().__init__(
+            f"{service_name} not configured. Pass {service_name.lower()}= in create_app()."
+        )
 
 
 # --- Configuration ---
@@ -207,9 +223,25 @@ class TTSError(MacawError):
 
 
 class TTSSynthesisError(TTSError):
-    """Failure during speech synthesis."""
+    """Client-side synthesis failure (bad input, missing params).
+
+    Maps to gRPC INVALID_ARGUMENT in the TTS servicer.
+    """
 
     def __init__(self, model_name: str, reason: str) -> None:
         self.model_name = model_name
         self.reason = reason
         super().__init__(f"TTS synthesis failed for model '{model_name}': {reason}")
+
+
+class TTSEngineError(TTSError):
+    """Server-side engine failure (GPU OOM, empty audio output, unexpected crash).
+
+    Maps to gRPC INTERNAL in the TTS servicer (falls through to the
+    generic except branch, which already uses INTERNAL).
+    """
+
+    def __init__(self, model_name: str, reason: str) -> None:
+        self.model_name = model_name
+        self.reason = reason
+        super().__init__(f"TTS engine error for model '{model_name}': {reason}")

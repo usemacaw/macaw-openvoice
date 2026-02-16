@@ -31,6 +31,7 @@ from macaw._types import (
 )
 from macaw.server.app import create_app
 from macaw.server.formatters import format_response
+from tests.helpers import AsyncIterFromList
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,32 +97,12 @@ def _make_app(
     )
 
 
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):  # type: ignore[no-untyped-def]
-        return self
-
-    async def __anext__(self):  # type: ignore[no-untyped-def]
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-
 def _make_stream_handle(events: list | None = None) -> Mock:
     """Cria mock de StreamHandle com async iterator."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test"
-    handle.receive_events.return_value = _AsyncIterFromList(events or [])
+    handle.receive_events.return_value = AsyncIterFromList(events or [])
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
     handle.cancel = AsyncMock()

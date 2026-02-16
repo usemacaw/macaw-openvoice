@@ -22,8 +22,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from macaw._types import TTSEngineCapabilities, VoiceInfo
-from macaw.exceptions import ModelLoadError, TTSSynthesisError
+from macaw.exceptions import ModelLoadError, TTSEngineError, TTSSynthesisError
 from macaw.logging import get_logger
+from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE
 from macaw.workers.audio_utils import PCM_INT16_MAX, PCM_INT32_MAX
 from macaw.workers.torch_utils import release_gpu_memory, resolve_device
 from macaw.workers.tts.audio_utils import CHUNK_SIZE_BYTES, float32_to_pcm16_bytes
@@ -76,7 +77,7 @@ class Qwen3TTSBackend(TTSBackend):
         self._variant: str = "custom_voice"
         self._default_voice: str = "vivian"
         self._default_language: str = "English"
-        self._sample_rate: int = 24000
+        self._sample_rate: int = TTS_DEFAULT_SAMPLE_RATE
 
     async def capabilities(self) -> TTSEngineCapabilities:
         return TTSEngineCapabilities(
@@ -129,8 +130,6 @@ class Qwen3TTSBackend(TTSBackend):
             sample_rate=sample_rate,
         )
 
-    _DEFAULT_SAMPLE_RATE = 24000
-
     # AsyncGenerator is a subtype of AsyncIterator but mypy doesn't recognize
     # yield-based overrides. See docs/ADDING_ENGINE.md.
     async def synthesize(  # type: ignore[override, misc]
@@ -138,7 +137,7 @@ class Qwen3TTSBackend(TTSBackend):
         text: str,
         voice: str = "default",
         *,
-        sample_rate: int = 24000,
+        sample_rate: int = TTS_DEFAULT_SAMPLE_RATE,
         speed: float = 1.0,
         options: dict[str, object] | None = None,
     ) -> AsyncIterator[bytes]:
@@ -184,14 +183,14 @@ class Qwen3TTSBackend(TTSBackend):
                     instruction=instruction,
                 ),
             )
-        except TTSSynthesisError:
+        except (TTSSynthesisError, TTSEngineError):
             raise
         except Exception as exc:
-            raise TTSSynthesisError(self._model_path, str(exc)) from exc
+            raise TTSEngineError(self._model_path, str(exc)) from exc
 
         if len(audio_data) == 0:
             msg = "Synthesis returned empty audio"
-            raise TTSSynthesisError(self._model_path, msg)
+            raise TTSEngineError(self._model_path, msg)
 
         for i in range(0, len(audio_data), CHUNK_SIZE_BYTES):
             yield audio_data[i : i + CHUNK_SIZE_BYTES]
@@ -261,7 +260,7 @@ def _load_qwen3_model(
     )
 
     # Determine sample rate from a dummy generation or default
-    sample_rate = 24000
+    sample_rate = TTS_DEFAULT_SAMPLE_RATE
     return model, sample_rate
 
 
@@ -288,7 +287,10 @@ def _decode_ref_audio(ref_audio: bytes | bytearray | memoryview) -> tuple[np.nda
     elif width == 4:
         samples = np.frombuffer(pcm_bytes, dtype=np.int32).astype(np.float32) / PCM_INT32_MAX
     else:
-        samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / PCM_INT16_MAX
+        from macaw.exceptions import AudioFormatError
+
+        msg = f"Unsupported WAV sample width: {width} bytes (expected 2 or 4)"
+        raise AudioFormatError(msg)
 
     return samples, sr
 

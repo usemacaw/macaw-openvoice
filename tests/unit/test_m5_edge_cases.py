@@ -55,55 +55,18 @@ from macaw.session.backpressure import (
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADDetector, VADEvent, VADEventType
 from macaw.vad.energy import EnergyPreFilter
+from tests.helpers import (
+    FRAME_SIZE,
+    SAMPLE_RATE,
+    AsyncIterFromList,
+    make_preprocessor_mock,
+    make_raw_bytes,
+    make_vad_mock,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-_FRAME_SIZE = 1024
-_SAMPLE_RATE = 16000
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros)."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-def _make_preprocessor_mock() -> Mock:
-    mock = Mock()
-    mock.process_frame.return_value = _make_float32_frame()
-    return mock
-
-
-def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    mock = Mock()
-    mock.process_frame.return_value = None
-    mock.is_speaking = is_speaking
-    mock.reset.return_value = None
-    return mock
-
-
-class _AsyncIterFromList:
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
@@ -112,7 +75,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
     handle.session_id = "test_session"
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
     handle.cancel = AsyncMock()
@@ -162,8 +125,7 @@ def _make_detector(
     detector = VADDetector(
         energy_pre_filter=energy_mock,
         silero_classifier=silero_mock,
-        sensitivity=VADSensitivity.NORMAL,
-        sample_rate=_SAMPLE_RATE,
+        sample_rate=SAMPLE_RATE,
         min_speech_duration_ms=min_speech_duration_ms,
         min_silence_duration_ms=min_silence_duration_ms,
         max_speech_duration_ms=max_speech_duration_ms,
@@ -422,9 +384,9 @@ class TestStreamingSessionEdgeCases:
 
     async def test_process_empty_frame_zero_bytes(self) -> None:
         """Frame vazio (0 bytes) e processado sem erro."""
-        preprocessor = _make_preprocessor_mock()
+        preprocessor = make_preprocessor_mock()
         preprocessor.process_frame.return_value = np.array([], dtype=np.float32)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
 
         session = StreamingSession(
             session_id="test_session",
@@ -447,10 +409,10 @@ class TestStreamingSessionEdgeCases:
     async def test_process_large_frame_over_64kb(self) -> None:
         """Frame muito grande (>64KB) e processado normalmente."""
         large_data = b"\x00\x01" * 40000  # 80KB
-        preprocessor = _make_preprocessor_mock()
+        preprocessor = make_preprocessor_mock()
         # Preprocessor retorna frame grande (40000 samples)
         preprocessor.process_frame.return_value = np.zeros(40000, dtype=np.float32)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
 
         session = StreamingSession(
             session_id="test_session",
@@ -474,8 +436,8 @@ class TestStreamingSessionEdgeCases:
         """Chamar close() duas vezes seguidas nao levanta excecao."""
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=_make_on_event(),
@@ -488,11 +450,11 @@ class TestStreamingSessionEdgeCases:
 
     async def test_process_frame_after_close_is_noop(self) -> None:
         """Frames recebidos apos close sao ignorados sem erro."""
-        preprocessor = _make_preprocessor_mock()
+        preprocessor = make_preprocessor_mock()
         session = StreamingSession(
             session_id="test_session",
             preprocessor=preprocessor,
-            vad=_make_vad_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=_make_on_event(),
@@ -501,7 +463,7 @@ class TestStreamingSessionEdgeCases:
         await session.close()
         preprocessor.process_frame.reset_mock()
 
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         preprocessor.process_frame.assert_not_called()
 
@@ -509,8 +471,8 @@ class TestStreamingSessionEdgeCases:
         """commit() em sessao fechada e no-op, sem erro."""
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=_make_on_event(),
@@ -524,8 +486,8 @@ class TestStreamingSessionEdgeCases:
         """check_inactivity() em sessao fechada retorna False."""
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=_make_on_event(),
@@ -540,12 +502,12 @@ class TestStreamingSessionEdgeCases:
         stream_handle = _make_stream_handle_mock()
         stream_handle.send_frame = AsyncMock(side_effect=WorkerCrashError("worker_1"))
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -558,11 +520,11 @@ class TestStreamingSessionEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Send frame that crashes
         vad.process_frame.return_value = None
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: error event emitted
         error_calls = [
@@ -581,12 +543,12 @@ class TestStreamingSessionEdgeCases:
             events=[RuntimeError("unexpected GPU error")],
         )
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -599,7 +561,7 @@ class TestStreamingSessionEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
         # Assert: error event emitted as irrecoverable
@@ -618,8 +580,8 @@ class TestStreamingSessionEdgeCases:
         """session_id retorna o ID fornecido no construtor."""
         session = StreamingSession(
             session_id="sess_abc123",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=_make_on_event(),
@@ -632,12 +594,12 @@ class TestStreamingSessionEdgeCases:
         stream_handle1 = _make_stream_handle_mock()
         stream_handle2 = _make_stream_handle_mock()
         grpc_client = _make_grpc_client_mock(stream_handle1)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -650,7 +612,7 @@ class TestStreamingSessionEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.01)
 
         # Second speech_start (without speech_end)
@@ -659,7 +621,7 @@ class TestStreamingSessionEdgeCases:
             type=VADEventType.SPEECH_START,
             timestamp_ms=2000,
         )
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.01)
 
         # Both speech_start events emitted
@@ -684,13 +646,13 @@ class TestStreamingSessionEdgeCases:
 
         stream_handle = _make_stream_handle_mock(events=[final_segment])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         postprocessor = _make_postprocessor_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=postprocessor,
@@ -703,7 +665,7 @@ class TestStreamingSessionEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
         # ITN should be called with empty string
@@ -784,15 +746,14 @@ class TestVADDetectorEdgeCases:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=64,  # 1 frame para simplificar
             min_silence_duration_ms=300,  # 5 frames de 64ms
         )
 
         # Phase 1: speech (2 frames -> SPEECH_START)
         events: list[VADEvent] = []
-        for frame in [np.zeros(_FRAME_SIZE, dtype=np.float32)] * 2:
+        for frame in [np.zeros(FRAME_SIZE, dtype=np.float32)] * 2:
             event = detector.process_frame(frame)
             if event is not None:
                 events.append(event)
@@ -802,7 +763,7 @@ class TestVADDetectorEdgeCases:
 
         # Phase 2: silence (2 frames < 5 frames needed for SPEECH_END)
         silero_mock.is_speech.return_value = False
-        for frame in [np.zeros(_FRAME_SIZE, dtype=np.float32)] * 2:
+        for frame in [np.zeros(FRAME_SIZE, dtype=np.float32)] * 2:
             event = detector.process_frame(frame)
             if event is not None:
                 events.append(event)
@@ -812,7 +773,7 @@ class TestVADDetectorEdgeCases:
 
         # Phase 3: speech resumes
         silero_mock.is_speech.return_value = True
-        for frame in [np.zeros(_FRAME_SIZE, dtype=np.float32)] * 3:
+        for frame in [np.zeros(FRAME_SIZE, dtype=np.float32)] * 3:
             event = detector.process_frame(frame)
             if event is not None:
                 events.append(event)
@@ -831,7 +792,7 @@ class TestVADDetectorEdgeCases:
             min_speech_duration_ms=64,  # 1 frame
         )
 
-        frame = np.zeros(_FRAME_SIZE, dtype=np.float32)
+        frame = np.zeros(FRAME_SIZE, dtype=np.float32)
         event = detector.process_frame(frame)
 
         assert event is not None
@@ -844,8 +805,7 @@ class TestVADDetectorEdgeCases:
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
-            sensitivity=VADSensitivity.NORMAL,
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             min_speech_duration_ms=250,
         )
 
@@ -853,7 +813,7 @@ class TestVADDetectorEdgeCases:
         all_events: list[VADEvent] = []
         for i in range(20):
             energy_mock.is_silence.return_value = i % 2 == 1
-            frame = np.zeros(_FRAME_SIZE, dtype=np.float32)
+            frame = np.zeros(FRAME_SIZE, dtype=np.float32)
             event = detector.process_frame(frame)
             if event is not None:
                 all_events.append(event)
@@ -872,7 +832,7 @@ class TestVADDetectorEdgeCases:
 
         all_events: list[VADEvent] = []
         # Process 15 frames: should get SPEECH_START + force SPEECH_END
-        for frame in [np.zeros(_FRAME_SIZE, dtype=np.float32)] * 15:
+        for frame in [np.zeros(FRAME_SIZE, dtype=np.float32)] * 15:
             event = detector.process_frame(frame)
             if event is not None:
                 all_events.append(event)
@@ -899,7 +859,7 @@ class TestBackpressureEdgeCases:
         """Frame de 0 bytes nao deve crashar."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             clock=clock,
         )
 
@@ -911,13 +871,13 @@ class TestBackpressureEdgeCases:
         """Frame muito grande (1 minuto de audio) e tratado sem crash."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=120.0,  # Alto para nao dropar
             clock=clock,
         )
 
         # 1 minuto de audio = 60 * 16000 * 2 bytes = 1,920,000 bytes
-        one_minute_bytes = 60 * _SAMPLE_RATE * 2
+        one_minute_bytes = 60 * SAMPLE_RATE * 2
         result = ctrl.record_frame(one_minute_bytes)
         assert result is None  # First frame, no action
         assert ctrl.frames_received == 1
@@ -926,7 +886,7 @@ class TestBackpressureEdgeCases:
         """Apos longa pausa (10s), retomar envio nao deve emitir rate_limit."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             rate_limit_threshold=1.2,
             max_backlog_s=100.0,
             clock=clock,
@@ -954,7 +914,7 @@ class TestBackpressureEdgeCases:
         """Multiplos drops consecutivos sao contados corretamente."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=0.1,  # Muito baixo
             clock=clock,
         )
@@ -1320,7 +1280,7 @@ class TestVADDetectorMoreEdgeCases:
             min_speech_duration_ms=64,
         )
 
-        frame = np.zeros(_FRAME_SIZE, dtype=np.float32)
+        frame = np.zeros(FRAME_SIZE, dtype=np.float32)
 
         # Iniciar fala
         event = detector.process_frame(frame)
@@ -1341,7 +1301,7 @@ class TestVADDetectorMoreEdgeCases:
             min_speech_duration_ms=64,
         )
 
-        frame = np.zeros(_FRAME_SIZE, dtype=np.float32)
+        frame = np.zeros(FRAME_SIZE, dtype=np.float32)
         event = detector.process_frame(frame)
 
         assert event is not None
@@ -1358,7 +1318,7 @@ class TestVADDetectorMoreEdgeCases:
         )
 
         all_events: list[VADEvent] = []
-        frame = np.zeros(_FRAME_SIZE, dtype=np.float32)
+        frame = np.zeros(FRAME_SIZE, dtype=np.float32)
 
         # 11 frames of speech -> should get SPEECH_START + force SPEECH_END
         for _ in range(11):
@@ -1386,7 +1346,7 @@ class TestVADDetectorMoreEdgeCases:
             min_speech_duration_ms=0,
         )
 
-        frame = np.zeros(_FRAME_SIZE, dtype=np.float32)
+        frame = np.zeros(FRAME_SIZE, dtype=np.float32)
         event = detector.process_frame(frame)
 
         # With 0ms min, should emit immediately since consecutive_speech >= 0
@@ -1410,12 +1370,12 @@ class TestStreamingSessionMoreEdgeCases:
         esteve ACTIVE, entao nao ha transicao valida para SILENCE.
         O importante e que nao causa crash.
         """
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
@@ -1428,7 +1388,7 @@ class TestStreamingSessionMoreEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Com state machine, SPEECH_END em INIT e ignorado (sem crash).
         # Nenhum evento speech_end e emitido pois sessao nunca esteve ACTIVE.
@@ -1444,12 +1404,12 @@ class TestStreamingSessionMoreEdgeCases:
         grpc_client = AsyncMock()
         grpc_client.open_stream = AsyncMock(side_effect=WorkerCrashError("worker_1"))
         grpc_client.close = AsyncMock()
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -1462,7 +1422,7 @@ class TestStreamingSessionMoreEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Deve emitir erro recuperavel
         error_calls = [
@@ -1488,12 +1448,12 @@ class TestStreamingSessionMoreEdgeCases:
 
         stream_handle = _make_stream_handle_mock(events=[final_segment])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=None,  # No postprocessor
@@ -1506,7 +1466,7 @@ class TestStreamingSessionMoreEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
         # Final deve ter texto original (sem ITN)
@@ -1532,13 +1492,13 @@ class TestStreamingSessionMoreEdgeCases:
 
         stream_handle = _make_stream_handle_mock(events=[final_segment])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         postprocessor = _make_postprocessor_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=postprocessor,
@@ -1551,7 +1511,7 @@ class TestStreamingSessionMoreEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
         # Postprocessor NAO deve ser chamado
@@ -1570,12 +1530,12 @@ class TestStreamingSessionMoreEdgeCases:
 
     async def test_segment_id_after_speech_end_increments(self) -> None:
         """segment_id incrementa apos SPEECH_END."""
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = _make_on_event()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
@@ -1590,7 +1550,7 @@ class TestStreamingSessionMoreEdgeCases:
             timestamp_ms=1000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.01)
 
         assert session.segment_id == 0
@@ -1601,7 +1561,7 @@ class TestStreamingSessionMoreEdgeCases:
             timestamp_ms=2000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         assert session.segment_id == 1
 
@@ -1620,7 +1580,7 @@ class TestBackpressureMoreEdgeCases:
         """Primeiro frame nunca dispara acao de backpressure."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             max_backlog_s=0.001,  # Muito baixo
             rate_limit_threshold=1.0,  # Extremo
             clock=clock,
@@ -1634,7 +1594,7 @@ class TestBackpressureMoreEdgeCases:
         """Rate limit tem cooldown de 1s entre emissoes."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             rate_limit_threshold=1.1,
             max_backlog_s=100.0,
             clock=clock,
@@ -1656,7 +1616,7 @@ class TestBackpressureMoreEdgeCases:
         """Estado inicial: zero frames recebidos e dropados."""
         clock = _FakeClock()
         ctrl = BackpressureController(
-            sample_rate=_SAMPLE_RATE,
+            sample_rate=SAMPLE_RATE,
             clock=clock,
         )
 

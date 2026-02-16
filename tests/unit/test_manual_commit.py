@@ -13,63 +13,13 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, Mock
 
-import numpy as np
-
 from macaw._types import TranscriptSegment
 from macaw.server.models.events import (
     TranscriptFinalEvent,
 )
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADEvent, VADEventType
-
-# Frame size padrao: 1024 samples a 16kHz = 64ms
-_FRAME_SIZE = 1024
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-def _make_preprocessor_mock() -> Mock:
-    """Cria mock de StreamingPreprocessor."""
-    mock = Mock()
-    mock.process_frame.return_value = _make_float32_frame()
-    return mock
-
-
-def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    """Cria mock de VADDetector."""
-    mock = Mock()
-    mock.process_frame.return_value = None
-    mock.is_speaking = is_speaking
-    mock.reset.return_value = None
-    return mock
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
+from tests.helpers import AsyncIterFromList, make_preprocessor_mock, make_raw_bytes, make_vad_mock
 
 
 def _make_stream_handle_mock(
@@ -82,7 +32,7 @@ def _make_stream_handle_mock(
 
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
 
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
@@ -132,12 +82,12 @@ async def test_commit_during_speech_closes_stream_and_increments_segment():
 
     stream_handle = _make_stream_handle_mock(events=[final_segment])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -153,7 +103,7 @@ async def test_commit_during_speech_closes_stream_and_increments_segment():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)  # Dar tempo para receiver task processar
 
     # Act: manual commit
@@ -170,12 +120,12 @@ async def test_commit_during_speech_closes_stream_and_increments_segment():
 async def test_commit_during_silence_is_noop():
     """commit() durante silencio (sem stream handle) e no-op, sem erro."""
     # Arrange
-    vad = _make_vad_mock(is_speaking=False)
+    vad = make_vad_mock(is_speaking=False)
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=_make_grpc_client_mock(),
         postprocessor=_make_postprocessor_mock(),
@@ -197,8 +147,8 @@ async def test_commit_on_closed_session_is_noop():
     # Arrange
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
-        vad=_make_vad_mock(),
+        preprocessor=make_preprocessor_mock(),
+        vad=make_vad_mock(),
         grpc_client=_make_grpc_client_mock(),
         postprocessor=_make_postprocessor_mock(),
         on_event=_make_on_event(),
@@ -220,8 +170,8 @@ async def test_commit_resets_hot_words_for_next_segment():
     # Arrange
     stream_handle1 = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle1)
-    vad = _make_vad_mock()
-    preprocessor = _make_preprocessor_mock()
+    vad = make_vad_mock()
+    preprocessor = make_preprocessor_mock()
 
     session = StreamingSession(
         session_id="test_session",
@@ -239,7 +189,7 @@ async def test_commit_resets_hot_words_for_next_segment():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Primeiro frame: hot words enviados
     calls_before_commit = stream_handle1.send_frame.call_args_list
@@ -247,7 +197,7 @@ async def test_commit_resets_hot_words_for_next_segment():
 
     # Enviar segundo frame: hot words NAO enviados
     vad.process_frame.return_value = None
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     assert stream_handle1.send_frame.call_args_list[1].kwargs.get("hot_words") is None
 
     # Act: manual commit
@@ -263,7 +213,7 @@ async def test_commit_resets_hot_words_for_next_segment():
         timestamp_ms=3000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: hot words enviados novamente no primeiro frame do novo segmento
     new_calls = stream_handle2.send_frame.call_args_list
@@ -288,12 +238,12 @@ async def test_commit_produces_transcript_final_from_worker():
 
     stream_handle = _make_stream_handle_mock(events=[final_segment])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -307,7 +257,7 @@ async def test_commit_produces_transcript_final_from_worker():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)  # Receiver task processa o final_segment
 
     # Act: commit
@@ -329,11 +279,11 @@ async def test_commit_opens_new_stream_for_subsequent_audio():
     # Arrange
     stream_handle1 = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle1)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -346,7 +296,7 @@ async def test_commit_opens_new_stream_for_subsequent_audio():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # open_stream chamado 1 vez
@@ -365,7 +315,7 @@ async def test_commit_opens_new_stream_for_subsequent_audio():
         timestamp_ms=3000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # Assert: open_stream chamado novamente
@@ -381,11 +331,11 @@ async def test_commit_with_already_closed_stream_handle():
     stream_handle = _make_stream_handle_mock()
     stream_handle.is_closed = True  # Stream ja fechado
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -398,7 +348,7 @@ async def test_commit_with_already_closed_stream_handle():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     initial_segment_id = session.segment_id

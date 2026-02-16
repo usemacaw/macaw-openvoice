@@ -17,52 +17,52 @@ class TestProtoRequestToTranscribeParams:
     def test_audio_data_extracted(self) -> None:
         request = TranscribeFileRequest(audio_data=b"\x00\x01\x02\x03")
         params = proto_request_to_transcribe_params(request)
-        assert params["audio_data"] == b"\x00\x01\x02\x03"
+        assert params.audio_data == b"\x00\x01\x02\x03"
 
     def test_empty_language_becomes_none(self) -> None:
         request = TranscribeFileRequest(language="")
         params = proto_request_to_transcribe_params(request)
-        assert params["language"] is None
+        assert params.language is None
 
     def test_present_language_preserved(self) -> None:
         request = TranscribeFileRequest(language="pt")
         params = proto_request_to_transcribe_params(request)
-        assert params["language"] == "pt"
+        assert params.language == "pt"
 
     def test_empty_prompt_becomes_none(self) -> None:
         request = TranscribeFileRequest(initial_prompt="")
         params = proto_request_to_transcribe_params(request)
-        assert params["initial_prompt"] is None
+        assert params.initial_prompt is None
 
     def test_present_prompt_preserved(self) -> None:
         request = TranscribeFileRequest(initial_prompt="Termos: PIX, TED")
         params = proto_request_to_transcribe_params(request)
-        assert params["initial_prompt"] == "Termos: PIX, TED"
+        assert params.initial_prompt == "Termos: PIX, TED"
 
     def test_empty_hot_words_becomes_none(self) -> None:
         request = TranscribeFileRequest()
         params = proto_request_to_transcribe_params(request)
-        assert params["hot_words"] is None
+        assert params.hot_words is None
 
     def test_hot_words_converted_to_list(self) -> None:
         request = TranscribeFileRequest(hot_words=["PIX", "TED"])
         params = proto_request_to_transcribe_params(request)
-        assert params["hot_words"] == ["PIX", "TED"]
+        assert params.hot_words == ["PIX", "TED"]
 
     def test_word_granularity_enables_word_timestamps(self) -> None:
         request = TranscribeFileRequest(timestamp_granularities=["word"])
         params = proto_request_to_transcribe_params(request)
-        assert params["word_timestamps"] is True
+        assert params.word_timestamps is True
 
     def test_segment_granularity_disables_word_timestamps(self) -> None:
         request = TranscribeFileRequest(timestamp_granularities=["segment"])
         params = proto_request_to_transcribe_params(request)
-        assert params["word_timestamps"] is False
+        assert params.word_timestamps is False
 
     def test_temperature_preserved(self) -> None:
         request = TranscribeFileRequest(temperature=0.5)
         params = proto_request_to_transcribe_params(request)
-        assert abs(params["temperature"] - 0.5) < 0.01  # type: ignore[operator]
+        assert abs(params.temperature - 0.5) < 0.01
 
 
 class TestBatchResultToProtoResponse:

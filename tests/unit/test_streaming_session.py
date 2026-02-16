@@ -12,8 +12,6 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, Mock
 
-import numpy as np
-
 from macaw._types import TranscriptSegment, WordTimestamp
 from macaw.exceptions import WorkerCrashError
 from macaw.server.models.events import (
@@ -26,61 +24,12 @@ from macaw.server.models.events import (
 from macaw.session.state_machine import SessionStateMachine
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADEvent, VADEventType
-
-# Frame size padrao: 1024 samples a 16kHz = 64ms
-_FRAME_SIZE = 1024
-_SAMPLE_RATE = 16000
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-def _make_preprocessor_mock() -> Mock:
-    """Cria mock de StreamingPreprocessor."""
-    mock = Mock()
-    mock.process_frame.return_value = _make_float32_frame()
-    return mock
-
-
-def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    """Cria mock de VADDetector."""
-    mock = Mock()
-    mock.process_frame.return_value = None
-    mock.is_speaking = is_speaking
-    mock.reset.return_value = None
-    return mock
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista.
-
-    Necessario porque AsyncMock.return_value nao suporta async generators
-    diretamente. Esta classe implementa __aiter__ e __anext__ para uso
-    com `async for`.
-    """
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
+from tests.helpers import (
+    AsyncIterFromList,
+    make_preprocessor_mock,
+    make_raw_bytes,
+    make_vad_mock,
+)
 
 
 def _make_stream_handle_mock(
@@ -99,7 +48,7 @@ def _make_stream_handle_mock(
     # receive_events retorna um async iterable
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
 
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
@@ -145,8 +94,8 @@ def _make_session(
     Returns:
         (session, preprocessor, vad, grpc_client, postprocessor, on_event)
     """
-    _preprocessor = preprocessor or _make_preprocessor_mock()
-    _vad = vad or _make_vad_mock()
+    _preprocessor = preprocessor or make_preprocessor_mock()
+    _vad = vad or make_vad_mock()
     _grpc_client = grpc_client or _make_grpc_client_mock()
     _postprocessor = postprocessor or _make_postprocessor_mock()
     _on_event = on_event or _make_on_event()
@@ -173,7 +122,7 @@ def _make_session(
 async def test_speech_start_emits_vad_event():
     """VAD speech_start emite vad.speech_start via callback."""
     # Arrange
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1500,
@@ -183,7 +132,7 @@ async def test_speech_start_emits_vad_event():
     session, _, _, _, _, on_event = _make_session(vad=vad)
 
     # Act
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Dar tempo para receiver task iniciar
     await asyncio.sleep(0.01)
@@ -202,12 +151,12 @@ async def test_speech_end_emits_vad_event():
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -220,7 +169,7 @@ async def test_speech_end_emits_vad_event():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # Simular speech_end
@@ -229,7 +178,7 @@ async def test_speech_end_emits_vad_event():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert
     on_event.assert_any_call(
@@ -252,13 +201,13 @@ async def test_final_transcript_applies_postprocessing():
 
     stream_handle = _make_stream_handle_mock(events=[final_segment])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     postprocessor = _make_postprocessor_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=postprocessor,
@@ -272,7 +221,7 @@ async def test_final_transcript_applies_postprocessing():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Dar tempo para o receiver task processar o evento
     await asyncio.sleep(0.05)
@@ -283,7 +232,7 @@ async def test_final_transcript_applies_postprocessing():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: ITN foi aplicado ao texto final
     postprocessor.process.assert_called_once_with("dois mil e vinte e cinco")
@@ -308,13 +257,13 @@ async def test_partial_transcript_no_postprocessing():
 
     stream_handle = _make_stream_handle_mock(events=[partial_segment])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     postprocessor = _make_postprocessor_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=postprocessor,
@@ -327,7 +276,7 @@ async def test_partial_transcript_no_postprocessing():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Dar tempo para receiver task
     await asyncio.sleep(0.05)
@@ -353,12 +302,12 @@ async def test_segment_id_increments():
     # Arrange
     stream_handle1 = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle1)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -373,7 +322,7 @@ async def test_segment_id_increments():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # Novo stream_handle para proximo open_stream
@@ -385,7 +334,7 @@ async def test_segment_id_increments():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     assert session.segment_id == 1
 
@@ -398,7 +347,7 @@ async def test_segment_id_increments():
         timestamp_ms=3000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     vad.process_frame.return_value = VADEvent(
@@ -406,7 +355,7 @@ async def test_segment_id_increments():
         timestamp_ms=4000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     assert session.segment_id == 2
 
@@ -416,11 +365,11 @@ async def test_close_cleans_up_resources():
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -433,7 +382,7 @@ async def test_close_cleans_up_resources():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
     assert not session.is_closed
 
@@ -448,7 +397,7 @@ async def test_close_cleans_up_resources():
 async def test_process_frame_during_closed_is_noop():
     """Frames recebidos apos close sao ignorados."""
     # Arrange
-    preprocessor = _make_preprocessor_mock()
+    preprocessor = make_preprocessor_mock()
 
     session, _, _, _, _, _ = _make_session(preprocessor=preprocessor)
 
@@ -460,7 +409,7 @@ async def test_process_frame_during_closed_is_noop():
     preprocessor.process_frame.reset_mock()
 
     # Act: tentar processar frame
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: preprocessor NAO foi chamado
     preprocessor.process_frame.assert_not_called()
@@ -487,13 +436,13 @@ async def test_full_speech_cycle():
 
     stream_handle = _make_stream_handle_mock(events=[partial_seg, final_seg])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     postprocessor = _make_postprocessor_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=postprocessor,
@@ -507,7 +456,7 @@ async def test_full_speech_cycle():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Dar tempo para receiver task processar ambos eventos
     await asyncio.sleep(0.05)
@@ -518,7 +467,7 @@ async def test_full_speech_cycle():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: eventos na ordem correta
     event_types = [type(call.args[0]).__name__ for call in on_event.call_args_list]
@@ -542,8 +491,8 @@ async def test_hot_words_sent_only_on_first_frame():
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
-    preprocessor = _make_preprocessor_mock()
+    vad = make_vad_mock()
+    preprocessor = make_preprocessor_mock()
 
     session = StreamingSession(
         session_id="test_session",
@@ -561,12 +510,12 @@ async def test_hot_words_sent_only_on_first_frame():
         timestamp_ms=1000,
     )
     vad.is_speaking = True  # Apos speech_start, is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Enviar mais frames durante fala
     vad.process_frame.return_value = None  # Sem transicao
-    await session.process_frame(_make_raw_bytes())
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: hot_words enviados no primeiro frame, None nos seguintes
     calls = stream_handle.send_frame.call_args_list
@@ -609,12 +558,12 @@ async def test_no_postprocessor_skips_itn():
 
     stream_handle = _make_stream_handle_mock(events=[final_segment])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=None,
@@ -628,7 +577,7 @@ async def test_no_postprocessor_skips_itn():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.05)
 
@@ -638,7 +587,7 @@ async def test_no_postprocessor_skips_itn():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: texto sem ITN
     final_calls = [
@@ -661,13 +610,13 @@ async def test_itn_disabled_skips_postprocessing():
 
     stream_handle = _make_stream_handle_mock(events=[final_segment])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     postprocessor = _make_postprocessor_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=postprocessor,
@@ -681,7 +630,7 @@ async def test_itn_disabled_skips_postprocessing():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.05)
 
@@ -691,7 +640,7 @@ async def test_itn_disabled_skips_postprocessing():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: postprocessor NAO foi chamado
     postprocessor.process.assert_not_called()
@@ -712,12 +661,12 @@ async def test_worker_crash_emits_error_event():
     )
 
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -730,7 +679,7 @@ async def test_worker_crash_emits_error_event():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.05)
 
@@ -797,7 +746,7 @@ async def test_inactivity_reset_on_frame():
     )
     vad.is_speaking = True
     current_time[0] = 26.0
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # ACTIVE nao tem timeout, logo check_inactivity retorna False
@@ -827,12 +776,12 @@ async def test_word_timestamps_in_final():
 
     stream_handle = _make_stream_handle_mock(events=[final_segment])
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -846,7 +795,7 @@ async def test_word_timestamps_in_final():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.05)
 
@@ -855,7 +804,7 @@ async def test_word_timestamps_in_final():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: word timestamps presentes no evento final
     final_calls = [
@@ -875,12 +824,12 @@ async def test_grpc_open_stream_failure_emits_error():
     grpc_client = AsyncMock()
     grpc_client.open_stream = AsyncMock(side_effect=WorkerCrashError("worker_1"))
 
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
     on_event = _make_on_event()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -893,7 +842,7 @@ async def test_grpc_open_stream_failure_emits_error():
         timestamp_ms=1000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: erro emitido
     error_calls = [
@@ -912,11 +861,11 @@ async def test_frames_sent_during_speech():
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock()
+    vad = make_vad_mock()
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -929,12 +878,12 @@ async def test_frames_sent_during_speech():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Mais frames durante fala
     vad.process_frame.return_value = None
-    await session.process_frame(_make_raw_bytes())
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: 3 frames enviados ao worker (1 do speech_start + 2)
     assert stream_handle.send_frame.call_count == 3
@@ -948,11 +897,11 @@ async def test_no_frames_sent_during_silence():
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
-    vad = _make_vad_mock(is_speaking=False)
+    vad = make_vad_mock(is_speaking=False)
 
     session = StreamingSession(
         session_id="test_session",
-        preprocessor=_make_preprocessor_mock(),
+        preprocessor=make_preprocessor_mock(),
         vad=vad,
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
@@ -961,8 +910,8 @@ async def test_no_frames_sent_during_silence():
 
     # Processar frames em silencio
     vad.process_frame.return_value = None
-    await session.process_frame(_make_raw_bytes())
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: nenhum frame enviado
     stream_handle.send_frame.assert_not_called()
@@ -989,7 +938,7 @@ class TestEventOrdering:
         )
         stream_handle = _make_stream_handle_mock(events=[final_segment])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock(is_speaking=False)
+        vad = make_vad_mock(is_speaking=False)
 
         events_emitted: list[object] = []
 
@@ -998,7 +947,7 @@ class TestEventOrdering:
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=None,
@@ -1011,12 +960,12 @@ class TestEventOrdering:
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
         )
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Enviar frames durante fala
         vad.process_frame.return_value = None
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Aguardar receiver task processar o final (dar tempo ao event loop)
         await asyncio.sleep(0.05)
@@ -1027,7 +976,7 @@ class TestEventOrdering:
             timestamp_ms=2000,
         )
         vad.is_speaking = False
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Assert: verificar ordenacao
         event_types = [type(e).__name__ for e in events_emitted]

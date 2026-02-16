@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `timestamp_granularities[]` Form parameter in `POST /v1/audio/transcriptions` — clients can now request word-level timestamps via the REST API (#review-v2-F07)
+- `language` field to `AudioFrame` proto — streaming sessions can now specify language instead of always auto-detecting (#review-v2-F27)
+- `current_timeouts` read-only property on `StreamingSession` for timeout introspection (#review-v2-F12)
+- OpenAPI schema structural test — guards against accidental endpoint or parameter removal during refactoring (#review-v2-F26)
+- `TTSEngineError` exception for server-side TTS failures (GPU OOM, empty audio), sibling of `TTSSynthesisError` for client errors (#review-v2-F19)
+- `ServiceNotConfiguredError` typed exception replacing generic `RuntimeError` in FastAPI dependency injection (#review-v2-F21)
+- `TranscribeFileParams` frozen dataclass replacing untyped `dict[str, object]` return from proto converter (#review-v2-F09)
+- `type` and `engine` fields to `GET /v1/models` response for richer model listing (#review-v2)
 - Pre-commit hooks for local quality enforcement: ruff, bandit SAST, detect-secrets, file hygiene, branch protection (#quality-gates)
 - Test coverage measurement with pytest-cov — branch coverage enabled, `fail_under = 70` (#quality-gates)
 - Bandit SAST security scanning as Make target and CI step (#quality-gates)
@@ -15,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coverage reporting with HTML artifacts and XML upload in CI pipeline (#quality-gates)
 
 ### Fixed
+- `session.configure` timeout fields (`silence_timeout_ms`, `hold_timeout_ms`) accepted but silently ignored — now wired through to `StreamingSession.update_session_timeouts()` (#review-v2-F12)
+- `macaw ps` command broken — read wrong response keys (`models` instead of `data`, `name` instead of `id`), always showed "No models loaded" (#review-v2)
+- Hot-path float64-to-float32 allocation in `DCRemoveStage.process()` — avoided unconditional `astype` copy on every audio frame (#review-v2)
+- `SpeechRequest.input` accepted empty string — added `min_length=1` for proper 422 validation (#review-v2)
+- `SpeechRequest.response_format` accepted any string — changed to `Literal["wav", "pcm"]` for Pydantic validation (#review-v2)
+- `TTSSpeakCommand.text` had no length limit — added `min_length=1, max_length=4096` to prevent WebSocket abuse (#review-v2)
+- `Qwen3TTSBackend._decode_ref_audio` silently fell back to int16 for unsupported WAV sample widths — now raises `AudioFormatError` (#review-v2)
+- 9 Portuguese error messages in `ring_buffer.py` translated to English (#review-v2)
+- `transcriptions` and `translations` endpoints: `model` field had no max_length, `temperature` had no bounds — added `max_length=256` and `ge=0.0, le=2.0` (#review-v2)
 - mypy `NameError` risk in `cli/models.py` — renamed loop variable `e` to `entry` to avoid CPython except-bound variable deletion (#review-phase1)
 - mypy `call-overload` error in `workers/tts/qwen3.py` — added explicit type narrowing for `ref_audio` in `_decode_ref_audio()` (#review-phase1)
 - Swallowed exception in `Qwen3TTSBackend.voices()` — `except Exception` now captures and logs the error string (#review-phase1)
@@ -43,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrated from src layout to flat layout (`src/macaw/` → `macaw/`) — simpler project structure, zero import changes (#flat-layout)
 
 ### Removed
+- Dead code: `TTSSpeechResult` dataclass and `tts_proto_chunks_to_result()` function — superseded by `StreamingResponse` in TTS endpoint (#review-v2-F16)
+- Unused `sensitivity` parameter from `VADDetector.__init__` — thresholds are set in the injected `EnergyPreFilter` and `SileroVADClassifier` components (#review-v2-F22)
 - Dead code: `CreateVoiceRequest` model, `ErrorResponse`/`ErrorDetail` models, `_sensitivity` field in VAD detector, `_pending_final_event` in StreamingSession, YAGNI preprocessing config fields (#review-phase3)
 
 ### Added

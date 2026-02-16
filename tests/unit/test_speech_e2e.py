@@ -290,7 +290,7 @@ class TestSpeechMultipleChunks:
 class TestSpeechEmptyInput:
     """Input vazio ou apenas espacos retorna 400."""
 
-    async def test_empty_string_returns_400(self) -> None:
+    async def test_empty_string_returns_422(self) -> None:
         app = _make_app()
 
         resp = await _post_speech(
@@ -299,9 +299,9 @@ class TestSpeechEmptyInput:
             raise_app_exceptions=False,
         )
 
-        assert resp.status_code == 400
-        error = resp.json()["error"]
-        assert error["code"] == "invalid_request"
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail[0]["loc"][-1] == "input"
 
     async def test_whitespace_only_returns_400(self) -> None:
         app = _make_app()
@@ -318,7 +318,7 @@ class TestSpeechEmptyInput:
 class TestSpeechInvalidResponseFormat:
     """Formato de resposta invalido retorna 400."""
 
-    async def test_mp3_returns_400(self) -> None:
+    async def test_mp3_returns_422(self) -> None:
         app = _make_app()
 
         resp = await _post_speech(
@@ -327,12 +327,11 @@ class TestSpeechInvalidResponseFormat:
             raise_app_exceptions=False,
         )
 
-        assert resp.status_code == 400
-        error = resp.json()["error"]
-        assert error["code"] == "invalid_request"
-        assert "mp3" in error["message"]
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail[0]["loc"][-1] == "response_format"
 
-    async def test_unsupported_format_mentions_valid_formats(self) -> None:
+    async def test_unsupported_format_rejected_by_pydantic(self) -> None:
         app = _make_app()
 
         resp = await _post_speech(
@@ -341,10 +340,9 @@ class TestSpeechInvalidResponseFormat:
             raise_app_exceptions=False,
         )
 
-        assert resp.status_code == 400
-        msg = resp.json()["error"]["message"]
-        assert "pcm" in msg
-        assert "wav" in msg
+        assert resp.status_code == 422
+        detail = resp.json()["detail"]
+        assert detail[0]["loc"][-1] == "response_format"
 
 
 class TestSpeechSpeedBounds:

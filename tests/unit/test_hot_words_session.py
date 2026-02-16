@@ -14,23 +14,9 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, Mock
 
-import numpy as np
-
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADEvent, VADEventType
-
-# Frame size padrao: 1024 samples a 16kHz = 64ms
-_FRAME_SIZE = 1024
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
+from tests.helpers import make_float32_frame, make_raw_bytes
 
 
 def _make_stream_handle_mock() -> Mock:
@@ -60,7 +46,7 @@ def _make_session(
         (session, preprocessor, vad, stream_handle, on_event)
     """
     preprocessor = Mock()
-    preprocessor.process_frame.return_value = _make_float32_frame()
+    preprocessor.process_frame.return_value = make_float32_frame()
 
     vad = Mock()
     vad.process_frame.return_value = None
@@ -164,7 +150,7 @@ async def test_hot_words_sent_on_first_frame():
         timestamp_ms=1000,
     )
     vad.is_speaking = True  # Apos speech_start
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: primeiro send_frame deve incluir hot_words
     assert stream_handle.send_frame.call_count == 1
@@ -188,11 +174,11 @@ async def test_hot_words_not_sent_on_subsequent_frames():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     vad.process_frame.return_value = None  # Sem transicao
-    await session.process_frame(_make_raw_bytes())
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: 3 frames enviados
     assert stream_handle.send_frame.call_count == 3
@@ -221,7 +207,7 @@ async def test_hot_words_reset_on_new_segment():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # Preparar novo stream_handle para proximo segmento
@@ -233,7 +219,7 @@ async def test_hot_words_reset_on_new_segment():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Segundo segmento: speech_start
     vad.process_frame.return_value = VADEvent(
@@ -241,7 +227,7 @@ async def test_hot_words_reset_on_new_segment():
         timestamp_ms=3000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: hot_words enviados no primeiro frame do segundo segmento
     assert stream_handle_2.send_frame.call_count == 1
@@ -266,7 +252,7 @@ async def test_updated_hot_words_used_in_next_segment():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
     # Verificar que os hot words originais foram enviados
@@ -283,7 +269,7 @@ async def test_updated_hot_words_used_in_next_segment():
         timestamp_ms=2000,
     )
     vad.is_speaking = False
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Act: atualizar hot words entre segmentos
     session.update_hot_words(["Selic", "CDI", "IPCA"])
@@ -294,7 +280,7 @@ async def test_updated_hot_words_used_in_next_segment():
         timestamp_ms=3000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: hot words ATUALIZADOS enviados no primeiro frame do segundo segmento
     assert stream_handle_2.send_frame.call_count == 1
@@ -316,7 +302,7 @@ async def test_no_hot_words_sent_when_none():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: send_frame chamado sem hot_words
     assert stream_handle.send_frame.call_count == 1
@@ -345,7 +331,7 @@ async def test_update_hot_words_empty_list_sent_as_none():
         timestamp_ms=1000,
     )
     vad.is_speaking = True
-    await session.process_frame(_make_raw_bytes())
+    await session.process_frame(make_raw_bytes())
 
     # Assert: hot_words nao enviado (lista vazia e falsy)
     assert stream_handle.send_frame.call_count == 1

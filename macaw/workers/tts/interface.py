@@ -9,6 +9,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+from macaw.server.constants import TTS_DEFAULT_SAMPLE_RATE
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
@@ -58,7 +60,7 @@ class TTSBackend(ABC):
         text: str,
         voice: str = "default",
         *,
-        sample_rate: int = 24000,
+        sample_rate: int = TTS_DEFAULT_SAMPLE_RATE,
         speed: float = 1.0,
         options: dict[str, object] | None = None,
     ) -> AsyncIterator[bytes]:

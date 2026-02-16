@@ -15,7 +15,6 @@ import asyncio
 import dataclasses
 from unittest.mock import AsyncMock, Mock
 
-import numpy as np
 import pytest
 
 from macaw._types import TranscriptSegment
@@ -24,58 +23,11 @@ from macaw.session.ring_buffer import RingBuffer
 from macaw.session.streaming import StreamingSession
 from macaw.session.wal import SessionWAL, WALCheckpoint
 from macaw.vad.detector import VADEvent, VADEventType
+from tests.helpers import AsyncIterFromList, make_preprocessor_mock, make_raw_bytes, make_vad_mock
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-_FRAME_SIZE = 1024
-
-
-def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 (zeros) com n_samples amostras."""
-    return np.zeros(n_samples, dtype=np.int16).tobytes()
-
-
-def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
-    return np.zeros(n_samples, dtype=np.float32)
-
-
-def _make_preprocessor_mock() -> Mock:
-    """Cria mock de StreamingPreprocessor."""
-    mock = Mock()
-    mock.process_frame.return_value = _make_float32_frame()
-    return mock
-
-
-def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    """Cria mock de VADDetector."""
-    mock = Mock()
-    mock.process_frame.return_value = None
-    mock.is_speaking = is_speaking
-    mock.reset.return_value = None
-    return mock
-
-
-class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
-
-    def __init__(self, items: list) -> None:
-        self._items = list(items)
-        self._index = 0
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        if isinstance(item, Exception):
-            raise item
-        return item
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
@@ -85,7 +37,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
     handle.session_id = "test_session"
     if events is None:
         events = []
-    handle.receive_events.return_value = _AsyncIterFromList(events)
+    handle.receive_events.return_value = AsyncIterFromList(events)
     handle.send_frame = AsyncMock()
     handle.close = AsyncMock()
     handle.cancel = AsyncMock()
@@ -245,8 +197,8 @@ class TestStreamingSessionWAL:
         """StreamingSession cria WAL default se nenhum fornecido."""
         session = StreamingSession(
             session_id="test",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=AsyncMock(),
@@ -262,8 +214,8 @@ class TestStreamingSessionWAL:
 
         session = StreamingSession(
             session_id="test",
-            preprocessor=_make_preprocessor_mock(),
-            vad=_make_vad_mock(),
+            preprocessor=make_preprocessor_mock(),
+            vad=make_vad_mock(),
             grpc_client=_make_grpc_client_mock(),
             postprocessor=_make_postprocessor_mock(),
             on_event=AsyncMock(),
@@ -289,13 +241,13 @@ class TestStreamingSessionWAL:
         rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
         stream_handle = _make_stream_handle_mock(events=[final_segment])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         on_event = AsyncMock()
         wal = SessionWAL()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -311,11 +263,11 @@ class TestStreamingSessionWAL:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Enviar mais frames
         vad.process_frame.return_value = None
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Aguardar receiver task processar o transcript.final
         await asyncio.sleep(0.05)
@@ -349,12 +301,12 @@ class TestStreamingSessionWAL:
 
         stream_handle = _make_stream_handle_mock(events=[final_segment])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         wal = SessionWAL()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -370,7 +322,7 @@ class TestStreamingSessionWAL:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Aguardar receiver task
         await asyncio.sleep(0.05)
@@ -402,12 +354,12 @@ class TestStreamingSessionWAL:
         rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
         stream_handle = _make_stream_handle_mock(events=[final1, final2])
         grpc_client = _make_grpc_client_mock(stream_handle)
-        vad = _make_vad_mock()
+        vad = make_vad_mock()
         wal = SessionWAL()
 
         session = StreamingSession(
             session_id="test_session",
-            preprocessor=_make_preprocessor_mock(),
+            preprocessor=make_preprocessor_mock(),
             vad=vad,
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
@@ -423,9 +375,9 @@ class TestStreamingSessionWAL:
             timestamp_ms=0,
         )
         vad.is_speaking = True
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
         vad.process_frame.return_value = None
-        await session.process_frame(_make_raw_bytes())
+        await session.process_frame(make_raw_bytes())
 
         # Aguardar ambos finals serem processados
         await asyncio.sleep(0.05)
