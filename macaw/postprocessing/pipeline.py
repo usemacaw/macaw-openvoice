@@ -1,7 +1,7 @@
-"""Pipeline de pos-processamento de texto.
+"""Text post-processing pipeline.
 
-Orquestra stages (ITN, entity formatting, hot word correction) em sequencia.
-Aplicado apenas em transcript.final, nunca em transcript.partial.
+Orchestrates stages (ITN, entity formatting, hot word correction) in sequence.
+Applied only to transcript.final, never to transcript.partial.
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ logger = get_logger("postprocessing.pipeline")
 
 
 class PostProcessingPipeline:
-    """Pipeline que executa stages de pos-processamento em sequencia.
+    """Pipeline that executes post-processing stages in sequence.
 
-    Recebe texto cru da engine e produz texto formatado (ex: "dois mil" -> "2000").
-    Cada stage e independente e pode ser habilitado/desabilitado via config.
+    Receives raw text from the engine and produces formatted text (e.g. "two thousand" -> "2000").
+    Each stage is independent and can be enabled/disabled via config.
     """
 
     def __init__(
@@ -35,17 +35,17 @@ class PostProcessingPipeline:
 
     @property
     def stages(self) -> list[TextStage]:
-        """Stages configurados no pipeline."""
+        """Stages configured in the pipeline."""
         return list(self._stages)
 
     def process(self, text: str) -> str:
-        """Processa texto atraves de todos os stages em sequencia.
+        """Process text through all stages in sequence.
 
         Args:
-            text: Texto cru da engine.
+            text: Raw text from the engine.
 
         Returns:
-            Texto processado por todos os stages.
+            Text processed by all stages.
         """
         for stage in self._stages:
             logger.debug("stage_start", stage=stage.name, text_length=len(text))
@@ -54,18 +54,18 @@ class PostProcessingPipeline:
         return text
 
     def process_result(self, result: BatchResult) -> BatchResult:
-        """Processa um BatchResult completo (texto principal + segmentos).
+        """Process a complete BatchResult (main text + segments).
 
-        Cria novas instancias de BatchResult e SegmentDetail com textos
-        processados, preservando todos os outros campos. BatchResult e
-        SegmentDetail sao frozen dataclasses, entao novas instancias
-        sao criadas via dataclasses.replace().
+        Creates new BatchResult and SegmentDetail instances with processed
+        texts, preserving all other fields. BatchResult and SegmentDetail
+        are frozen dataclasses, so new instances are created via
+        dataclasses.replace().
 
         Args:
-            result: BatchResult original com texto cru.
+            result: Original BatchResult with raw text.
 
         Returns:
-            Novo BatchResult com textos processados.
+            New BatchResult with processed texts.
         """
         processed_text = self.process(result.text)
 

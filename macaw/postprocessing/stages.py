@@ -1,4 +1,4 @@
-"""Interface base para stages do pipeline de pos-processamento de texto."""
+"""Base interface for text post-processing pipeline stages."""
 
 from __future__ import annotations
 
@@ -6,27 +6,27 @@ from abc import ABC, abstractmethod
 
 
 class TextStage(ABC):
-    """Stage do pipeline de pos-processamento de texto.
+    """Text post-processing pipeline stage.
 
-    Cada stage recebe texto cru (ou parcialmente processado) e retorna
-    texto transformado. Stages sao compostos em sequencia pelo
+    Each stage receives raw (or partially processed) text and returns
+    transformed text. Stages are composed in sequence by the
     PostProcessingPipeline.
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Nome identificador do stage (ex: 'itn', 'entity_formatting')."""
+        """Identifier name for the stage (e.g. 'itn', 'entity_formatting')."""
         ...
 
     @abstractmethod
     def process(self, text: str) -> str:
-        """Processa texto e retorna texto transformado.
+        """Process text and return transformed text.
 
         Args:
-            text: Texto de entrada (pode ser vazio).
+            text: Input text (may be empty).
 
         Returns:
-            Texto processado.
+            Processed text.
         """
         ...

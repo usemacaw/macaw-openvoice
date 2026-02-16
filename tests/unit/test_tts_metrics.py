@@ -152,7 +152,6 @@ class TestTTSMetricsInstrumentation:
         with (
             patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_ttfb_seconds") as mock_ttfb,
-            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -219,7 +218,6 @@ class TestTTSMetricsInstrumentation:
             patch(
                 "macaw.server.routes.realtime.tts_synthesis_duration_seconds",
             ) as mock_dur,
-            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -282,7 +280,6 @@ class TestTTSMetricsInstrumentation:
         with (
             patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
-            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -331,7 +328,6 @@ class TestTTSMetricsInstrumentation:
 
         with (
             patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
-            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             await _tts_speak_task(
                 websocket=ws,
@@ -386,7 +382,6 @@ class TestTTSMetricsInstrumentation:
         with (
             patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_active_sessions") as mock_gauge,
-            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel
@@ -451,7 +446,6 @@ class TestTTSMetricsInstrumentation:
         with (
             patch("macaw.server.routes.realtime.get_or_create_tts_channel") as mock_ch,
             patch("macaw.server.routes.realtime.tts_requests_total") as mock_counter,
-            patch("macaw.server.routes.realtime.HAS_TTS_METRICS", True),
         ):
             mock_channel = AsyncMock()
             mock_ch.return_value = mock_channel

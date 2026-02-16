@@ -1,7 +1,7 @@
-"""Gain Normalize stage do Audio Preprocessing Pipeline.
+"""Gain Normalize stage for the Audio Preprocessing Pipeline.
 
-Normaliza amplitude do audio para um nivel de pico alvo em dBFS.
-Garante input consistente para VAD e engines de inferencia.
+Normalizes audio amplitude to a target peak level in dBFS.
+Ensures consistent input for VAD and inference engines.
 """
 
 from __future__ import annotations
@@ -10,19 +10,19 @@ import numpy as np
 
 from macaw.preprocessing.stages import AudioStage
 
-# Limiar abaixo do qual o audio e considerado silencio.
-# Evita divisao por zero e amplificacao de ruido de fundo.
+# Threshold below which audio is considered silence.
+# Prevents division by zero and background noise amplification.
 _SILENCE_THRESHOLD = 1e-10
 
 
 class GainNormalizeStage(AudioStage):
-    """Normaliza amplitude do audio para nivel de pico alvo.
+    """Normalize audio amplitude to target peak level.
 
-    Calcula o pico do sinal e aplica ganho para atingir o nivel
-    target_dbfs. Inclui protecao contra clipping.
+    Calculates the signal peak and applies gain to reach the
+    target_dbfs level. Includes clipping protection.
 
     Args:
-        target_dbfs: Nivel de pico alvo em dBFS. Default: -3.0.
+        target_dbfs: Target peak level in dBFS. Default: -3.0.
     """
 
     def __init__(self, target_dbfs: float = -3.0) -> None:
@@ -31,18 +31,18 @@ class GainNormalizeStage(AudioStage):
 
     @property
     def name(self) -> str:
-        """Nome identificador do stage."""
+        """Identifier name for the stage."""
         return "gain_normalize"
 
     def process(self, audio: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int]:
-        """Normaliza amplitude do audio para nivel de pico alvo.
+        """Normalize audio amplitude to target peak level.
 
         Args:
-            audio: Array numpy float32 com amostras de audio (mono).
-            sample_rate: Sample rate atual do audio em Hz.
+            audio: Numpy float32 array with audio samples (mono).
+            sample_rate: Current audio sample rate in Hz.
 
         Returns:
-            Tupla (audio normalizado float32, sample rate inalterado).
+            Tuple (normalized float32 audio, unchanged sample rate).
         """
         if len(audio) == 0:
             return audio, sample_rate

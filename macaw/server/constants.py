@@ -1,4 +1,4 @@
-"""Constantes compartilhadas do server."""
+"""Shared server constants."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ ALLOWED_AUDIO_CONTENT_TYPES = frozenset(
         "audio/ogg",
         "audio/webm",
         "audio/x-flac",
-        "application/octet-stream",  # fallback generico
+        "application/octet-stream",  # generic fallback
     }
 )
 

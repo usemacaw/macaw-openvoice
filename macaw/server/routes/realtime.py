@@ -1,4 +1,4 @@
-"""WS /v1/realtime -- endpoint WebSocket para streaming STT + TTS full-duplex."""
+"""WS /v1/realtime -- WebSocket endpoint for streaming STT + TTS full-duplex."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
 from macaw.scheduler.tts_converters import build_tts_proto_request
 from macaw.scheduler.tts_metrics import (
-    HAS_TTS_METRICS,
     tts_active_sessions,
     tts_requests_total,
     tts_synthesis_duration_seconds,
@@ -248,17 +247,17 @@ async def realtime_docs(
     )
 
 
-# Defaults (overrideable via app.state para testes com timeouts curtos)
+# Defaults (overrideable via app.state for tests with short timeouts)
 _DEFAULT_HEARTBEAT_INTERVAL_S = 10.0
 _DEFAULT_INACTIVITY_TIMEOUT_S = 60.0
 _DEFAULT_CHECK_INTERVAL_S = 5.0
 
 
 def _get_ws_timeouts(websocket: WebSocket) -> tuple[float, float, float]:
-    """Retorna (inactivity_timeout, heartbeat_interval, check_interval).
+    """Return (inactivity_timeout, heartbeat_interval, check_interval).
 
-    Valores sao lidos de ``app.state`` se presentes, senao usa defaults.
-    Isso permite que testes sobrescrevam com timeouts curtos.
+    Values are read from ``app.state`` if present, otherwise uses defaults.
+    This allows tests to override with short timeouts.
     """
     state = websocket.app.state
     inactivity = getattr(state, "ws_inactivity_timeout_s", _DEFAULT_INACTIVITY_TIMEOUT_S)
@@ -272,14 +271,14 @@ async def _send_event(
     event: ServerEvent,
     session_id: str | None = None,
 ) -> None:
-    """Envia evento JSON para o cliente via WebSocket.
+    """Send JSON event to the client via WebSocket.
 
-    Verifica se a conexao ainda esta ativa antes de enviar.
+    Checks if the connection is still active before sending.
 
     Args:
-        websocket: Conexao WebSocket.
-        event: Evento server->client a enviar.
-        session_id: ID da sessao para log correlation (opcional).
+        websocket: WebSocket connection.
+        event: Server->client event to send.
+        session_id: Session ID for log correlation (optional).
     """
     from starlette.websockets import WebSocketState as _WSState
 
@@ -296,19 +295,19 @@ async def _send_event(
 async def _inactivity_monitor(
     ctx: SessionContext,
 ) -> str:
-    """Background task que monitora inatividade e envia pings WebSocket.
+    """Background task that monitors inactivity and sends WebSocket pings.
 
-    Executa periodicamente (a cada check_interval segundos) e verifica:
-    1. Se nenhum audio frame foi recebido dentro do inactivity_timeout.
-    2. Envia WebSocket ping a cada heartbeat_interval (best effort).
+    Runs periodically (every check_interval seconds) and checks:
+    1. If no audio frame was received within inactivity_timeout.
+    2. Sends WebSocket ping every heartbeat_interval (best effort).
 
-    Se inatividade for detectada, emite session.closed e fecha o WebSocket.
+    If inactivity is detected, emits session.closed and closes the WebSocket.
 
     Args:
         ctx: Session context with mutable per-session state.
 
     Returns:
-        Razao de fechamento ("inactivity_timeout" ou "client_disconnect").
+        Closure reason ("inactivity_timeout" or "client_disconnect").
     """
     from starlette.websockets import WebSocketState as _WSState
 
@@ -326,14 +325,14 @@ async def _inactivity_monitor(
 
         now = time.monotonic()
 
-        # Verificar inatividade (sem audio frames recebidos)
+        # Check inactivity (no audio frames received)
         if now - ctx.last_audio_time > inactivity_timeout:
             logger.info(
                 "inactivity_timeout",
                 session_id=session_id,
                 timeout_s=inactivity_timeout,
             )
-            # Fechar StreamingSession se existir
+            # Close StreamingSession if it exists
             session = ctx.session
             segments = session.segment_id if session is not None else 0
             if session is not None and not session.is_closed:
@@ -351,7 +350,7 @@ async def _inactivity_monitor(
                 await websocket.close(code=1000, reason="inactivity_timeout")
             return "inactivity_timeout"
 
-        # Enviar ping periodicamente (best effort)
+        # Send ping periodically (best effort)
         if now - last_ping_sent >= heartbeat_interval:
             try:
                 if websocket.client_state == _WSState.CONNECTED:
@@ -372,14 +371,14 @@ def _create_streaming_session(
     architecture: STTArchitecture = STTArchitecture.ENCODER_DECODER,
     engine_supports_hot_words: bool = False,
 ) -> StreamingSession | None:
-    """Cria StreamingSession se streaming_grpc_client esta disponivel.
+    """Create StreamingSession if streaming_grpc_client is available.
 
-    Instancia per-session: StreamingPreprocessor, VADDetector
+    Per-session instances: StreamingPreprocessor, VADDetector
     (EnergyPreFilter + SileroVADClassifier), BackpressureController,
-    e StreamingSession.
+    and StreamingSession.
 
-    Returns None se streaming_grpc_client nao esta configurado
-    (ex: testes sem infra de worker).
+    Returns None if streaming_grpc_client is not configured
+    (e.g. tests without worker infrastructure).
     """
     from macaw.session.streaming import StreamingSession as _StreamingSession
 
@@ -388,19 +387,19 @@ def _create_streaming_session(
     if grpc_client is None:
         return None
 
-    # Obter stages do preprocessing pipeline (batch) para reusar no streaming
+    # Get stages from preprocessing pipeline (batch) to reuse in streaming
     preprocessing_pipeline = getattr(state, "preprocessing_pipeline", None)
     stages = preprocessing_pipeline.stages if preprocessing_pipeline is not None else []
 
-    # Obter postprocessor
+    # Get postprocessor
     postprocessor = getattr(state, "postprocessing_pipeline", None)
 
-    # Criar preprocessor de streaming
+    # Create streaming preprocessor
     from macaw.preprocessing.streaming import StreamingPreprocessor
 
     preprocessor = StreamingPreprocessor(stages=stages)
 
-    # Criar VAD (energy pre-filter + silero classifier + detector)
+    # Create VAD (energy pre-filter + silero classifier + detector)
     from macaw.vad.detector import VADDetector
     from macaw.vad.energy import EnergyPreFilter
     from macaw.vad.silero import SileroVADClassifier
@@ -606,10 +605,8 @@ async def _tts_speak_task(
                     session.mute()
 
                 ttfb = time.monotonic() - tts_start
-                if HAS_TTS_METRICS and tts_ttfb_seconds is not None:
-                    tts_ttfb_seconds.observe(ttfb)
-                if HAS_TTS_METRICS and tts_active_sessions is not None:
-                    tts_active_sessions.inc()
+                tts_ttfb_seconds.observe(ttfb)
+                tts_active_sessions.inc()
 
                 await send_event(
                     TTSSpeakingStartEvent(
@@ -674,19 +671,16 @@ async def _tts_speak_task(
             )
 
             # TTS metrics: synthesis duration and active gauge
-            if HAS_TTS_METRICS and tts_synthesis_duration_seconds is not None:
-                tts_synthesis_duration_seconds.observe(duration_s)
-            if HAS_TTS_METRICS and tts_active_sessions is not None:
-                tts_active_sessions.dec()
+            tts_synthesis_duration_seconds.observe(duration_s)
+            tts_active_sessions.dec()
 
         # TTS metrics: requests counter
-        if HAS_TTS_METRICS and tts_requests_total is not None:
-            if cancelled:
-                tts_requests_total.labels(status="cancelled").inc()
-            elif first_chunk_sent:
-                tts_requests_total.labels(status="ok").inc()
-            else:
-                tts_requests_total.labels(status="error").inc()
+        if cancelled:
+            tts_requests_total.labels(status="cancelled").inc()
+        elif first_chunk_sent:
+            tts_requests_total.labels(status="ok").inc()
+        else:
+            tts_requests_total.labels(status="error").inc()
 
         logger.debug(
             "tts_task_done",

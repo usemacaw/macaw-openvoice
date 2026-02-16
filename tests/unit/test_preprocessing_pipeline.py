@@ -177,7 +177,7 @@ class TestDecodeAudio:
 
     def test_decode_empty_bytes_raises(self) -> None:
         """Bytes vazios levantam AudioFormatError."""
-        with pytest.raises(AudioFormatError, match="vazio"):
+        with pytest.raises(AudioFormatError, match="Empty audio"):
             decode_audio(b"")
 
     def test_decode_invalid_bytes_raises(self) -> None:
@@ -334,7 +334,7 @@ class TestAudioPreprocessingPipeline:
         config = PreprocessingConfig()
         pipeline = AudioPreprocessingPipeline(config)
 
-        with pytest.raises(AudioFormatError, match="vazio"):
+        with pytest.raises(AudioFormatError, match="Empty audio"):
             pipeline.process(b"")
 
     def test_pipeline_config_accessible(self) -> None:

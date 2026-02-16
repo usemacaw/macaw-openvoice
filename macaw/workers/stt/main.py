@@ -40,7 +40,6 @@ def _create_backend(engine: str) -> STTBackend:
     Raises:
         ValueError: If the engine is not supported.
     """
-    # TODO: Refactor to dispatch dict when 3rd engine is added
     if engine == "faster-whisper":
         from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 

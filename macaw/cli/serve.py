@@ -83,7 +83,6 @@ async def _spawn_all_workers(
     """
     from macaw._types import ModelType
 
-    # TODO: Consider OS-assigned ports (port=0) for dynamic allocation
     port_counter = base_port
 
     stt_models = [m for m in models if m.model_type == ModelType.STT]

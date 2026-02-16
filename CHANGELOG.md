@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `NullMetric` null object class (`macaw/_null_metrics.py`) — metrics consumers call methods unconditionally without guard checks, NullMetric silently discards observations when prometheus_client is not installed (#review-v3-4.4)
+- OpenAPI tags on all routers — Audio, Voices, System, Realtime — Swagger UI now groups endpoints by category (#review-v3-4.5)
+- OpenAPI tag presence tests in `test_openapi_schema.py` (#review-v3-4.5)
+- Partial failure tracking in `GET /v1/voices` — failed models are logged with `voices_partial_response` warning including model names and returned count (#review-v3-4.10)
 - `timestamp_granularities[]` Form parameter in `POST /v1/audio/transcriptions` — clients can now request word-level timestamps via the REST API (#review-v2-F07)
 - `language` field to `AudioFrame` proto — streaming sessions can now specify language instead of always auto-detecting (#review-v2-F27)
 - `current_timeouts` read-only property on `StreamingSession` for timeout introspection (#review-v2-F12)
@@ -44,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `logging.getLogger` in `vad/silero.py` replaced with `macaw.logging.get_logger` for consistent structured logging (#review-phase3)
 
 ### Changed
+- Metrics modules (`session/metrics.py`, `scheduler/metrics.py`, `scheduler/tts_metrics.py`) use `NullMetric` fallback instead of `None` when prometheus_client is not installed — eliminates ~22 `if metric is not None:` guards across hot-path files (#review-v3-4.4)
+- `list_voices()` in `FileSystemVoiceStore` batched into single `asyncio.to_thread()` call via `_list_voices_sync()` — N voices = 1 thread submission instead of N (#review-v3-4.7)
+- All Portuguese docstrings, comments, and error messages translated to English for consistency (#review-v3-4.9)
 - Extracted shared `torch_utils.py` — `configure_cuda_env()` and `configure_torch_inference()` deduplicated from STT/TTS worker mains into a single shared module (#review-phase2)
 - Extracted shared `proto_utils.py` — `build_health_response()` deduplicated from STT/TTS converters (#review-phase2)
 - Introduced `WorkerType` enum in `workers/manager.py` — replaced primitive string obsession (`"stt"`, `"tts"`) with a proper enum for type safety (#review-phase2)
@@ -60,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrated from src layout to flat layout (`src/macaw/` → `macaw/`) — simpler project structure, zero import changes (#flat-layout)
 
 ### Removed
+- ~22 metric guard checks (`if HAS_METRICS and metric is not None:`) from `streaming.py`, `realtime.py`, and `scheduler.py` — replaced by Null Object pattern (#review-v3-4.4)
+- 3 stale TODO comments from `cli/serve.py`, `workers/stt/main.py`, `workers/tts/main.py` — speculative future work that doesn't warrant tracking (#review-v3-4.8)
 - Dead code: `TTSSpeechResult` dataclass and `tts_proto_chunks_to_result()` function — superseded by `StreamingResponse` in TTS endpoint (#review-v2-F16)
 - Unused `sensitivity` parameter from `VADDetector.__init__` — thresholds are set in the injected `EnergyPreFilter` and `SileroVADClassifier` components (#review-v2-F22)
 - Dead code: `CreateVoiceRequest` model, `ErrorResponse`/`ErrorDetail` models, `_sensitivity` field in VAD detector, `_pending_final_event` in StreamingSession, YAGNI preprocessing config fields (#review-phase3)

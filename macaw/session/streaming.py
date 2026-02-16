@@ -48,7 +48,6 @@ from macaw.server.models.events import (
     WordEvent,
 )
 from macaw.session.metrics import (
-    HAS_METRICS,
     stt_active_sessions,
     stt_confidence_avg,
     stt_final_delay_seconds,
@@ -120,12 +119,7 @@ class StreamMetricsRecorder:
 
     def record_ttfb(self) -> None:
         """Record TTFB on the first transcript event of a segment."""
-        if (
-            not HAS_METRICS
-            or stt_ttfb_seconds is None
-            or self._ttfb_recorded_for_segment
-            or self._speech_start_monotonic is None
-        ):
+        if self._ttfb_recorded_for_segment or self._speech_start_monotonic is None:
             return
 
         ttfb = time.monotonic() - self._speech_start_monotonic
@@ -134,11 +128,7 @@ class StreamMetricsRecorder:
 
     def record_final_delay(self) -> None:
         """Record final_delay when transcript.final arrives after speech_end."""
-        if (
-            not HAS_METRICS
-            or stt_final_delay_seconds is None
-            or self._speech_end_monotonic is None
-        ):
+        if self._speech_end_monotonic is None:
             return
 
         delay = time.monotonic() - self._speech_end_monotonic
@@ -164,8 +154,7 @@ class StreamMetricsRecorder:
         """
         self._force_commit_pending = True
 
-        if HAS_METRICS and stt_segments_force_committed_total is not None:
-            stt_segments_force_committed_total.inc()
+        stt_segments_force_committed_total.inc()
 
         logger.debug(
             "ring_buffer_force_commit_pending",
@@ -221,10 +210,9 @@ class StreamRecoveryHandler:
 
         try:
             result = await self._do_recover()
-            if HAS_METRICS and stt_worker_recoveries_total is not None:
-                stt_worker_recoveries_total.labels(
-                    result="success" if result else "failure",
-                ).inc()
+            stt_worker_recoveries_total.labels(
+                result="success" if result else "failure",
+            ).inc()
             return result
         finally:
             self._recovering = False
@@ -435,8 +423,7 @@ class StreamingSession:
         # per frame. Grows on demand if a larger frame arrives.
         self._int16_buffer = np.empty(1024, dtype=np.int16)
 
-        if HAS_METRICS and stt_active_sessions is not None:
-            stt_active_sessions.inc()
+        stt_active_sessions.inc()
 
     @property
     def session_id(self) -> str:
@@ -450,30 +437,30 @@ class StreamingSession:
 
     @property
     def segment_id(self) -> int:
-        """ID do segmento atual."""
+        """Current segment ID."""
         return self._segment_id
 
     @property
     def session_state(self) -> SessionState:
-        """Estado atual da maquina de estados."""
+        """Current state machine state."""
         return self._state_machine.state
 
     @property
     def is_muted(self) -> bool:
-        """True se STT esta silenciado (mute-on-speak ativo)."""
+        """True if STT is muted (mute-on-speak active)."""
         return self._mute_controller.is_muted
 
     def mute(self) -> None:
-        """Silencia o STT (mute-on-speak). Idempotente."""
+        """Mute STT (mute-on-speak). Idempotent."""
         self._mute_controller.mute()
 
     def unmute(self) -> None:
-        """Retoma o STT apos mute-on-speak. Idempotente."""
+        """Resume STT after mute-on-speak. Idempotent."""
         self._mute_controller.unmute()
 
     @property
     def wal(self) -> SessionWAL:
-        """WAL da sessao para consulta de checkpoints (usado em recovery)."""
+        """Session WAL for checkpoint queries (used in recovery)."""
         return self._wal
 
     @property
@@ -497,14 +484,14 @@ class StreamingSession:
         return self._state_machine.timeouts
 
     def update_hot_words(self, hot_words: list[str] | None) -> None:
-        """Atualiza hot words para a sessao (chamado via session.configure).
+        """Update hot words for the session (called via session.configure).
 
-        Os novos hot words serao usados a partir do proximo segmento de fala.
-        Se um segmento ja esta em andamento, os hot words atuais permanecem
-        ate o proximo speech_start (quando _hot_words_sent_for_segment reseta).
+        The new hot words will be used from the next speech segment.
+        If a segment is already in progress, the current hot words remain
+        until the next speech_start (when _hot_words_sent_for_segment resets).
 
         Args:
-            hot_words: Nova lista de hot words, ou None para limpar.
+            hot_words: New list of hot words, or None to clear.
         """
         self._hot_words = hot_words
 
@@ -520,35 +507,34 @@ class StreamingSession:
         self._enable_itn = enabled
 
     def update_session_timeouts(self, timeouts: SessionTimeouts) -> None:
-        """Atualiza timeouts da state machine via session.configure.
+        """Update state machine timeouts via session.configure.
 
         Args:
-            timeouts: Novos timeouts.
+            timeouts: New timeouts.
         """
         self._state_machine.update_timeouts(timeouts)
 
     async def process_frame(self, raw_bytes: bytes) -> None:
-        """Processa um frame de audio cru do WebSocket.
+        """Process a raw audio frame from the WebSocket.
 
-        Fluxo:
-            1. Verifica se sessao aceita frames (nao CLOSING/CLOSED)
-            2. Aplica preprocessing (PCM int16 -> float32 16kHz normalizado)
-            3. Passa para VAD
-            4. Se SPEECH_START: transita estado, abre gRPC stream, emite evento
-            5. Durante speech: envia frames ao worker (exceto em HOLD)
-            6. Se SPEECH_END: transita estado, fecha gRPC stream, emite evento
+        Flow:
+            1. Check if session accepts frames (not CLOSING/CLOSED)
+            2. Apply preprocessing (PCM int16 -> normalized float32 16kHz)
+            3. Pass to VAD
+            4. If SPEECH_START: transition state, open gRPC stream, emit event
+            5. During speech: send frames to worker (except in HOLD)
+            6. If SPEECH_END: transition state, close gRPC stream, emit event
 
         Args:
-            raw_bytes: Bytes PCM 16-bit little-endian mono.
+            raw_bytes: PCM 16-bit little-endian mono bytes.
         """
         state = self._state_machine.state
         if state in (SessionState.CLOSED, SessionState.CLOSING):
             return
 
-        # Mute-on-speak: descartar frame sem processar (TTS ativo)
+        # Mute-on-speak: discard frame without processing (TTS active)
         if self._mute_controller.is_muted:
-            if HAS_METRICS and stt_muted_frames_total is not None:
-                stt_muted_frames_total.inc()
+            stt_muted_frames_total.inc()
             return
 
         self._last_audio_time = time.monotonic()
@@ -561,16 +547,16 @@ class StreamingSession:
         # 2. VAD
         vad_event = self._vad.process_frame(frame)
 
-        # 3. Atuar conforme evento VAD
+        # 3. Act according to VAD event
         if vad_event is not None:
             if vad_event.type == VADEventType.SPEECH_START:
                 await self._handle_speech_start(vad_event.timestamp_ms)
             elif vad_event.type == VADEventType.SPEECH_END:
                 await self._handle_speech_end(vad_event.timestamp_ms)
 
-        # 4. Se estamos em fala e temos stream aberto, enviar frame ao worker.
-        #    Frames em HOLD nao sao enviados ao worker (economia de GPU).
-        #    Frames em INIT nao sao enviados (esperando speech_start).
+        # 4. If in speech and stream is open, send frame to worker.
+        #    Frames in HOLD are not sent to the worker (GPU savings).
+        #    Frames in INIT are not sent (waiting for speech_start).
         current_state = self._state_machine.state
         if (
             self._vad.is_speaking
@@ -579,10 +565,10 @@ class StreamingSession:
         ):
             await self._send_frame_to_worker(frame)
 
-        # 5. Verificar force commit pendente do ring buffer.
-        #    O callback on_force_commit do ring buffer e sincrono (chamado de
-        #    dentro de write()), entao ele seta a flag. Aqui, no contexto
-        #    async, consumimos a flag e fazemos o commit real.
+        # 5. Check pending force commit from ring buffer.
+        #    The ring buffer on_force_commit callback is synchronous (called from
+        #    within write()), so it sets the flag. Here, in the async context,
+        #    we consume the flag and perform the actual commit.
         if self._metrics.consume_force_commit():
             await self.commit()
 
@@ -639,13 +625,13 @@ class StreamingSession:
         return receiver_ok
 
     async def commit(self) -> None:
-        """Force commit do segmento atual (manual commit).
+        """Force commit of the current segment (manual commit).
 
-        Fecha o stream gRPC atual, fazendo o worker emitir transcript.final
-        para o audio acumulado. Incrementa segment_id e reseta estado para
-        que o proximo audio abra novo stream.
+        Closes the current gRPC stream, causing the worker to emit transcript.final
+        for the accumulated audio. Increments segment_id and resets state so
+        that the next audio opens a new stream.
 
-        No-op se nao ha stream ativo (silencio) ou sessao fechada.
+        No-op if there is no active stream (silence) or session is closed.
         """
         if self._state_machine.state == SessionState.CLOSED:
             return
@@ -655,10 +641,10 @@ class StreamingSession:
 
         await self._drain_stream(timeout=5.0)
 
-        # Incrementar segment_id para proximo segmento
+        # Increment segment_id for next segment
         self._segment_id += 1
 
-        # Resetar flag de hot words para que sejam enviados no proximo stream
+        # Reset hot words flag so they are sent on the next stream
         self._hot_words_sent_for_segment = False
 
         logger.debug(
@@ -668,38 +654,36 @@ class StreamingSession:
         )
 
     async def close(self) -> None:
-        """Fecha a sessao e libera recursos.
+        """Close the session and release resources.
 
-        Transita para CLOSING -> CLOSED via state machine.
-        Idempotente: chamadas em sessao ja fechada sao no-op.
+        Transitions to CLOSING -> CLOSED via state machine.
+        Idempotent: calls on already closed session are no-op.
         """
         if self._state_machine.state == SessionState.CLOSED:
             return
 
-        # Transitar para CLOSING (se nao ja estiver em CLOSING)
+        # Transition to CLOSING (if not already in CLOSING)
         if self._state_machine.state != SessionState.CLOSING:
             with contextlib.suppress(InvalidTransitionError):
                 self._state_machine.transition(SessionState.CLOSING)
 
-        # Transitar para CLOSED
+        # Transition to CLOSED
         with contextlib.suppress(InvalidTransitionError):
             self._state_machine.transition(SessionState.CLOSED)
 
-        if HAS_METRICS and stt_active_sessions is not None:
-            stt_active_sessions.dec()
+        stt_active_sessions.dec()
 
-        if HAS_METRICS and stt_session_duration_seconds is not None:
-            duration = time.monotonic() - self._session_start_monotonic
-            stt_session_duration_seconds.observe(duration)
+        duration = time.monotonic() - self._session_start_monotonic
+        stt_session_duration_seconds.observe(duration)
 
-        # Cancelar receiver task se ativa
+        # Cancel receiver task if active
         if self._receiver_task is not None and not self._receiver_task.done():
             self._receiver_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._receiver_task
             self._receiver_task = None
 
-        # Fechar gRPC stream se aberto
+        # Close gRPC stream if open
         if self._stream_handle is not None:
             try:
                 await self._stream_handle.cancel()
@@ -741,13 +725,13 @@ class StreamingSession:
         return self.is_closed
 
     async def check_timeout(self) -> SessionState | None:
-        """Verifica timeout e executa transicao se necessario.
+        """Check timeout and execute transition if necessary.
 
-        Executa a logica de timeout da state machine e emite eventos
-        apropriados (ex: SessionHoldEvent ao transitar para HOLD).
+        Executes the state machine timeout logic and emits appropriate
+        events (e.g. SessionHoldEvent when transitioning to HOLD).
 
         Returns:
-            O novo estado apos a transicao, ou None se nao houve timeout.
+            The new state after the transition, or None if no timeout occurred.
         """
         if self._state_machine.state == SessionState.CLOSED:
             return None
@@ -765,7 +749,7 @@ class StreamingSession:
 
         new_state = self._state_machine.state
 
-        # Emitir eventos conforme transicao
+        # Emit events according to transition
         if new_state == SessionState.HOLD:
             hold_timeout_ms = int(self._state_machine.timeouts.hold_timeout_s * 1000)
             await self._on_event(
@@ -776,7 +760,7 @@ class StreamingSession:
             )
 
         if new_state == SessionState.CLOSING:
-            # Iniciar flush de pendentes
+            # Start flushing pending data
             await self._flush_and_close()
 
         logger.debug(
@@ -793,11 +777,11 @@ class StreamingSession:
         return await self._recovery.recover()
 
     async def _cleanup_current_stream(self) -> None:
-        """Limpa stream gRPC e receiver task anteriores.
+        """Clean up previous gRPC stream and receiver task.
 
-        Defesa contra duplo SPEECH_START: se o VAD emitir SPEECH_START sem
-        SPEECH_END anterior (edge case de debounce), o stream/task anteriores
-        seriam vazados. Este metodo garante cleanup antes de abrir novo stream.
+        Defense against double SPEECH_START: if VAD emits SPEECH_START without
+        a previous SPEECH_END (debounce edge case), the previous stream/task
+        would be leaked. This method ensures cleanup before opening a new stream.
         """
         if self._receiver_task is not None and not self._receiver_task.done():
             self._receiver_task.cancel()
@@ -816,14 +800,14 @@ class StreamingSession:
             self._stream_handle = None
 
     async def _handle_speech_start(self, timestamp_ms: int) -> None:
-        """Transita estado e abre gRPC stream ao detectar fala."""
+        """Transition state and open gRPC stream on speech detection."""
         current_state = self._state_machine.state
 
-        # Ignorar em estados onde speech_start nao faz sentido
+        # Ignore in states where speech_start does not make sense
         if current_state in (SessionState.CLOSING, SessionState.CLOSED):
             return
 
-        # Transitar para ACTIVE
+        # Transition to ACTIVE
         if current_state in (SessionState.INIT, SessionState.SILENCE, SessionState.HOLD):
             try:
                 self._state_machine.transition(SessionState.ACTIVE)
@@ -835,7 +819,7 @@ class StreamingSession:
                 )
                 return
 
-        # Limpar stream anterior se existir (defesa contra duplo SPEECH_START)
+        # Clean up previous stream if exists (defense against double SPEECH_START)
         if self._stream_handle is not None or self._receiver_task is not None:
             await self._cleanup_current_stream()
 
@@ -843,10 +827,9 @@ class StreamingSession:
         self._hot_words_sent_for_segment = False
         self._metrics.on_speech_start()
 
-        if HAS_METRICS and stt_vad_events_total is not None:
-            stt_vad_events_total.labels(event_type="speech_start").inc()
+        stt_vad_events_total.labels(event_type="speech_start").inc()
 
-        # Abrir stream gRPC com o worker
+        # Open gRPC stream with the worker
         try:
             self._stream_handle = await self._grpc_client.open_stream(
                 self._session_id,
@@ -859,12 +842,12 @@ class StreamingSession:
             )
             return
 
-        # Iniciar task de recepcao de eventos do worker
+        # Start worker event receiver task
         self._receiver_task = asyncio.create_task(
             self._receive_worker_events(),
         )
 
-        # Emitir evento VAD
+        # Emit VAD event
         await self._on_event(
             VADSpeechStartEvent(timestamp_ms=timestamp_ms),
         )
@@ -877,19 +860,19 @@ class StreamingSession:
         )
 
     async def _handle_speech_end(self, timestamp_ms: int) -> None:
-        """Transita estado, fecha gRPC stream, emite vad.speech_end.
+        """Transition state, close gRPC stream, emit vad.speech_end.
 
-        Garante que TODOS os transcript.final do worker sejam emitidos ANTES
-        do vad.speech_end, respeitando a semantica do protocolo WebSocket
-        (PRD secao 9: transcript.final vem antes de vad.speech_end).
+        Ensures that ALL transcript.final from the worker are emitted BEFORE
+        vad.speech_end, respecting WebSocket protocol semantics
+        (PRD section 9: transcript.final comes before vad.speech_end).
         """
         current_state = self._state_machine.state
 
-        # Ignorar em estados onde speech_end nao faz sentido
+        # Ignore in states where speech_end does not make sense
         if current_state != SessionState.ACTIVE:
             return
 
-        # Transitar para SILENCE
+        # Transition to SILENCE
         try:
             self._state_machine.transition(SessionState.SILENCE)
         except InvalidTransitionError:
@@ -901,16 +884,15 @@ class StreamingSession:
 
         self._metrics.on_speech_end()
 
-        if HAS_METRICS and stt_vad_events_total is not None:
-            stt_vad_events_total.labels(event_type="speech_end").inc()
+        stt_vad_events_total.labels(event_type="speech_end").inc()
 
         # Drain stream: close gRPC send + await receiver task.
         # Guarantees transcript.final is emitted BEFORE vad.speech_end.
         receiver_ok = await self._drain_stream(timeout=5.0)
 
-        # Emitir vad.speech_end SOMENTE apos receiver task completar.
-        # Se receiver falhou (timeout/cancel), ainda emitimos speech_end
-        # para manter o contrato, mas logamos o problema.
+        # Emit vad.speech_end ONLY after receiver task completes.
+        # If receiver failed (timeout/cancel), we still emit speech_end
+        # to maintain the contract, but log the issue.
         if not receiver_ok:
             logger.warning(
                 "speech_end_after_receiver_failure",
@@ -922,7 +904,7 @@ class StreamingSession:
             VADSpeechEndEvent(timestamp_ms=timestamp_ms),
         )
 
-        # Incrementar segment_id para o proximo segmento de fala
+        # Increment segment_id for the next speech segment
         self._segment_id += 1
         self._speech_start_ms = None
         self._metrics.reset_segment()
@@ -935,15 +917,15 @@ class StreamingSession:
         )
 
     async def _send_frame_to_worker(self, frame: np.ndarray) -> None:
-        """Converte float32 para PCM int16 bytes e envia ao worker.
+        """Convert float32 to PCM int16 bytes and send to the worker.
 
-        Tambem escreve os bytes PCM no ring buffer (se configurado)
-        para recovery e LocalAgreement.
+        Also writes PCM bytes to the ring buffer (if configured)
+        for recovery and LocalAgreement.
         """
         if self._stream_handle is None or self._stream_handle.is_closed:
             return
 
-        # Converter float32 [-1.0, 1.0] -> int16 bytes
+        # Convert float32 [-1.0, 1.0] -> int16 bytes
         # In-place multiply+clip avoids 2 intermediate allocations per frame.
         # Safe: frame is not used after this method (VAD already processed it,
         # preprocessor creates a new array each call).
@@ -958,12 +940,12 @@ class StreamingSession:
         np.copyto(buf, frame, casting="unsafe")
         pcm_bytes = buf.tobytes()
 
-        # Escrever no ring buffer (antes de enviar ao worker, para garantir
-        # que os dados estao no buffer mesmo se o worker crashar).
+        # Write to ring buffer (before sending to worker, to ensure
+        # data is in the buffer even if the worker crashes).
         if self._ring_buffer is not None:
             self._ring_buffer.write(pcm_bytes)
 
-        # Hot words e initial_prompt apenas no primeiro frame do segmento
+        # Hot words and initial_prompt only on the first frame of the segment
         hot_words: list[str] | None = None
         initial_prompt: str | None = None
         if not self._hot_words_sent_for_segment:
@@ -986,32 +968,32 @@ class StreamingSession:
             )
 
     def _build_initial_prompt(self) -> str | None:
-        """Constroi initial_prompt combinando hot words e cross-segment context.
+        """Build initial_prompt combining hot words and cross-segment context.
 
-        Quando a engine suporta hot words nativamente
-        (``_engine_supports_hot_words=True``), hot words NAO sao injetadas no
-        initial_prompt — sao enviadas via campo ``hot_words`` do AudioFrame
-        para que a engine use keyword boosting nativo. Apenas cross-segment
-        context e incluido no prompt.
+        When the engine supports hot words natively
+        (``_engine_supports_hot_words=True``), hot words are NOT injected into
+        initial_prompt -- they are sent via the ``hot_words`` field of AudioFrame
+        so the engine uses native keyword boosting. Only cross-segment
+        context is included in the prompt.
 
-        Quando a engine NAO suporta hot words nativamente (Whisper), hot words
-        sao injetadas via initial_prompt como workaround semantico.
+        When the engine does NOT support hot words natively (Whisper), hot words
+        are injected via initial_prompt as a semantic workaround.
 
-        Formato (sem suporte nativo):
-            - Hot words + contexto: "Termos: PIX, TED, Selic. {context}"
-            - Apenas hot words: "Termos: PIX, TED, Selic."
-            - Apenas contexto: "{context}"
-            - Nenhum: None
+        Format (without native support):
+            - Hot words + context: "Termos: PIX, TED, Selic. {context}"
+            - Hot words only: "Termos: PIX, TED, Selic."
+            - Context only: "{context}"
+            - None: None
 
         Returns:
-            String de prompt ou None se nao ha conteudo.
+            Prompt string or None if there is no content.
         """
         hot_words_prompt: str | None = None
         if self._hot_words and not self._engine_supports_hot_words:
             hot_words_prompt = f"Termos: {', '.join(self._hot_words)}."
 
-        # Cross-segment context: apenas para engines que suportam initial_prompt
-        # (encoder-decoder como Whisper). CTC nao suporta conditioning via prompt.
+        # Cross-segment context: only for engines that support initial_prompt
+        # (encoder-decoder like Whisper). CTC does not support conditioning via prompt.
         context_prompt: str | None = None
         if self._cross_segment_context is not None and self._architecture != STTArchitecture.CTC:
             context_prompt = self._cross_segment_context.get_prompt()
@@ -1025,11 +1007,11 @@ class StreamingSession:
         return None
 
     async def _receive_worker_events(self) -> None:
-        """Background task: consome eventos do worker via gRPC.
+        """Background task: consumes events from the worker via gRPC.
 
-        Converte TranscriptSegment em eventos do protocolo WebSocket
-        e emite via callback. Post-processing (ITN) e aplicado APENAS
-        em transcript.final.
+        Converts TranscriptSegment into WebSocket protocol events
+        and emits via callback. Post-processing (ITN) is applied ONLY
+        to transcript.final.
         """
         if self._stream_handle is None:
             return
@@ -1105,7 +1087,7 @@ class StreamingSession:
         )
 
         # Record confidence metric
-        if HAS_METRICS and stt_confidence_avg is not None and segment.confidence is not None:
+        if segment.confidence is not None:
             stt_confidence_avg.observe(segment.confidence)
 
         # Advance ring buffer read fence
@@ -1140,7 +1122,7 @@ class StreamingSession:
         )
 
     async def _flush_and_close(self) -> None:
-        """Flush de pendentes durante CLOSING e transita para CLOSED."""
+        """Flush pending data during CLOSING and transition to CLOSED."""
         await self._drain_stream(timeout=2.0)
 
     async def _emit_error(
@@ -1149,7 +1131,7 @@ class StreamingSession:
         message: str,
         recoverable: bool,
     ) -> None:
-        """Emite evento de erro via callback."""
+        """Emit error event via callback."""
         await self._on_event(
             StreamingErrorEvent(
                 code=code,

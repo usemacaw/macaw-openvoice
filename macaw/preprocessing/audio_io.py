@@ -1,6 +1,6 @@
-"""Funcoes de decodificacao e codificacao de audio.
+"""Audio decoding and encoding functions.
 
-Converte entre bytes (formatos de arquivo) e arrays numpy float32.
+Converts between bytes (file formats) and numpy float32 arrays.
 """
 
 from __future__ import annotations
@@ -21,37 +21,37 @@ logger = get_logger("preprocessing.audio_io")
 
 
 def decode_audio(audio_bytes: bytes) -> tuple[np.ndarray, int]:
-    """Decodifica bytes de audio para array numpy float32 mono.
+    """Decode audio bytes to numpy float32 mono array.
 
-    Suporta WAV, FLAC, OGG e outros formatos via libsndfile.
-    Converte automaticamente para mono se o audio for multi-canal.
+    Supports WAV, FLAC, OGG, and other formats via libsndfile.
+    Automatically converts to mono if the audio is multi-channel.
 
     Args:
-        audio_bytes: Bytes do arquivo de audio.
+        audio_bytes: Audio file bytes.
 
     Returns:
-        Tupla (array float32 mono, sample rate em Hz).
+        Tuple (float32 mono array, sample rate in Hz).
 
     Raises:
-        AudioFormatError: Se o formato nao e suportado ou os bytes sao invalidos.
+        AudioFormatError: If the format is unsupported or bytes are invalid.
     """
     if not audio_bytes:
-        raise AudioFormatError("Audio vazio (0 bytes)")
+        raise AudioFormatError("Empty audio (0 bytes)")
 
     try:
         data, sample_rate = sf.read(io.BytesIO(audio_bytes), dtype="float32")
     except Exception:
-        # Fallback para wave stdlib (WAV PCM puro sem headers complexos)
+        # Fallback to wave stdlib (plain WAV PCM without complex headers)
         try:
             data, sample_rate = _decode_wav_stdlib(audio_bytes)
         except Exception as wav_err:
-            raise AudioFormatError(f"Nao foi possivel decodificar o audio: {wav_err}") from wav_err
+            raise AudioFormatError(f"Could not decode audio: {wav_err}") from wav_err
 
-    # Converter para mono se multi-canal
+    # Convert to mono if multi-channel
     if data.ndim > 1:
         data = np.mean(data, axis=1)
 
-    # Garantir float32
+    # Ensure float32
     data = data.astype(np.float32)
 
     logger.debug(
@@ -65,16 +65,16 @@ def decode_audio(audio_bytes: bytes) -> tuple[np.ndarray, int]:
 
 
 def _decode_wav_stdlib(audio_bytes: bytes) -> tuple[np.ndarray, int]:
-    """Decodifica WAV PCM usando wave stdlib como fallback.
+    """Decode WAV PCM using wave stdlib as fallback.
 
     Args:
-        audio_bytes: Bytes do arquivo WAV.
+        audio_bytes: WAV file bytes.
 
     Returns:
-        Tupla (array float32, sample rate).
+        Tuple (float32 array, sample rate).
 
     Raises:
-        AudioFormatError: Se o WAV e invalido ou usa formato nao-PCM.
+        AudioFormatError: If the WAV is invalid or uses non-PCM format.
     """
     try:
         with wave.open(io.BytesIO(audio_bytes), "rb") as wf:
@@ -84,11 +84,11 @@ def _decode_wav_stdlib(audio_bytes: bytes) -> tuple[np.ndarray, int]:
             n_frames = wf.getnframes()
 
             if n_frames == 0:
-                raise AudioFormatError("Arquivo WAV sem frames de audio")
+                raise AudioFormatError("WAV file has no audio frames")
 
             raw_data = wf.readframes(n_frames)
     except wave.Error as err:
-        raise AudioFormatError(f"Arquivo WAV invalido: {err}") from err
+        raise AudioFormatError(f"Invalid WAV file: {err}") from err
 
     if sampwidth == 2:
         # PCM 16-bit — zero-copy via np.frombuffer + single float32 cast
@@ -97,9 +97,9 @@ def _decode_wav_stdlib(audio_bytes: bytes) -> tuple[np.ndarray, int]:
         # PCM 8-bit (unsigned) — zero-copy via np.frombuffer
         data = np.frombuffer(raw_data, dtype=np.uint8).astype(np.float32) / 128.0 - 1.0
     else:
-        raise AudioFormatError(f"Sample width {sampwidth} bytes nao suportado (esperado 1 ou 2)")
+        raise AudioFormatError(f"Sample width {sampwidth} bytes not supported (expected 1 or 2)")
 
-    # Converter multi-canal para mono
+    # Convert multi-channel to mono
     if n_channels > 1:
         data = data.reshape(-1, n_channels)
         data = np.mean(data, axis=1)
@@ -108,22 +108,22 @@ def _decode_wav_stdlib(audio_bytes: bytes) -> tuple[np.ndarray, int]:
 
 
 def encode_pcm16(audio: np.ndarray, sample_rate: int) -> bytes:
-    """Codifica array numpy float32 para bytes WAV PCM 16-bit.
+    """Encode numpy float32 array to WAV PCM 16-bit bytes.
 
     Args:
-        audio: Array numpy float32 com amostras de audio (mono).
-        sample_rate: Sample rate em Hz.
+        audio: Numpy float32 array with audio samples (mono).
+        sample_rate: Sample rate in Hz.
 
     Returns:
-        Bytes do arquivo WAV completo (com header).
+        Complete WAV file bytes (with header).
     """
-    # Clamp para evitar overflow
+    # Clamp to avoid overflow
     audio_clamped = np.clip(audio, -1.0, 1.0)
 
-    # Converter float32 para int16
+    # Convert float32 to int16
     pcm_data = (audio_clamped * (PCM_INT16_MAX - 1)).astype(np.int16)
 
-    # Escrever WAV
+    # Write WAV
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wf:
         wf.setnchannels(1)

@@ -17,7 +17,7 @@ from macaw.server.dependencies import (
 from macaw.server.models.responses import CancelResponse
 from macaw.server.routes._common import handle_audio_request
 
-router = APIRouter()
+router = APIRouter(tags=["Audio"])
 
 
 @router.post("/v1/audio/transcriptions/{request_id}/cancel", response_model=CancelResponse)

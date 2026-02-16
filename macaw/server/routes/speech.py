@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
     from macaw.proto.tts_worker_pb2 import SynthesizeRequest
 
-router = APIRouter()
+router = APIRouter(tags=["Audio"])
 
 logger = get_logger("server.routes.speech")
 

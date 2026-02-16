@@ -161,11 +161,7 @@ class Scheduler:
         cancelled_in_queue = self._queue.cancel(request_id)
 
         # Update queue depth if the request was queued
-        if (
-            cancelled_in_queue
-            and scheduler_queue_depth is not None
-            and scheduled_for_metric is not None
-        ):
+        if cancelled_in_queue and scheduled_for_metric is not None:
             scheduler_queue_depth.labels(
                 priority=scheduled_for_metric.priority.name,
             ).dec()
@@ -352,8 +348,7 @@ class Scheduler:
         future = await self._queue.submit(request, priority)
 
         # Update queue depth metric
-        if scheduler_queue_depth is not None:
-            scheduler_queue_depth.labels(priority=priority.name).inc()
+        scheduler_queue_depth.labels(priority=priority.name).inc()
 
         # Register in CancellationManager to allow cancel
         scheduled = self._queue.get_scheduled(request.request_id)
@@ -398,20 +393,17 @@ class Scheduler:
                 self._latency.dequeued(scheduled.request.request_id)
 
                 # Update queue depth (decrement for original priority)
-                if scheduler_queue_depth is not None:
-                    scheduler_queue_depth.labels(
-                        priority=scheduled.priority.name,
-                    ).dec()
+                scheduler_queue_depth.labels(
+                    priority=scheduled.priority.name,
+                ).dec()
 
                 # Observe queue wait time
-                if scheduler_queue_wait_seconds is not None:
-                    wait = time.monotonic() - scheduled.enqueued_at
-                    scheduler_queue_wait_seconds.observe(wait)
+                wait = time.monotonic() - scheduled.enqueued_at
+                scheduler_queue_wait_seconds.observe(wait)
 
                 # Check aging (BATCH promoted to REALTIME)
                 if self._queue.is_aged(scheduled):
-                    if scheduler_aging_promotions_total is not None:
-                        scheduler_aging_promotions_total.inc()
+                    scheduler_aging_promotions_total.inc()
                     logger.info(
                         "dispatch_aged_promotion",
                         request_id=scheduled.request.request_id,
@@ -420,11 +412,10 @@ class Scheduler:
                 # Check if request was cancelled while queued
                 if scheduled.cancel_event.is_set():
                     self._latency.discard(scheduled.request.request_id)
-                    if scheduler_requests_total is not None:
-                        scheduler_requests_total.labels(
-                            priority=scheduled.priority.name,
-                            status="cancelled",
-                        ).inc()
+                    scheduler_requests_total.labels(
+                        priority=scheduled.priority.name,
+                        status="cancelled",
+                    ).inc()
                     logger.debug(
                         "dispatch_skip_cancelled",
                         request_id=scheduled.request.request_id,
@@ -516,13 +507,11 @@ class Scheduler:
 
             # Observe gRPC metrics and status
             grpc_elapsed = time.monotonic() - grpc_start
-            if scheduler_grpc_duration_seconds is not None:
-                scheduler_grpc_duration_seconds.observe(grpc_elapsed)
-            if scheduler_requests_total is not None:
-                scheduler_requests_total.labels(
-                    priority=scheduled.priority.name,
-                    status=status,
-                ).inc()
+            scheduler_grpc_duration_seconds.observe(grpc_elapsed)
+            scheduler_requests_total.labels(
+                priority=scheduled.priority.name,
+                status=status,
+            ).inc()
 
     async def _dispatch_batch(self, batch: list[ScheduledRequest]) -> None:
         """Dispatch a batch of requests in parallel via asyncio.gather.
@@ -538,8 +527,7 @@ class Scheduler:
             return
 
         # Observe batch size
-        if scheduler_batch_size is not None:
-            scheduler_batch_size.observe(len(active))
+        scheduler_batch_size.observe(len(active))
 
         logger.info(
             "dispatch_batch",

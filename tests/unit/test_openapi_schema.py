@@ -101,6 +101,31 @@ class TestSpeechEndpointParams:
         assert not missing, f"Missing speech params: {sorted(missing)}"
 
 
+class TestOpenAPITags:
+    """All routes must be grouped by OpenAPI tags."""
+
+    def test_expected_tags_present(self) -> None:
+        schema = _get_schema()
+        paths: dict[str, object] = schema.get("paths", {})  # type: ignore[assignment]
+        all_tags: set[str] = set()
+        for ops in paths.values():
+            for method_data in ops.values():  # type: ignore[union-attr]
+                if isinstance(method_data, dict):
+                    all_tags.update(method_data.get("tags", []))
+        expected = {"Audio", "Voices", "System", "Realtime"}
+        missing = expected - all_tags
+        assert not missing, f"Missing OpenAPI tags: {sorted(missing)}"
+
+    def test_audio_endpoints_tagged(self) -> None:
+        schema = _get_schema()
+        paths: dict[str, object] = schema.get("paths", {})  # type: ignore[assignment]
+        for path in ("/v1/audio/transcriptions", "/v1/audio/translations", "/v1/audio/speech"):
+            ops = paths.get(path, {})
+            for method_data in ops.values():  # type: ignore[union-attr]
+                if isinstance(method_data, dict) and "tags" in method_data:
+                    assert "Audio" in method_data["tags"], f"{path} missing Audio tag"
+
+
 class TestSchemaMetadata:
     """Schema metadata should match project configuration."""
 

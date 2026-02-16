@@ -41,7 +41,6 @@ def _create_backend(engine: str) -> TTSBackend:
     Raises:
         ValueError: If the engine is not supported.
     """
-    # TODO: Refactor to dispatch dict when 3rd engine is added
     if engine == "kokoro":
         from macaw.workers.tts.kokoro import KokoroBackend
 

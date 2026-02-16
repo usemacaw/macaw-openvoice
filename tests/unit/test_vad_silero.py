@@ -162,7 +162,7 @@ class TestSileroVADClassifier:
     def test_invalid_sample_rate_raises_value_error(self) -> None:
         """Sample rate diferente de 16000 levanta ValueError."""
         # Act & Assert
-        with pytest.raises(ValueError, match="requer sample rate 16000Hz"):
+        with pytest.raises(ValueError, match="requires sample rate 16000Hz"):
             SileroVADClassifier(sample_rate=8000)
 
     def test_boundary_probability_at_threshold(self) -> None:

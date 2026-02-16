@@ -332,7 +332,7 @@ class TestMinConfirmPasses:
         Act: instanciar policy.
         Assert: ValueError levantado.
         """
-        with pytest.raises(ValueError, match="min_confirm_passes deve ser >= 1"):
+        with pytest.raises(ValueError, match="min_confirm_passes must be >= 1"):
             LocalAgreementPolicy(min_confirm_passes=0)
 
     def test_min_confirm_passes_negative(self) -> None:
@@ -340,7 +340,7 @@ class TestMinConfirmPasses:
         Act: instanciar policy.
         Assert: ValueError levantado.
         """
-        with pytest.raises(ValueError, match="min_confirm_passes deve ser >= 1"):
+        with pytest.raises(ValueError, match="min_confirm_passes must be >= 1"):
             LocalAgreementPolicy(min_confirm_passes=-1)
 
 

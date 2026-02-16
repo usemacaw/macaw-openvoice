@@ -1,7 +1,7 @@
-"""Conversao entre TranscribeRequest/BatchResult e mensagens protobuf gRPC.
+"""Conversion between TranscribeRequest/BatchResult and gRPC protobuf messages.
 
-Funcoes usadas pelo Scheduler para comunicacao com workers via gRPC.
-Sao o inverso dos converters em workers/stt/converters.py.
+Functions used by the Scheduler for communication with workers via gRPC.
+These are the inverse of the converters in workers/stt/converters.py.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def build_proto_request(request: TranscribeRequest) -> TranscribeFileRequest:
-    """Converte TranscribeRequest interno em TranscribeFileRequest protobuf."""
+    """Convert internal TranscribeRequest to TranscribeFileRequest protobuf."""
     return TranscribeFileRequest(
         request_id=request.request_id,
         audio_data=request.audio_data,
@@ -31,7 +31,7 @@ def build_proto_request(request: TranscribeRequest) -> TranscribeFileRequest:
 
 
 def proto_response_to_batch_result(response: TranscribeFileResponse) -> BatchResult:
-    """Converte TranscribeFileResponse protobuf em BatchResult Macaw."""
+    """Convert TranscribeFileResponse protobuf to Macaw BatchResult."""
     segments = tuple(
         SegmentDetail(
             id=s.id,

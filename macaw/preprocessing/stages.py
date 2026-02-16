@@ -1,4 +1,4 @@
-"""Interface base para stages do Audio Preprocessing Pipeline."""
+"""Base interface for Audio Preprocessing Pipeline stages."""
 
 from __future__ import annotations
 
@@ -10,28 +10,28 @@ if TYPE_CHECKING:
 
 
 class AudioStage(ABC):
-    """Stage individual do pipeline de preprocessamento de audio.
+    """Individual audio preprocessing pipeline stage.
 
-    Cada stage recebe um array numpy float32 e sample rate,
-    processa o audio e retorna o resultado com o novo sample rate.
+    Each stage receives a numpy float32 array and sample rate,
+    processes the audio, and returns the result with the new sample rate.
     """
 
     @property
     @abstractmethod
     def name(self) -> str:
-        """Nome identificador do stage (ex: 'resample', 'dc_remove')."""
+        """Identifier name for the stage (e.g. 'resample', 'dc_remove')."""
         ...
 
     @abstractmethod
     def process(self, audio: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int]:
-        """Processa frame de audio.
+        """Process audio frame.
 
         Args:
-            audio: Array numpy float32 com amostras de audio (mono).
-            sample_rate: Sample rate atual do audio em Hz.
+            audio: Numpy float32 array with audio samples (mono).
+            sample_rate: Current audio sample rate in Hz.
 
         Returns:
-            Tupla (audio processado, novo sample rate).
+            Tuple (processed audio, new sample rate).
         """
         ...
 

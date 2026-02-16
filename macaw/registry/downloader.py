@@ -78,8 +78,8 @@ class ModelDownloader:
             manifest_path = model_dir / "macaw.yaml"
             if manifest_path.exists():
                 msg = (
-                    f"Modelo '{entry.name}' ja esta instalado em {model_dir}. "
-                    f"Use --force para reinstalar."
+                    f"Model '{entry.name}' is already installed at {model_dir}. "
+                    f"Use --force to reinstall."
                 )
                 raise FileExistsError(msg)
 
@@ -137,7 +137,7 @@ class ModelDownloader:
         """Write macaw.yaml to the model directory."""
         manifest_data = entry.manifest
         if not manifest_data:
-            msg = f"Catalogo sem manifesto para o modelo '{entry.name}'"
+            msg = f"Catalog has no manifest for model '{entry.name}'"
             raise ValueError(msg)
 
         manifest_path = model_dir / "macaw.yaml"

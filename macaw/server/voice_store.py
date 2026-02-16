@@ -207,10 +207,13 @@ class FileSystemVoiceStore(VoiceStore):
         return await asyncio.to_thread(self._get_sync, voice_id)
 
     async def list_voices(self, type_filter: str | None = None) -> list[SavedVoice]:
-        entries = await asyncio.to_thread(self._list_entries)
+        return await asyncio.to_thread(self._list_voices_sync, type_filter)
+
+    def _list_voices_sync(self, type_filter: str | None) -> list[SavedVoice]:
+        entries = self._list_entries()
         result: list[SavedVoice] = []
         for entry in entries:
-            voice = await self.get(entry)
+            voice = self._get_sync(entry)
             if voice is None:
                 continue
             if type_filter is not None and voice.voice_type != type_filter:

@@ -111,7 +111,7 @@ class TestDownload:
         model_dir.mkdir()
         (model_dir / "macaw.yaml").write_text("name: faster-whisper-tiny")
         downloader = ModelDownloader(models_dir)
-        with pytest.raises(FileExistsError, match="ja esta instalado"):
+        with pytest.raises(FileExistsError, match="already installed"):
             downloader.download(sample_entry)
 
     def test_download_without_manifest_raises(
@@ -139,7 +139,7 @@ class TestDownload:
 
             # Test _write_manifest directly
             downloader = ModelDownloader(models_dir)
-            with pytest.raises(ValueError, match="sem manifesto"):
+            with pytest.raises(ValueError, match="has no manifest"):
                 downloader._write_manifest(models_dir / "no-manifest", entry_without_manifest)
 
 
@@ -181,7 +181,7 @@ class TestWriteManifest:
         model_dir = models_dir / "no-manifest"
         model_dir.mkdir()
         downloader = ModelDownloader(models_dir)
-        with pytest.raises(ValueError, match="sem manifesto"):
+        with pytest.raises(ValueError, match="has no manifest"):
             downloader._write_manifest(model_dir, entry_without_manifest)
 
 

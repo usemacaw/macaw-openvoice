@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from macaw.server.voice_store import VoiceStore
     from macaw.workers.manager import WorkerManager
 
-router = APIRouter()
+router = APIRouter(tags=["Voices"])
 
 logger = get_logger("server.routes.voices")
 
@@ -49,6 +49,7 @@ async def list_voices(
     and aggregates the results into a single list.
     """
     all_voices: list[VoiceResponse] = []
+    failed_models: list[str] = []
 
     # Get all TTS models from registry
     for manifest in registry.list_models():
@@ -89,10 +90,19 @@ async def list_voices(
                 model=model_name,
                 grpc_code=str(exc.code()),
             )
+            failed_models.append(model_name)
             continue
         except Exception:
             logger.exception("voices_unexpected_error", model=model_name)
+            failed_models.append(model_name)
             continue
+
+    if failed_models:
+        logger.warning(
+            "voices_partial_response",
+            failed_models=failed_models,
+            returned_count=len(all_voices),
+        )
 
     return VoiceListResponse(data=all_voices)
 

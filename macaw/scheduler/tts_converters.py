@@ -1,7 +1,7 @@
-"""Conversores TTS: proto <-> dominio para o endpoint REST.
+"""TTS converters: proto <-> domain for the REST endpoint.
 
-Funcoes puras que constroem SynthesizeRequest proto a partir dos parametros
-da API REST, e acumulam SynthesizeChunk proto em TTSSpeechResult de dominio.
+Pure functions that build SynthesizeRequest proto from REST API parameters,
+and accumulate SynthesizeChunk proto into domain TTSSpeechResult.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def build_tts_proto_request(
     ref_text: str | None = None,
     instruction: str | None = None,
 ) -> SynthesizeRequest:
-    """Constroi SynthesizeRequest proto a partir dos parametros da API REST."""
+    """Build SynthesizeRequest proto from REST API parameters."""
     req = SynthesizeRequest(
         request_id=request_id,
         text=text,

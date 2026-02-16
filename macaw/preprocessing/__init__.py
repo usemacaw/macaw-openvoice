@@ -1,7 +1,7 @@
 """Audio Preprocessing Pipeline.
 
-Normaliza audio de qualquer fonte antes do VAD e da engine.
-Pipeline: Ingestao -> [Resample] -> [DC Remove] -> [Gain Normalize] -> Output PCM 16-bit 16kHz mono.
+Normalizes audio from any source before VAD and the engine.
+Pipeline: Ingestion -> [Resample] -> [DC Remove] -> [Gain Normalize] -> Output PCM 16-bit 16kHz mono.
 """
 
 from __future__ import annotations

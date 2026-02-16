@@ -138,7 +138,6 @@ class TestMutedFrameDiscard:
 
 
 class TestMuteMetric:
-    @patch("macaw.session.streaming.HAS_METRICS", True)
     @patch("macaw.session.streaming.stt_muted_frames_total")
     async def test_muted_frame_increments_metric(self, mock_counter: MagicMock) -> None:
         """Each muted frame increments stt_muted_frames_total."""

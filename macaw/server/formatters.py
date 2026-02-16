@@ -1,4 +1,4 @@
-"""Response formatters para BatchResult -> formato de resposta da API."""
+"""Response formatters for BatchResult -> API response format."""
 
 from __future__ import annotations
 
@@ -13,15 +13,15 @@ if TYPE_CHECKING:
 
 
 def format_response(result: BatchResult, fmt: ResponseFormat, task: str = "transcribe") -> Any:
-    """Formata BatchResult para o formato de resposta solicitado.
+    """Format BatchResult for the requested response format.
 
     Args:
-        result: Resultado da transcricao.
-        fmt: Formato de resposta desejado.
-        task: Tipo de tarefa ("transcribe" ou "translate").
+        result: Transcription result.
+        fmt: Desired response format.
+        task: Task type ("transcribe" or "translate").
 
     Returns:
-        Response adequada ao formato solicitado.
+        Response appropriate for the requested format.
     """
     match fmt:
         case ResponseFormat.JSON:
@@ -39,7 +39,7 @@ def format_response(result: BatchResult, fmt: ResponseFormat, task: str = "trans
 
 
 def _to_verbose_json(result: BatchResult, task: str) -> dict[str, Any]:
-    """Converte BatchResult para formato verbose_json."""
+    """Convert BatchResult to verbose_json format."""
     segments = [
         {
             "id": seg.id,
@@ -70,7 +70,7 @@ def _to_verbose_json(result: BatchResult, task: str) -> dict[str, Any]:
 
 
 def _format_timestamp_srt(seconds: float) -> str:
-    """Formata timestamp para formato SRT (HH:MM:SS,mmm)."""
+    """Format timestamp to SRT format (HH:MM:SS,mmm)."""
     total_ms = max(0, round(seconds * 1000))
     hours, remainder = divmod(total_ms, 3_600_000)
     minutes, remainder = divmod(remainder, 60_000)
@@ -79,7 +79,7 @@ def _format_timestamp_srt(seconds: float) -> str:
 
 
 def _format_timestamp_vtt(seconds: float) -> str:
-    """Formata timestamp para formato VTT (HH:MM:SS.mmm)."""
+    """Format timestamp to VTT format (HH:MM:SS.mmm)."""
     total_ms = max(0, round(seconds * 1000))
     hours, remainder = divmod(total_ms, 3_600_000)
     minutes, remainder = divmod(remainder, 60_000)
@@ -88,7 +88,7 @@ def _format_timestamp_vtt(seconds: float) -> str:
 
 
 def _to_srt(result: BatchResult) -> str:
-    """Converte BatchResult para formato SRT."""
+    """Convert BatchResult to SRT format."""
     lines: list[str] = []
     counter = 0
     for seg in result.segments:
@@ -106,7 +106,7 @@ def _to_srt(result: BatchResult) -> str:
 
 
 def _to_vtt(result: BatchResult) -> str:
-    """Converte BatchResult para formato WebVTT."""
+    """Convert BatchResult to WebVTT format."""
     lines: list[str] = ["WEBVTT", ""]
     for seg in result.segments:
         text = seg.text.strip()

@@ -16,7 +16,7 @@ from macaw.server.dependencies import (
 )
 from macaw.server.routes._common import handle_audio_request
 
-router = APIRouter()
+router = APIRouter(tags=["Audio"])
 
 
 @router.post("/v1/audio/translations")
