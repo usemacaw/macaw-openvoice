@@ -84,6 +84,7 @@ class Scheduler:
         self._worker_manager = worker_manager
         self._registry = registry
         self._settings = get_settings().scheduler
+        self._worker_host = get_settings().worker.worker_host
 
         _aging = (
             aging_threshold_s
@@ -320,7 +321,7 @@ class Scheduler:
         )
 
         channel = grpc.aio.insecure_channel(
-            f"localhost:{worker.port}",
+            f"{self._worker_host}:{worker.port}",
             options=get_batch_channel_options(),
         )
         try:
@@ -470,7 +471,7 @@ class Scheduler:
             return
 
         # Mark as in-flight
-        address = f"localhost:{worker.port}"
+        address = f"{self._worker_host}:{worker.port}"
         self._cancellation.mark_in_flight(request.request_id, address)
 
         logger.info(

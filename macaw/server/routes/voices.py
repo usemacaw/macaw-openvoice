@@ -63,7 +63,9 @@ async def list_voices(
             continue
 
         # Query voices from the worker via gRPC
-        worker_address = f"localhost:{worker.port}"
+        from macaw.config.settings import get_settings
+
+        worker_address = f"{get_settings().worker.worker_host}:{worker.port}"
         try:
             tts_channels: dict[str, grpc.aio.Channel] = request.app.state.tts_channels
             channel = get_or_create_tts_channel(tts_channels, worker_address)

@@ -481,8 +481,11 @@ async def _check_worker_health(
     """
     import grpc.aio
 
+    from macaw.config.settings import get_settings
+
+    host = get_settings().worker.worker_host
     checker = _HEALTH_CHECKERS[worker_type]
-    channel = grpc.aio.insecure_channel(f"localhost:{port}")
+    channel = grpc.aio.insecure_channel(f"{host}:{port}")
     try:
         return await checker(channel, timeout)
     finally:

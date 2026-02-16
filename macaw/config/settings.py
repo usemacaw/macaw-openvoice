@@ -19,9 +19,13 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+if TYPE_CHECKING:
+    from macaw._types import VADSensitivity
 
 
 class ServerSettings(BaseSettings):
@@ -89,6 +93,10 @@ class WorkerSettings(BaseSettings):
     models_dir: str = Field(default="~/.macaw/models", validation_alias="MACAW_MODELS_DIR")
     worker_base_port: int = Field(
         default=50051, ge=1024, le=65535, validation_alias="MACAW_WORKER_BASE_PORT"
+    )
+    worker_host: str = Field(
+        default="localhost",
+        validation_alias="MACAW_WORKER_HOST",
     )
 
     @property
@@ -158,6 +166,63 @@ class GRPCSettings(BaseSettings):
         return self.max_streaming_message_mb * 1024 * 1024
 
 
+class VADSettings(BaseSettings):
+    """Voice Activity Detection tuning.
+
+    Controls sensitivity (coordinated preset for energy + silero thresholds)
+    and debounce durations for speech start/end detection.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    sensitivity: str = Field(
+        default="normal",
+        validation_alias="MACAW_VAD_SENSITIVITY",
+    )
+    min_speech_duration_ms: int = Field(
+        default=250,
+        ge=50,
+        le=5000,
+        validation_alias="MACAW_VAD_MIN_SPEECH_DURATION_MS",
+    )
+    min_silence_duration_ms: int = Field(
+        default=300,
+        ge=50,
+        le=5000,
+        validation_alias="MACAW_VAD_MIN_SILENCE_DURATION_MS",
+    )
+    max_speech_duration_ms: int = Field(
+        default=30_000,
+        ge=1000,
+        le=600_000,
+        validation_alias="MACAW_VAD_MAX_SPEECH_DURATION_MS",
+    )
+
+    @model_validator(mode="after")
+    def _validate_sensitivity(self) -> VADSettings:
+        valid = {"high", "normal", "low"}
+        normalized = self.sensitivity.lower()
+        if normalized not in valid:
+            msg = f"sensitivity must be one of {valid}, got {self.sensitivity!r}"
+            raise ValueError(msg)
+        object.__setattr__(self, "sensitivity", normalized)
+        return self
+
+    @model_validator(mode="after")
+    def _min_speech_lt_max(self) -> VADSettings:
+        if self.min_speech_duration_ms >= self.max_speech_duration_ms:
+            msg = "min_speech_duration_ms must be < max_speech_duration_ms"
+            raise ValueError(msg)
+        return self
+
+    @property
+    def vad_sensitivity(self) -> VADSensitivity:
+        """Return the VADSensitivity enum for use in VAD components."""
+        from macaw._types import VADSensitivity
+
+        return VADSensitivity(self.sensitivity)
+
+
 class SchedulerSettings(BaseSettings):
     """Scheduler dispatch tuning (timeouts, batching, aging)."""
 
@@ -202,6 +267,7 @@ class MacawSettings(BaseSettings):
     worker_lifecycle: WorkerLifecycleSettings = Field(default_factory=WorkerLifecycleSettings)
     grpc: GRPCSettings = Field(default_factory=GRPCSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
+    vad: VADSettings = Field(default_factory=VADSettings)
 
 
 @lru_cache(maxsize=1)

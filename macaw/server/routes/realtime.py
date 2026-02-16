@@ -401,15 +401,21 @@ def _create_streaming_session(
     preprocessor = StreamingPreprocessor(stages=stages)
 
     # Create VAD (energy pre-filter + silero classifier + detector)
+    from macaw.config.settings import get_settings
     from macaw.vad.detector import VADDetector
     from macaw.vad.energy import EnergyPreFilter
     from macaw.vad.silero import SileroVADClassifier
 
-    energy_pre_filter = EnergyPreFilter()
-    silero_classifier = SileroVADClassifier()
+    vad_settings = get_settings().vad
+    vad_sens = vad_settings.vad_sensitivity
+    energy_pre_filter = EnergyPreFilter(sensitivity=vad_sens)
+    silero_classifier = SileroVADClassifier(sensitivity=vad_sens)
     vad = VADDetector(
         energy_pre_filter=energy_pre_filter,
         silero_classifier=silero_classifier,
+        min_speech_duration_ms=vad_settings.min_speech_duration_ms,
+        min_silence_duration_ms=vad_settings.min_silence_duration_ms,
+        max_speech_duration_ms=vad_settings.max_speech_duration_ms,
     )
 
     return _StreamingSession(

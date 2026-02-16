@@ -255,7 +255,8 @@ async def _serve(
     if stt_worker_port is not None:
         from macaw.scheduler.streaming import StreamingGRPCClient
 
-        streaming_client = StreamingGRPCClient(f"localhost:{stt_worker_port}")
+        worker_host = get_settings().worker.worker_host
+        streaming_client = StreamingGRPCClient(f"{worker_host}:{stt_worker_port}")
         await streaming_client.connect()
         app.state.streaming_grpc_client = streaming_client
         logger.info("streaming_grpc_connected", worker_port=stt_worker_port)

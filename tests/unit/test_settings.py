@@ -14,6 +14,7 @@ from macaw.config.settings import (
     SchedulerSettings,
     ServerSettings,
     TTSSettings,
+    VADSettings,
     WorkerLifecycleSettings,
     WorkerSettings,
     get_settings,
@@ -198,6 +199,7 @@ class TestMacawSettingsRoot:
         assert isinstance(settings.worker_lifecycle, WorkerLifecycleSettings)
         assert isinstance(settings.grpc, GRPCSettings)
         assert isinstance(settings.scheduler, SchedulerSettings)
+        assert isinstance(settings.vad, VADSettings)
 
     def test_extra_env_vars_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("MACAW_UNKNOWN_VAR", "ignored")
@@ -429,3 +431,130 @@ class TestGetSettingsSingleton:
         get_settings.cache_clear()
         s2 = get_settings()
         assert s1 is not s2
+
+
+class TestVADSettingsDefaults:
+    def test_default_sensitivity(self) -> None:
+        s = VADSettings()
+        assert s.sensitivity == "normal"
+
+    def test_default_min_speech_duration_ms(self) -> None:
+        s = VADSettings()
+        assert s.min_speech_duration_ms == 250
+
+    def test_default_min_silence_duration_ms(self) -> None:
+        s = VADSettings()
+        assert s.min_silence_duration_ms == 300
+
+    def test_default_max_speech_duration_ms(self) -> None:
+        s = VADSettings()
+        assert s.max_speech_duration_ms == 30_000
+
+
+class TestVADSettingsValidation:
+    def test_sensitivity_invalid_raises(self) -> None:
+        with pytest.raises(ValidationError, match="sensitivity must be one of"):
+            VADSettings(sensitivity="ultra")  # type: ignore[call-arg]
+
+    def test_sensitivity_case_insensitive_upper(self) -> None:
+        s = VADSettings(sensitivity="HIGH")  # type: ignore[call-arg]
+        assert s.sensitivity == "high"
+
+    def test_sensitivity_case_insensitive_mixed(self) -> None:
+        s = VADSettings(sensitivity="Normal")  # type: ignore[call-arg]
+        assert s.sensitivity == "normal"
+
+    def test_sensitivity_case_insensitive_low(self) -> None:
+        s = VADSettings(sensitivity="LOW")  # type: ignore[call-arg]
+        assert s.sensitivity == "low"
+
+    def test_min_speech_duration_ms_too_low_raises(self) -> None:
+        with pytest.raises(ValidationError, match="min_speech_duration_ms"):
+            VADSettings(min_speech_duration_ms=49)  # type: ignore[call-arg]
+
+    def test_min_speech_duration_ms_too_high_raises(self) -> None:
+        with pytest.raises(ValidationError, match="min_speech_duration_ms"):
+            VADSettings(min_speech_duration_ms=5001)  # type: ignore[call-arg]
+
+    def test_min_silence_duration_ms_too_low_raises(self) -> None:
+        with pytest.raises(ValidationError, match="min_silence_duration_ms"):
+            VADSettings(min_silence_duration_ms=49)  # type: ignore[call-arg]
+
+    def test_min_silence_duration_ms_too_high_raises(self) -> None:
+        with pytest.raises(ValidationError, match="min_silence_duration_ms"):
+            VADSettings(min_silence_duration_ms=5001)  # type: ignore[call-arg]
+
+    def test_max_speech_duration_ms_too_low_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_speech_duration_ms"):
+            VADSettings(max_speech_duration_ms=999)  # type: ignore[call-arg]
+
+    def test_max_speech_duration_ms_too_high_raises(self) -> None:
+        with pytest.raises(ValidationError, match="max_speech_duration_ms"):
+            VADSettings(max_speech_duration_ms=600_001)  # type: ignore[call-arg]
+
+    def test_min_speech_gte_max_raises(self) -> None:
+        with pytest.raises(
+            ValidationError,
+            match="min_speech_duration_ms must be < max_speech_duration_ms",
+        ):
+            VADSettings(
+                min_speech_duration_ms=1000,  # type: ignore[call-arg]
+                max_speech_duration_ms=1000,  # type: ignore[call-arg]
+            )
+
+    def test_min_speech_greater_than_max_raises(self) -> None:
+        with pytest.raises(ValidationError):
+            VADSettings(
+                min_speech_duration_ms=2000,  # type: ignore[call-arg]
+                max_speech_duration_ms=1000,  # type: ignore[call-arg]
+            )
+
+    def test_vad_sensitivity_property_returns_enum(self) -> None:
+        from macaw._types import VADSensitivity
+
+        s = VADSettings()
+        assert s.vad_sensitivity == VADSensitivity.NORMAL
+
+    def test_vad_sensitivity_property_high(self) -> None:
+        from macaw._types import VADSensitivity
+
+        s = VADSettings(sensitivity="high")  # type: ignore[call-arg]
+        assert s.vad_sensitivity == VADSensitivity.HIGH
+
+
+class TestVADSettingsEnvOverrides:
+    def test_sensitivity_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_VAD_SENSITIVITY", "HIGH")
+        s = VADSettings()
+        assert s.sensitivity == "high"
+
+    def test_min_speech_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_VAD_MIN_SPEECH_DURATION_MS", "500")
+        s = VADSettings()
+        assert s.min_speech_duration_ms == 500
+
+    def test_min_silence_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_VAD_MIN_SILENCE_DURATION_MS", "600")
+        s = VADSettings()
+        assert s.min_silence_duration_ms == 600
+
+    def test_max_speech_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_VAD_MAX_SPEECH_DURATION_MS", "60000")
+        s = VADSettings()
+        assert s.max_speech_duration_ms == 60_000
+
+
+class TestWorkerHostSetting:
+    def test_worker_host_default(self) -> None:
+        s = WorkerSettings()
+        assert s.worker_host == "localhost"
+
+    def test_worker_host_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_WORKER_HOST", "10.0.0.5")
+        s = WorkerSettings()
+        assert s.worker_host == "10.0.0.5"
+
+    def test_worker_host_hostname(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_WORKER_HOST", "worker.internal.svc")
+        s = WorkerSettings()
+        assert s.worker_host == "worker.internal.svc"
