@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import os
 import sys
 from pathlib import Path
 
@@ -11,9 +10,11 @@ import click
 
 from macaw._audio_constants import PCM_INT16_MAX, STT_SAMPLE_RATE
 from macaw.cli.main import cli
+from macaw.config.settings import get_settings
 
-DEFAULT_SERVER_URL = os.environ.get("MACAW_SERVER_URL", "http://localhost:8000")
-_HTTP_TIMEOUT_S = float(os.environ.get("MACAW_HTTP_TIMEOUT_S", "120.0"))
+_s = get_settings()
+DEFAULT_SERVER_URL = _s.cli.server_url
+_HTTP_TIMEOUT_S = _s.cli.http_timeout_s
 
 # --- Streaming constants ---
 _STREAM_FRAME_DURATION_MS = 40

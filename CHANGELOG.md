@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Centralized `pydantic-settings` configuration (`macaw/config/settings.py`) — all 14 `MACAW_*` env vars validated, typed, and documented in `.env.example`; replaces scattered `os.environ.get()` calls across 4 modules (#settings)
 - `NullMetric` null object class (`macaw/_null_metrics.py`) — metrics consumers call methods unconditionally without guard checks, NullMetric silently discards observations when prometheus_client is not installed (#review-v3-4.4)
 - OpenAPI tags on all routers — Audio, Voices, System, Realtime — Swagger UI now groups endpoints by category (#review-v3-4.5)
 - OpenAPI tag presence tests in `test_openapi_schema.py` (#review-v3-4.5)

@@ -4,6 +4,7 @@ examples/ollama/
 roadmap/
 docs/
 inspiracao
+
 # Claude Code
 .claude/
 logs.txt
@@ -48,7 +49,7 @@ Thumbs.db
 # Environment
 .env
 .env.*
-
+!.env.example
 
 # gRPC generated
 src/macaw/proto/*_pb2.py

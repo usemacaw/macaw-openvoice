@@ -6,7 +6,6 @@ with a progress bar and manifest validation after copying.
 
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,6 +13,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 from macaw.config.manifest import ModelManifest
+from macaw.config.settings import get_settings
 from macaw.logging import get_logger
 
 if TYPE_CHECKING:
@@ -21,9 +21,7 @@ if TYPE_CHECKING:
 
 logger = get_logger("registry.downloader")
 
-_DEFAULT_MODELS_DIR = Path(
-    os.environ.get("MACAW_MODELS_DIR", str(Path.home() / ".macaw" / "models"))
-)
+_DEFAULT_MODELS_DIR = get_settings().worker.models_path
 
 
 class ModelDownloader:
