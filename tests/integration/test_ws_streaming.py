@@ -233,7 +233,7 @@ def test_ws_connect_and_session_created() -> None:
     # Verificar defaults na config
     config = event["config"]
     assert config["vad_sensitivity"] == "normal"
-    assert config["silence_timeout_ms"] == 300
+    assert config["silence_timeout_ms"] == 30_000
     assert config["enable_partial_transcripts"] is True
     assert config["enable_itn"] is True
 

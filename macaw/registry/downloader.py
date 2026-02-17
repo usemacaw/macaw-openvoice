@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from macaw.config.manifest import ModelManifest
+from macaw.config.manifest import MANIFEST_FILENAME, ModelManifest
 from macaw.config.settings import get_settings
 from macaw.logging import get_logger
 
@@ -45,7 +45,7 @@ class ModelDownloader:
     def is_installed(self, model_name: str) -> bool:
         """Check if a model is already installed."""
         model_dir = self._models_dir / model_name
-        manifest_path = model_dir / "macaw.yaml"
+        manifest_path = model_dir / MANIFEST_FILENAME
         return manifest_path.exists()
 
     def download(
@@ -76,7 +76,7 @@ class ModelDownloader:
         model_dir = self._models_dir / entry.name
 
         if model_dir.exists() and not force:
-            manifest_path = model_dir / "macaw.yaml"
+            manifest_path = model_dir / MANIFEST_FILENAME
             if manifest_path.exists():
                 msg = (
                     f"Model '{entry.name}' is already installed at {model_dir}. "
@@ -110,7 +110,7 @@ class ModelDownloader:
         self._write_manifest(model_dir, entry)
 
         # Validate generated manifest
-        manifest_path = model_dir / "macaw.yaml"
+        manifest_path = model_dir / MANIFEST_FILENAME
         ModelManifest.from_yaml_path(manifest_path)
 
         logger.info("manifest_validated", model=entry.name)
@@ -141,7 +141,7 @@ class ModelDownloader:
             msg = f"Catalog has no manifest for model '{entry.name}'"
             raise ValueError(msg)
 
-        manifest_path = model_dir / "macaw.yaml"
+        manifest_path = model_dir / MANIFEST_FILENAME
         manifest_path.write_text(
             yaml.dump(manifest_data, default_flow_style=False, allow_unicode=True),
             encoding="utf-8",

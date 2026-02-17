@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Environment variable `MACAW_SESSION_CROSS_SEGMENT_MAX_TOKENS` — configurable cross-segment context window size, operators can tune per model (Whisper default 224 = half of 448-token window) (#hardcode-audit-v7)
+- Environment variable `MACAW_VAD_SILERO_THRESHOLD` — optional override for Silero VAD speech probability threshold, decoupled from sensitivity presets for fine-grained tuning (#hardcode-audit-v7)
+- Cross-segment context now wired in production WebSocket sessions — `_create_streaming_session` passes `CrossSegmentContext` to `StreamingSession` (#hardcode-audit-v7)
+- Environment variable `MACAW_STT_MAX_CANCELLED_REQUESTS` — configurable upper bound for cancelled request tracking in STT worker, prevents unbounded memory growth under cancellation storms (#hardcode-audit-v7)
+- Environment variable `MACAW_VAD_ENERGY_THRESHOLD_DBFS` — optional override for energy pre-filter dBFS threshold, decoupled from sensitivity presets for fine-grained tuning (#hardcode-audit-v7)
+- Centralized `DEFAULT_SPECTRAL_FLATNESS_THRESHOLD` in `_audio_constants.py` — single source of truth for spectral flatness threshold used by VAD energy pre-filter (#hardcode-audit-v7)
+- Centralized `MANIFEST_FILENAME` constant in `config/manifest.py` — eliminates 5x scattered `"macaw.yaml"` string literals across registry and downloader (#hardcode-audit-v7)
+- Shared `get_inference_context()` helper in `workers/torch_utils.py` — eliminates duplicated try/except torch.inference_mode() pattern across TTS backends (#hardcode-audit-v7)
+- Environment variable `MACAW_CORS_ORIGINS` for CORS configuration via env var — operators in Docker/K8s can set CORS without modifying CLI invocation (#hardcode-audit-v7)
 - Environment variables for session state machine timeouts: `MACAW_SESSION_INIT_TIMEOUT_S`, `MACAW_SESSION_SILENCE_TIMEOUT_S`, `MACAW_SESSION_HOLD_TIMEOUT_S`, `MACAW_SESSION_CLOSING_TIMEOUT_S` — operators can tune session lifecycle timeouts per deployment (#hardcode-audit-v7)
 - Environment variable for ring buffer force commit threshold: `MACAW_SESSION_RING_BUFFER_FORCE_COMMIT_THRESHOLD` — tune uncommitted data threshold before automatic commit (#hardcode-audit-v7)
 - Environment variable for STT accumulation threshold: `MACAW_STT_ACCUMULATION_THRESHOLD_S` — global default for streaming inference accumulation window, overridable per-model via engine_config (#hardcode-audit-v7)
@@ -42,7 +51,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New Makefile targets: `test-cov`, `security`, `audit` (#quality-gates)
 - Coverage reporting with HTML artifacts and XML upload in CI pipeline (#quality-gates)
 
+### Changed
+- `macaw serve --log-level` now propagates to uvicorn — previously uvicorn always ran at "warning" level regardless of CLI flag (#hardcode-audit-v7)
+- `macaw serve --cors-origins` now falls back to `MACAW_CORS_ORIGINS` env var when CLI flag is not provided (#hardcode-audit-v7)
+- Streaming STT inference uses named `_DEFAULT_TEMPERATURE` constant instead of magic `0.0` for consistency with batch path (#hardcode-audit-v7)
+
 ### Fixed
+- `SessionConfig.silence_timeout_ms` default was 300 (0.3s) but `SessionSettings.silence_timeout_s` default is 30.0 (30s) — 100x mismatch caused `session.created` to report incorrect timeout to clients (#hardcode-audit-v7)
 - DRY violations: preprocessing/postprocessing defaults duplicated between `config/settings.py` and `config/preprocessing.py`/`config/postprocessing.py` — now both import from `_audio_constants.py` single source of truth (#hardcode-audit-v7)
 - Blocking file I/O in `POST /v1/audio/speech` when resolving saved voice ref_audio — now uses `asyncio.to_thread()` to avoid blocking the event loop (#hardcode-audit-v7)
 - Kokoro TTS `repo_id` was hardcoded to `"hexgrad/Kokoro-82M"` — now configurable via engine_config in macaw.yaml manifest (#hardcode-audit-v7)

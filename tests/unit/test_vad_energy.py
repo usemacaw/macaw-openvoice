@@ -165,3 +165,13 @@ class TestEnergyPreFilter:
         assert EnergyPreFilter(VADSensitivity.HIGH).energy_threshold_dbfs == -50.0
         assert EnergyPreFilter(VADSensitivity.NORMAL).energy_threshold_dbfs == -40.0
         assert EnergyPreFilter(VADSensitivity.LOW).energy_threshold_dbfs == -30.0
+
+    def test_energy_threshold_override(self) -> None:
+        """Override de threshold ignora o preset de sensibilidade."""
+        pf = EnergyPreFilter(VADSensitivity.NORMAL, energy_threshold_dbfs_override=-45.0)
+        assert pf.energy_threshold_dbfs == -45.0
+
+    def test_energy_threshold_override_none_uses_preset(self) -> None:
+        """Override None usa o preset normal."""
+        pf = EnergyPreFilter(VADSensitivity.HIGH, energy_threshold_dbfs_override=None)
+        assert pf.energy_threshold_dbfs == -50.0

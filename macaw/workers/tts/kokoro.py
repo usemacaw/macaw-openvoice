@@ -362,19 +362,10 @@ def _stream_pipeline_segments(
         loop: Event loop for call_soon_threadsafe.
         error_holder: Mutable list to store any exception from the pipeline.
     """
-    from contextlib import nullcontext
-    from typing import Any
-
-    inference_ctx: Any = nullcontext()
-    try:
-        import torch
-
-        inference_ctx = torch.inference_mode()
-    except ImportError:
-        pass
+    from macaw.workers.torch_utils import get_inference_context
 
     try:
-        with inference_ctx:
+        with get_inference_context():
             for _gs, _ps, audio in pipeline(text, voice=voice_path, speed=speed):  # type: ignore[operator]
                 if audio is not None and len(audio) > 0:
                     # Kokoro v0.9.4 returns torch.Tensor, convert to numpy

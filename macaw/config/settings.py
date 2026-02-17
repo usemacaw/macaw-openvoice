@@ -53,6 +53,15 @@ class ServerSettings(BaseSettings):
     ws_check_interval_s: float = Field(
         default=5.0, gt=0, validation_alias="MACAW_WS_CHECK_INTERVAL_S"
     )
+    cors_origins: str = Field(
+        default="",
+        validation_alias="MACAW_CORS_ORIGINS",
+    )
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """CORS origins as a list (parsed from comma-separated string)."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def max_file_size_bytes(self) -> int:
@@ -123,6 +132,12 @@ class WorkerSettings(BaseSettings):
         gt=0,
         le=30.0,
         validation_alias="MACAW_STT_ACCUMULATION_THRESHOLD_S",
+    )
+    stt_max_cancelled_requests: int = Field(
+        default=10_000,
+        ge=100,
+        le=1_000_000,
+        validation_alias="MACAW_STT_MAX_CANCELLED_REQUESTS",
     )
 
     @property
@@ -229,6 +244,18 @@ class VADSettings(BaseSettings):
         le=600_000,
         validation_alias="MACAW_VAD_MAX_SPEECH_DURATION_MS",
     )
+    energy_threshold_dbfs: float | None = Field(
+        default=None,
+        ge=-80.0,
+        le=0.0,
+        validation_alias="MACAW_VAD_ENERGY_THRESHOLD_DBFS",
+    )
+    silero_threshold: float | None = Field(
+        default=None,
+        gt=0.0,
+        lt=1.0,
+        validation_alias="MACAW_VAD_SILERO_THRESHOLD",
+    )
 
     @model_validator(mode="after")
     def _validate_sensitivity(self) -> VADSettings:
@@ -310,6 +337,12 @@ class SessionSettings(BaseSettings):
         gt=0.5,
         lt=1.0,
         validation_alias="MACAW_SESSION_RING_BUFFER_FORCE_COMMIT_THRESHOLD",
+    )
+    cross_segment_max_tokens: int = Field(
+        default=224,
+        ge=1,
+        le=2048,
+        validation_alias="MACAW_SESSION_CROSS_SEGMENT_MAX_TOKENS",
     )
 
 

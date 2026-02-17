@@ -38,6 +38,7 @@ logger = get_logger("worker.stt.faster_whisper")
 
 # --- Faster-Whisper defaults (shared between __init__ and load) ---
 _DEFAULT_BEAM_SIZE = 5
+_DEFAULT_TEMPERATURE = 0.0
 _DEFAULT_ACCUMULATION_THRESHOLD_S = 5.0
 
 
@@ -266,7 +267,7 @@ class FasterWhisperBackend(STTBackend):
                 audio,
                 language=language,
                 initial_prompt=initial_prompt,
-                temperature=0.0,
+                temperature=_DEFAULT_TEMPERATURE,
                 beam_size=self._beam_size,
                 vad_filter=False,
             ),

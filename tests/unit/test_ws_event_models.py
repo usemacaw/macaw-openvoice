@@ -251,7 +251,7 @@ class TestValidation:
     def test_session_config_defaults(self) -> None:
         config = SessionConfig()
         assert config.vad_sensitivity == VADSensitivity.NORMAL
-        assert config.silence_timeout_ms == 300
+        assert config.silence_timeout_ms == 30_000
         assert config.hold_timeout_ms == 300_000
         assert config.max_segment_duration_ms == 30_000
         assert config.enable_partial_transcripts is True

@@ -42,3 +42,8 @@ TTS_DEFAULT_SAMPLE_RATE: int = 24000
 # Silero VAD maximum input chunk size (samples at 16kHz).
 # Silero expects exactly 512 samples (32ms). Longer frames are split.
 SILERO_VAD_CHUNK_SIZE: int = 512
+
+# Spectral flatness threshold for energy pre-filter.
+# Values above this indicate flat spectrum (white noise/silence).
+# Tonal speech typically has flatness ~0.1-0.5.
+DEFAULT_SPECTRAL_FLATNESS_THRESHOLD: float = 0.8

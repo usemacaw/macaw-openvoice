@@ -56,7 +56,7 @@ def test_session_created_includes_default_config() -> None:
 
     config = event["config"]
     assert config["vad_sensitivity"] == "normal"
-    assert config["silence_timeout_ms"] == 300
+    assert config["silence_timeout_ms"] == 30_000
     assert config["hold_timeout_ms"] == 300_000
     assert config["max_segment_duration_ms"] == 30_000
     assert config["enable_partial_transcripts"] is True

@@ -82,12 +82,13 @@ async def serve(
     from macaw.config.settings import get_settings
 
     model_name = str(engine_config.get("model_size", "unknown"))
-    max_concurrent = get_settings().worker.stt_max_concurrent
+    worker_settings = get_settings().worker
     servicer = STTWorkerServicer(
         backend=backend,
         model_name=model_name,
         engine=engine,
-        max_concurrent=max_concurrent,
+        max_concurrent=worker_settings.stt_max_concurrent,
+        max_cancelled_requests=worker_settings.stt_max_cancelled_requests,
     )
 
     server = grpc.aio.server(options=GRPC_WORKER_SERVER_OPTIONS)

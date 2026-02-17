@@ -381,6 +381,7 @@ def _create_streaming_session(
     Returns None if streaming_grpc_client is not configured
     (e.g. tests without worker infrastructure).
     """
+    from macaw.session.cross_segment import CrossSegmentContext
     from macaw.session.streaming import StreamingSession as _StreamingSession
 
     state = websocket.app.state
@@ -408,14 +409,26 @@ def _create_streaming_session(
 
     vad_settings = get_settings().vad
     vad_sens = vad_settings.vad_sensitivity
-    energy_pre_filter = EnergyPreFilter(sensitivity=vad_sens)
-    silero_classifier = SileroVADClassifier(sensitivity=vad_sens)
+    energy_pre_filter = EnergyPreFilter(
+        sensitivity=vad_sens,
+        energy_threshold_dbfs_override=vad_settings.energy_threshold_dbfs,
+    )
+    silero_classifier = SileroVADClassifier(
+        sensitivity=vad_sens,
+        threshold_override=vad_settings.silero_threshold,
+    )
     vad = VADDetector(
         energy_pre_filter=energy_pre_filter,
         silero_classifier=silero_classifier,
         min_speech_duration_ms=vad_settings.min_speech_duration_ms,
         min_silence_duration_ms=vad_settings.min_silence_duration_ms,
         max_speech_duration_ms=vad_settings.max_speech_duration_ms,
+    )
+
+    # Cross-segment context: conditions next segment with previous transcript
+    session_settings = get_settings().session
+    cross_segment = CrossSegmentContext(
+        max_tokens=session_settings.cross_segment_max_tokens,
     )
 
     return _StreamingSession(
@@ -427,6 +440,7 @@ def _create_streaming_session(
         on_event=on_event,
         architecture=architecture,
         engine_supports_hot_words=engine_supports_hot_words,
+        cross_segment_context=cross_segment,
     )
 
 

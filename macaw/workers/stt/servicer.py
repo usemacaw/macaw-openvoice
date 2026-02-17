@@ -43,7 +43,7 @@ from macaw.proto.stt_worker_pb2_grpc import STTWorkerServicer as _BaseServicer
 logger = get_logger("worker.stt.servicer")
 
 
-_MAX_CANCELLED_REQUESTS = 10_000
+_DEFAULT_MAX_CANCELLED_REQUESTS = 10_000
 
 
 class STTWorkerServicer(_BaseServicer):
@@ -59,11 +59,13 @@ class STTWorkerServicer(_BaseServicer):
         engine: str,
         *,
         max_concurrent: int = 1,
+        max_cancelled_requests: int = _DEFAULT_MAX_CANCELLED_REQUESTS,
     ) -> None:
         self._backend = backend
         self._model_name = model_name
         self._engine = engine
         self._max_concurrent = max(1, max_concurrent)
+        self._max_cancelled_requests = max(1, max_cancelled_requests)
         self._inference_semaphore = asyncio.Semaphore(self._max_concurrent)
         self._cancel_lock = threading.Lock()
         self._cancelled_requests: set[str] = set()
@@ -257,7 +259,7 @@ class STTWorkerServicer(_BaseServicer):
         request_id = request.request_id
 
         with self._cancel_lock:
-            if len(self._cancelled_requests) >= _MAX_CANCELLED_REQUESTS:
+            if len(self._cancelled_requests) >= self._max_cancelled_requests:
                 self._cancelled_requests.clear()
             self._cancelled_requests.add(request_id)
             is_current = request_id in self._active_request_ids

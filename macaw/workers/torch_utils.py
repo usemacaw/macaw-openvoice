@@ -7,6 +7,7 @@ These utilities must be called at specific points in the worker lifecycle:
 
 from __future__ import annotations
 
+import contextlib
 import os
 
 from macaw.logging import get_logger
@@ -76,6 +77,19 @@ def resolve_device(device_str: str) -> str:
             pass
         return "cpu"
     return device_str
+
+
+def get_inference_context() -> contextlib.AbstractContextManager[None]:
+    """Return a ``torch.inference_mode()`` context manager, or ``nullcontext()`` if torch is unavailable.
+
+    Eliminates the repeated try/except ImportError pattern across TTS backends.
+    """
+    try:
+        import torch
+
+        return torch.inference_mode()
+    except ImportError:
+        return contextlib.nullcontext()
 
 
 def release_gpu_memory() -> None:

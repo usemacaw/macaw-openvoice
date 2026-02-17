@@ -42,8 +42,8 @@ DEFAULT_WORKER_BASE_PORT = _s.worker.worker_base_port
 )
 @click.option(
     "--cors-origins",
-    default="",
-    help="CORS origins (comma-separated). Ex: http://localhost:3000",
+    default=None,
+    help="CORS origins (comma-separated). Overrides MACAW_CORS_ORIGINS env var.",
 )
 @click.option(
     "--log-format",
@@ -63,14 +63,18 @@ def serve(
     host: str,
     port: int,
     models_dir: str,
-    cors_origins: str,
+    cors_origins: str | None,
     log_format: str,
     log_level: str,
 ) -> None:
     """Starts the Macaw API Server with workers for installed models."""
     configure_logging(log_format=log_format, level=log_level)
-    origins = [o.strip() for o in cors_origins.split(",") if o.strip()] if cors_origins else []
-    asyncio.run(_serve(host, port, models_dir, cors_origins=origins))
+    # CLI flag overrides env var; if neither set, no CORS.
+    if cors_origins is not None:
+        origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
+    else:
+        origins = get_settings().server.cors_origins_list
+    asyncio.run(_serve(host, port, models_dir, cors_origins=origins, log_level=log_level))
 
 
 async def _spawn_all_workers(
@@ -199,6 +203,7 @@ async def _serve(
     models_dir: str,
     *,
     cors_origins: list[str] | None = None,
+    log_level: str = "WARNING",
 ) -> None:
     """Main async flow for serve."""
     import uvicorn
@@ -280,7 +285,7 @@ async def _serve(
         loop.add_signal_handler(sig, _handle_signal, sig)
 
     # 6. Run uvicorn
-    config = uvicorn.Config(app, host=host, port=port, log_level="warning")
+    config = uvicorn.Config(app, host=host, port=port, log_level=log_level.lower())
     server = uvicorn.Server(config)
 
     server_task = asyncio.create_task(server.serve())

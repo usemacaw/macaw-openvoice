@@ -12,6 +12,10 @@ Reference: PRD section RF-12 (Cross-Segment Context).
 
 from __future__ import annotations
 
+# Half of Whisper's context window (448 tokens). Configurable via
+# MACAW_SESSION_CROSS_SEGMENT_MAX_TOKENS for models with different window sizes.
+_DEFAULT_CROSS_SEGMENT_MAX_TOKENS: int = 224
+
 
 class CrossSegmentContext:
     """Cross-segment context for conditioning the next segment.
@@ -31,7 +35,7 @@ class CrossSegmentContext:
 
     __slots__ = ("_max_tokens", "_text")
 
-    def __init__(self, max_tokens: int = 224) -> None:
+    def __init__(self, max_tokens: int = _DEFAULT_CROSS_SEGMENT_MAX_TOKENS) -> None:
         self._max_tokens = max_tokens
         self._text: str | None = None
 
