@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - `macaw ps` CLI command used hardcoded 10s timeout instead of configured `MACAW_HTTP_TIMEOUT_S` (120s default) — caused inconsistent timeout behavior vs `macaw transcribe` (#hardcode-audit-v6)
+- `make audit` failed on unpushed commits — `pip-audit` tried to git-fetch the local editable install's commit SHA from the remote; now excludes editable installs from audit requirements (#hardcode-audit-v6)
 - DRY violations: beam_size/accumulation_threshold defaults duplicated in faster_whisper.py, RTFx threshold duplicated in STT/TTS warmup, Silero chunk_size magic number, 8-bit PCM scale magic number (#hardcode-audit-v6)
 - `session.configure` timeout fields (`silence_timeout_ms`, `hold_timeout_ms`) accepted but silently ignored — now wired through to `StreamingSession.update_session_timeouts()` (#review-v2-F12)
 - `macaw ps` command broken — read wrong response keys (`models` instead of `data`, `name` instead of `id`), always showed "No models loaded" (#review-v2)

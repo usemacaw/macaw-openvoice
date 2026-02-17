@@ -41,7 +41,7 @@ security: ## Run bandit SAST scanner
 	$(PYTHON) -m bandit -c pyproject.toml -r macaw/
 
 audit: ## Run pip-audit for dependency vulnerabilities
-	$(PYTHON) -m pip freeze | grep -v -E "^(torch|torchaudio)==" > .audit-requirements.txt
+	$(PYTHON) -m pip freeze | grep -v -E "^(-e |torch==|torchaudio==)" > .audit-requirements.txt
 	$(PYTHON) -m pip_audit --desc -r .audit-requirements.txt
 	@rm -f .audit-requirements.txt
 
