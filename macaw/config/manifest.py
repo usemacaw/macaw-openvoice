@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, field_validator
 
-from macaw._types import ModelType, STTArchitecture  # noqa: TC001 - Pydantic needs at runtime
+from macaw._types import ModelType, STTArchitecture
 from macaw.exceptions import ManifestParseError, ManifestValidationError
 
 # Canonical filename for model manifests. Used by registry scan and downloader.

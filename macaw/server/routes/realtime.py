@@ -64,6 +64,7 @@ from macaw.session.state_machine import timeouts_from_configure_command
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from macaw.audio_effects.chain import AudioEffectChain
     from macaw.server.models.events import ServerEvent
     from macaw.session.streaming import StreamingSession
 
@@ -572,6 +573,7 @@ async def _tts_speak_task(
     ref_text: str | None = None,
     instruction: str | None = None,
     codec: str | None = None,
+    effect_chain: AudioEffectChain | None = None,
 ) -> None:
     """Background task that runs TTS synthesis and streams audio to the client.
 
@@ -644,9 +646,14 @@ async def _tts_speak_task(
                 )
                 first_chunk_sent = True
 
+            # Apply effects to PCM before sending
+            audio_data = chunk.audio_data
+            if effect_chain is not None:
+                audio_data = effect_chain.process_bytes(audio_data, TTS_DEFAULT_SAMPLE_RATE)
+
             # Send audio as binary frame
             if websocket.client_state == _WSState.CONNECTED:
-                await websocket.send_bytes(chunk.audio_data)
+                await websocket.send_bytes(audio_data)
 
             if chunk.is_last:
                 break
@@ -801,6 +808,19 @@ async def _handle_tts_speak_command(
     )
     await _cancel_active_tts(ctx)
 
+    # Build effect chain from command params (None = no effects)
+    effect_chain: AudioEffectChain | None = None
+    if cmd.effects is not None:
+        from macaw.audio_effects import create_effect_chain
+
+        effect_chain = create_effect_chain(
+            pitch_shift_semitones=cmd.effects.pitch_shift_semitones,
+            reverb_room_size=cmd.effects.reverb_room_size,
+            reverb_damping=cmd.effects.reverb_damping,
+            reverb_wet_dry_mix=cmd.effects.reverb_wet_dry_mix,
+            sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+        )
+
     cancel_ev = asyncio.Event()
     ctx.tts_cancel_event = cancel_ev
     ctx.tts_task = asyncio.create_task(
@@ -820,6 +840,7 @@ async def _handle_tts_speak_command(
             ref_text=cmd.ref_text,
             instruction=cmd.instruction,
             codec=cmd.codec,
+            effect_chain=effect_chain,
         ),
     )
     return False

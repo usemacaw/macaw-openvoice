@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Audio effects layer (`macaw/audio_effects/`) with `AudioEffect` ABC, `AudioEffectChain` compositor, and factory function `create_effect_chain()` — post-synthesis audio transformations applied server-side before transport (#audio-effects)
+- `PitchShiftEffect` for frequency shifting via time-axis interpolation, supports +/-12 semitones (#audio-effects)
+- `ReverbEffect` implementing Freeverb algorithm (8 comb filters + 4 allpass filters) with configurable room size, damping, and wet/dry mix (#audio-effects)
+- `effects` field in `POST /v1/audio/speech` request body and `tts.speak` WebSocket command — clients can request pitch shift and reverb on TTS output (#audio-effects)
+- `AudioEffectsParams` Pydantic model with validated ranges for all effect parameters (#audio-effects)
+- `EffectsSettings` configuration group with `MACAW_EFFECTS_PITCH_SHIFT_MAX_SEMITONES` environment variable (#audio-effects)
+- `pcm16_bytes_to_float32()` utility for PCM16 bytes to float32 conversion (inverse of `float32_to_pcm16_bytes`) (#audio-effects)
 - Multi-language ITN support — `ITNStage` maintains per-language normalizer cache, `TextStage.process()` accepts optional `language` parameter, detected language from STT flows automatically to post-processing (#32)
 - Environment variable `MACAW_ITN_DEFAULT_LANGUAGE` (replaces `MACAW_ITN_LANGUAGE` which remains as backward-compatible alias) (#32)
 - Runtime codec layer (`macaw/codec/`) with `CodecEncoder` ABC and `OpusEncoder` — engine-agnostic audio encoding injected between TTS backend and transport layer (#32)

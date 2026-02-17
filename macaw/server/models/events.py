@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from macaw._types import VADSensitivity
 from macaw.server.constants import TTS_MAX_TEXT_LENGTH
+from macaw.server.models.effects import AudioEffectsParams
 
 # ---------------------------------------------------------------------------
 # Shared models
@@ -267,6 +268,8 @@ class TTSSpeakCommand(BaseModel):
     instruction: str | None = None
     # Audio codec for TTS output; None = raw PCM
     codec: Literal["opus"] | None = None
+    # Post-synthesis audio effects (applied server-side before transport)
+    effects: AudioEffectsParams | None = None
 
 
 class TTSCancelCommand(BaseModel):

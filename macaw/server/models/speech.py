@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from macaw.server.constants import TTS_MAX_TEXT_LENGTH
+from macaw.server.models.effects import AudioEffectsParams
 
 
 class SpeechRequest(BaseModel):
@@ -49,4 +50,9 @@ class SpeechRequest(BaseModel):
     instruction: str | None = Field(
         default=None,
         description="Instrucao de estilo/voz para voice design.",
+    )
+    # Post-synthesis audio effects (applied server-side before transport)
+    effects: AudioEffectsParams | None = Field(
+        default=None,
+        description="Audio effects applied after synthesis (pitch shift, reverb).",
     )

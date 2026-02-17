@@ -140,6 +140,9 @@ ignore = [
     "E501",   # Managed by formatter
 ]
 
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["macaw"]
 

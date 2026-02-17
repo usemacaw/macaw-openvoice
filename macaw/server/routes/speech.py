@@ -39,6 +39,7 @@ from macaw.workers.manager import WorkerManager  # noqa: TC001
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
+    from macaw.audio_effects.chain import AudioEffectChain
     from macaw.proto.tts_worker_pb2 import SynthesizeRequest
 
 router = APIRouter(tags=["Audio"])
@@ -170,6 +171,19 @@ async def create_speech(
     else:
         media_type = "audio/pcm"
 
+    # Build effect chain from request params (None = no effects)
+    effect_chain = None
+    if body.effects is not None:
+        from macaw.audio_effects import create_effect_chain
+
+        effect_chain = create_effect_chain(
+            pitch_shift_semitones=body.effects.pitch_shift_semitones,
+            reverb_room_size=body.effects.reverb_room_size,
+            reverb_damping=body.effects.reverb_damping,
+            reverb_wet_dry_mix=body.effects.reverb_wet_dry_mix,
+            sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+        )
+
     return StreamingResponse(
         _stream_tts_audio(
             response_stream=response_stream,
@@ -178,6 +192,7 @@ async def create_speech(
             is_opus=(fmt == "opus"),
             sample_rate=TTS_DEFAULT_SAMPLE_RATE,
             request_id=request_id,
+            effect_chain=effect_chain,
         ),
         media_type=media_type,
     )
@@ -234,6 +249,7 @@ async def _stream_tts_audio(
     is_opus: bool = False,
     sample_rate: int,
     request_id: str,
+    effect_chain: AudioEffectChain | None = None,
 ) -> AsyncIterator[bytes]:
     """Async generator that yields TTS audio chunks for StreamingResponse.
 
@@ -260,24 +276,30 @@ async def _stream_tts_audio(
 
         # Yield pre-fetched first chunk
         if first_audio_chunk:
-            total_audio_bytes += len(first_audio_chunk)
+            audio_data = first_audio_chunk
+            total_audio_bytes += len(audio_data)
+            if effect_chain is not None:
+                audio_data = effect_chain.process_bytes(audio_data, sample_rate)
             if encoder is not None:
-                encoded = encoder.encode(first_audio_chunk)
+                encoded = encoder.encode(audio_data)
                 if encoded:
                     yield encoded
             else:
-                yield first_audio_chunk
+                yield audio_data
 
         # Stream remaining chunks
         async for chunk in response_stream:
             if chunk.audio_data:
-                total_audio_bytes += len(chunk.audio_data)
+                audio_data = chunk.audio_data
+                total_audio_bytes += len(audio_data)
+                if effect_chain is not None:
+                    audio_data = effect_chain.process_bytes(audio_data, sample_rate)
                 if encoder is not None:
-                    encoded = encoder.encode(chunk.audio_data)
+                    encoded = encoder.encode(audio_data)
                     if encoded:
                         yield encoded
                 else:
-                    yield chunk.audio_data
+                    yield audio_data
             if chunk.is_last:
                 break
 
