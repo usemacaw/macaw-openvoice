@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+from typing import cast
 
 from macaw.logging import get_logger
 
@@ -87,7 +88,7 @@ def get_inference_context() -> contextlib.AbstractContextManager[None]:
     try:
         import torch
 
-        return torch.inference_mode()
+        return cast("contextlib.AbstractContextManager[None]", torch.inference_mode())
     except ImportError:
         return contextlib.nullcontext()
 
