@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from macaw._audio_constants import DEFAULT_DC_CUTOFF_HZ, DEFAULT_ITN_LANGUAGE, DEFAULT_TARGET_DBFS
+
 if TYPE_CHECKING:
     from macaw._types import VADSensitivity
 
@@ -80,6 +82,12 @@ class TTSSettings(BaseSettings):
         le=65536,
         validation_alias="MACAW_TTS_CHUNK_SIZE_BYTES",
     )
+    max_text_length: int = Field(
+        default=4096,
+        ge=1,
+        le=1_000_000,
+        validation_alias="MACAW_TTS_MAX_TEXT_LENGTH",
+    )
 
 
 class CLISettings(BaseSettings):
@@ -109,6 +117,12 @@ class WorkerSettings(BaseSettings):
         ge=1,
         le=16,
         validation_alias="MACAW_STT_WORKER_MAX_CONCURRENT",
+    )
+    stt_accumulation_threshold_s: float = Field(
+        default=5.0,
+        gt=0,
+        le=30.0,
+        validation_alias="MACAW_STT_ACCUMULATION_THRESHOLD_S",
     )
 
     @property
@@ -267,6 +281,36 @@ class SessionSettings(BaseSettings):
         le=5.0,
         validation_alias="MACAW_SESSION_BACKPRESSURE_RATE_LIMIT_THRESHOLD",
     )
+    init_timeout_s: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=600,
+        validation_alias="MACAW_SESSION_INIT_TIMEOUT_S",
+    )
+    silence_timeout_s: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=600,
+        validation_alias="MACAW_SESSION_SILENCE_TIMEOUT_S",
+    )
+    hold_timeout_s: float = Field(
+        default=300.0,
+        ge=1.0,
+        le=3600,
+        validation_alias="MACAW_SESSION_HOLD_TIMEOUT_S",
+    )
+    closing_timeout_s: float = Field(
+        default=2.0,
+        ge=1.0,
+        le=60,
+        validation_alias="MACAW_SESSION_CLOSING_TIMEOUT_S",
+    )
+    ring_buffer_force_commit_threshold: float = Field(
+        default=0.90,
+        gt=0.5,
+        lt=1.0,
+        validation_alias="MACAW_SESSION_RING_BUFFER_FORCE_COMMIT_THRESHOLD",
+    )
 
 
 class SchedulerSettings(BaseSettings):
@@ -319,13 +363,13 @@ class PreprocessingSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     dc_cutoff_hz: int = Field(
-        default=20,
+        default=DEFAULT_DC_CUTOFF_HZ,
         ge=1,
         le=500,
         validation_alias="MACAW_PREPROCESSING_DC_CUTOFF_HZ",
     )
     target_dbfs: float = Field(
-        default=-3.0,
+        default=DEFAULT_TARGET_DBFS,
         ge=-60.0,
         le=0.0,
         validation_alias="MACAW_PREPROCESSING_TARGET_DBFS",
@@ -338,7 +382,7 @@ class PostProcessingSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     itn_language: str = Field(
-        default="pt",
+        default=DEFAULT_ITN_LANGUAGE,
         validation_alias="MACAW_ITN_LANGUAGE",
     )
 

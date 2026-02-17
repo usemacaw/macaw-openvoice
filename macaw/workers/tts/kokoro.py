@@ -77,6 +77,7 @@ class KokoroBackend(TTSBackend):
         device = resolve_device(device_str)
         lang_code = str(config.get("lang_code", "a"))
         self._default_voice = str(config.get("default_voice", "af_heart"))
+        repo_id = str(config.get("repo_id", "hexgrad/Kokoro-82M"))
 
         # Find config.json and weights file in model_path
         config_path = os.path.join(model_path, "config.json")
@@ -102,6 +103,7 @@ class KokoroBackend(TTSBackend):
                     weights_path,
                     lang_code,
                     device,
+                    repo_id,
                 ),
             )
         except Exception as exc:
@@ -264,6 +266,7 @@ def _load_kokoro_model(
     weights_path: str,
     lang_code: str,
     device: str,
+    repo_id: str = "hexgrad/Kokoro-82M",
 ) -> tuple[object, object]:
     """Load the Kokoro model and create the pipeline (blocking).
 
@@ -272,6 +275,7 @@ def _load_kokoro_model(
         weights_path: Path to .pth file.
         lang_code: Language code ('a'=en, 'p'=pt, etc).
         device: Device string ("cpu", "cuda").
+        repo_id: HuggingFace repository ID for Kokoro model metadata.
 
     Returns:
         Tuple (model, pipeline).
@@ -289,7 +293,7 @@ def _load_kokoro_model(
         model = model.to(device).eval()
         pipeline = kokoro_lib.KPipeline(
             lang_code=lang_code,
-            repo_id="hexgrad/Kokoro-82M",
+            repo_id=repo_id,
             model=model,
             device=device,
         )

@@ -36,9 +36,6 @@ DEFAULT_VOICE_NAME = "default"
 
 # --- Validation constants (shared between models and routes) ---
 
-# Maximum text length for TTS synthesis (shared by SpeechRequest and TTSSpeakCommand).
-TTS_MAX_TEXT_LENGTH = 4096
-
 # Maximum model name length for form validation.
 MODEL_NAME_MAX_LENGTH = 256
 
@@ -58,6 +55,7 @@ _SETTINGS_MAP: dict[str, tuple[str, str]] = {
     "MAX_FILE_SIZE_BYTES": ("server", "max_file_size_bytes"),
     "TTS_GRPC_TIMEOUT": ("tts", "grpc_timeout_s"),
     "TTS_LIST_VOICES_TIMEOUT": ("tts", "list_voices_timeout_s"),
+    "TTS_MAX_TEXT_LENGTH": ("tts", "max_text_length"),
     "RETRY_AFTER_SECONDS": ("server", "retry_after_s"),
     "MAX_WS_FRAME_SIZE": ("server", "ws_max_frame_size_bytes"),
     "WS_INACTIVITY_TIMEOUT_S": ("server", "ws_inactivity_timeout_s"),
@@ -85,6 +83,7 @@ if TYPE_CHECKING:
     MAX_FILE_SIZE_BYTES: int
     TTS_GRPC_TIMEOUT: float
     TTS_LIST_VOICES_TIMEOUT: float
+    TTS_MAX_TEXT_LENGTH: int
     RETRY_AFTER_SECONDS: str
     MAX_WS_FRAME_SIZE: int
     WS_INACTIVITY_TIMEOUT_S: float

@@ -21,7 +21,7 @@ import pytest
 from macaw._types import TranscriptSegment
 from macaw.exceptions import BufferOverrunError
 from macaw.server.models.events import TranscriptFinalEvent
-from macaw.session.ring_buffer import _FORCE_COMMIT_THRESHOLD, RingBuffer
+from macaw.session.ring_buffer import _DEFAULT_FORCE_COMMIT_THRESHOLD, RingBuffer
 from macaw.session.streaming import StreamingSession
 from macaw.vad.detector import VADEvent, VADEventType
 from tests.helpers import (
@@ -255,7 +255,7 @@ class TestForceCommit:
 
     def test_force_commit_threshold_is_90_percent(self) -> None:
         """Threshold de force commit e 90%."""
-        assert pytest.approx(0.90) == _FORCE_COMMIT_THRESHOLD
+        assert pytest.approx(0.90) == _DEFAULT_FORCE_COMMIT_THRESHOLD
 
     def test_force_commit_triggered_above_90_percent(self) -> None:
         """Callback e invocado quando uncommitted > 90% da capacidade."""

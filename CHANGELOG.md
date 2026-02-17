@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Environment variables for session state machine timeouts: `MACAW_SESSION_INIT_TIMEOUT_S`, `MACAW_SESSION_SILENCE_TIMEOUT_S`, `MACAW_SESSION_HOLD_TIMEOUT_S`, `MACAW_SESSION_CLOSING_TIMEOUT_S` — operators can tune session lifecycle timeouts per deployment (#hardcode-audit-v7)
+- Environment variable for ring buffer force commit threshold: `MACAW_SESSION_RING_BUFFER_FORCE_COMMIT_THRESHOLD` — tune uncommitted data threshold before automatic commit (#hardcode-audit-v7)
+- Environment variable for STT accumulation threshold: `MACAW_STT_ACCUMULATION_THRESHOLD_S` — global default for streaming inference accumulation window, overridable per-model via engine_config (#hardcode-audit-v7)
+- Environment variable for TTS max text length: `MACAW_TTS_MAX_TEXT_LENGTH` — increase for audiobook/long-form content generation (#hardcode-audit-v7)
 - Environment variables for audio preprocessing tuning: `MACAW_PREPROCESSING_DC_CUTOFF_HZ`, `MACAW_PREPROCESSING_TARGET_DBFS` — operators can tune DC-remove cutoff (telephony vs full-band) and gain normalization target per deployment (#hardcode-audit-v6)
 - Environment variable for ITN language: `MACAW_ITN_LANGUAGE` — multi-language deployments can switch ITN language without code changes (#hardcode-audit-v6)
 - Environment variable for TTS streaming chunk size: `MACAW_TTS_CHUNK_SIZE_BYTES` — tune TTFB vs network overhead trade-off (#hardcode-audit-v6)
@@ -39,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coverage reporting with HTML artifacts and XML upload in CI pipeline (#quality-gates)
 
 ### Fixed
+- DRY violations: preprocessing/postprocessing defaults duplicated between `config/settings.py` and `config/preprocessing.py`/`config/postprocessing.py` — now both import from `_audio_constants.py` single source of truth (#hardcode-audit-v7)
+- Blocking file I/O in `POST /v1/audio/speech` when resolving saved voice ref_audio — now uses `asyncio.to_thread()` to avoid blocking the event loop (#hardcode-audit-v7)
+- Kokoro TTS `repo_id` was hardcoded to `"hexgrad/Kokoro-82M"` — now configurable via engine_config in macaw.yaml manifest (#hardcode-audit-v7)
 - `macaw ps` CLI command used hardcoded 10s timeout instead of configured `MACAW_HTTP_TIMEOUT_S` (120s default) — caused inconsistent timeout behavior vs `macaw transcribe` (#hardcode-audit-v6)
 - `make audit` failed on unpushed commits — `pip-audit` tried to git-fetch the local editable install's commit SHA from the remote; now excludes editable installs from audit requirements (#hardcode-audit-v6)
 - DRY violations: beam_size/accumulation_threshold defaults duplicated in faster_whisper.py, RTFx threshold duplicated in STT/TTS warmup, Silero chunk_size magic number, 8-bit PCM scale magic number (#hardcode-audit-v6)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import struct
@@ -43,6 +44,12 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["Audio"])
 
 logger = get_logger("server.routes.speech")
+
+
+def _read_file_bytes(path: str) -> bytes:
+    """Read file contents (blocking). Run via asyncio.to_thread."""
+    with open(path, "rb") as f:
+        return f.read()
 
 
 @router.post("/v1/audio/speech")
@@ -113,8 +120,10 @@ async def create_speech(
 
         # Inject saved voice params (saved values fill gaps, don't override inline)
         if saved.ref_audio_path is not None and ref_audio_bytes is None:
-            with open(saved.ref_audio_path, "rb") as f:
-                ref_audio_bytes = f.read()
+            ref_audio_bytes = await asyncio.to_thread(
+                _read_file_bytes,
+                saved.ref_audio_path,
+            )
         if saved.ref_text is not None and ref_text is None:
             ref_text = saved.ref_text
         if saved.instruction is not None and instruction is None:

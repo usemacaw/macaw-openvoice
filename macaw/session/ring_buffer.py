@@ -28,8 +28,9 @@ from macaw.exceptions import BufferOverrunError
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# Uncommitted usage threshold that triggers force commit (90%)
-_FORCE_COMMIT_THRESHOLD = 0.90
+# Default uncommitted usage threshold that triggers force commit (90%).
+# Configurable via MACAW_SESSION_RING_BUFFER_FORCE_COMMIT_THRESHOLD.
+_DEFAULT_FORCE_COMMIT_THRESHOLD = 0.90
 
 
 class RingBuffer:
@@ -40,8 +41,12 @@ class RingBuffer:
         sample_rate: Sample rate in Hz (default: 16000).
         bytes_per_sample: Bytes per sample (default: 2 for 16-bit PCM).
         on_force_commit: Optional callback invoked when uncommitted_bytes
-            exceeds 90% capacity. Receives total_written as argument.
-            Synchronous callback (not async) — called from write().
+            exceeds ``force_commit_threshold`` of capacity. Receives
+            total_written as argument. Synchronous callback (not async) —
+            called from write().
+        force_commit_threshold: Fraction of capacity (0.5-1.0) at which
+            on_force_commit fires (default: 0.90). Configurable via
+            ``MACAW_SESSION_RING_BUFFER_FORCE_COMMIT_THRESHOLD``.
 
     The buffer is pre-allocated in __init__ and no allocation occurs during
     write/read operations. Default size (60s * 16000 * 2) = 1,920,000 bytes.
@@ -50,6 +55,7 @@ class RingBuffer:
     __slots__ = (
         "_buffer",
         "_capacity_bytes",
+        "_force_commit_threshold",
         "_on_force_commit",
         "_read_fence",
         "_total_written",
@@ -62,6 +68,7 @@ class RingBuffer:
         sample_rate: int = STT_SAMPLE_RATE,
         bytes_per_sample: int = 2,
         on_force_commit: Callable[[int], None] | None = None,
+        force_commit_threshold: float = _DEFAULT_FORCE_COMMIT_THRESHOLD,
     ) -> None:
         self._capacity_bytes: int = int(duration_s * sample_rate * bytes_per_sample)
         if self._capacity_bytes <= 0:
@@ -72,6 +79,7 @@ class RingBuffer:
         self._total_written: int = 0
         self._read_fence: int = 0
         self._on_force_commit = on_force_commit
+        self._force_commit_threshold = force_commit_threshold
 
     @property
     def capacity_bytes(self) -> int:
@@ -226,7 +234,7 @@ class RingBuffer:
         return start_offset
 
     def _check_force_commit(self) -> None:
-        """Check if uncommitted_bytes exceeded 90% and notify."""
+        """Check if uncommitted_bytes exceeded threshold and notify."""
         if self._on_force_commit is None:
             return
 
@@ -234,7 +242,7 @@ class RingBuffer:
         if uncommitted <= 0:
             return
 
-        if uncommitted / self._capacity_bytes > _FORCE_COMMIT_THRESHOLD:
+        if uncommitted / self._capacity_bytes > self._force_commit_threshold:
             self._on_force_commit(self._total_written)
 
     def read(self, offset: int, length: int) -> bytes:

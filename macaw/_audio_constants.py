@@ -1,10 +1,16 @@
 """Centralized audio format constants for the Macaw runtime.
 
-Single source of truth for PCM format parameters and standard sample rates
-used across preprocessing, VAD, session, scheduler, workers, and CLI.
+Single source of truth for PCM format parameters, standard sample rates,
+and default values shared across preprocessing, VAD, session, scheduler,
+workers, and CLI.
 """
 
 from __future__ import annotations
+
+# --- Preprocessing defaults (single source of truth for settings + config) ---
+DEFAULT_DC_CUTOFF_HZ: int = 20
+DEFAULT_TARGET_DBFS: float = -3.0
+DEFAULT_ITN_LANGUAGE: str = "pt"
 
 # --- PCM 16-bit format ---
 # Signed 16-bit integer range: [-32768, 32767]
