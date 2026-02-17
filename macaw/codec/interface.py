@@ -17,7 +17,7 @@ class CodecEncoder(ABC):
     @abstractmethod
     def codec_name(self) -> str:
         """Codec identifier (e.g., 'opus', 'mp3')."""
-        ...
+        pass
 
     @abstractmethod
     def encode(self, pcm_data: bytes) -> bytes:
@@ -32,7 +32,7 @@ class CodecEncoder(ABC):
         Returns:
             Encoded audio bytes (may be empty if buffering).
         """
-        ...
+        pass
 
     @abstractmethod
     def flush(self) -> bytes:
@@ -43,4 +43,4 @@ class CodecEncoder(ABC):
         Returns:
             Final encoded audio bytes (may be empty).
         """
-        ...
+        pass
