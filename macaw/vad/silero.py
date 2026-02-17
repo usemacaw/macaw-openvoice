@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from macaw._audio_constants import STT_SAMPLE_RATE
+from macaw._audio_constants import SILERO_VAD_CHUNK_SIZE, STT_SAMPLE_RATE
 from macaw._types import VADSensitivity
 from macaw.logging import get_logger
 
@@ -162,17 +162,16 @@ class SileroVADClassifier:
         """
         self._ensure_model_loaded()
 
-        chunk_size = 512
-        if len(frame) <= chunk_size:
+        if len(frame) <= SILERO_VAD_CHUNK_SIZE:
             tensor = self._to_tensor(frame) if self._to_tensor is not None else frame
             prob = self._model(tensor, self._sample_rate)  # type: ignore[misc, operator]
             return float(prob.item())
 
         max_prob = 0.0
-        for offset in range(0, len(frame), chunk_size):
-            sub_frame = frame[offset : offset + chunk_size]
-            if len(sub_frame) < chunk_size:
-                sub_frame = np.pad(sub_frame, (0, chunk_size - len(sub_frame)))
+        for offset in range(0, len(frame), SILERO_VAD_CHUNK_SIZE):
+            sub_frame = frame[offset : offset + SILERO_VAD_CHUNK_SIZE]
+            if len(sub_frame) < SILERO_VAD_CHUNK_SIZE:
+                sub_frame = np.pad(sub_frame, (0, SILERO_VAD_CHUNK_SIZE - len(sub_frame)))
             tensor = self._to_tensor(sub_frame) if self._to_tensor is not None else sub_frame
             prob = self._model(tensor, self._sample_rate)  # type: ignore[misc, operator]
             max_prob = max(max_prob, float(prob.item()))
