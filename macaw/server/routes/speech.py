@@ -83,7 +83,7 @@ async def create_speech(
     if not body.input.strip():
         raise InvalidRequestError("The 'input' field cannot be empty.")
 
-    # response_format validated by Pydantic Literal["wav", "pcm"]
+    # response_format validated by Pydantic Literal["wav", "pcm", "opus"]
 
     # Resolve TTS model + worker
     _manifest, worker, worker_address = resolve_tts_resources(registry, worker_manager, body.model)
@@ -166,7 +166,7 @@ async def create_speech(
     if fmt == "wav":
         media_type = "audio/wav"
     elif fmt == "opus":
-        media_type = "audio/ogg"
+        media_type = "audio/opus"
     else:
         media_type = "audio/pcm"
 

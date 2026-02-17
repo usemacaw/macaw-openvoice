@@ -110,7 +110,13 @@ class TTSWorkerServicer(_BaseServicer):
             from macaw.codec import create_encoder
 
             codec_name = request.codec
-            encoder = create_encoder(codec_name, params.sample_rate) if codec_name else None
+            if codec_name:
+                from macaw.config.settings import get_settings
+
+                bitrate = get_settings().codec.opus_bitrate
+                encoder = create_encoder(codec_name, params.sample_rate, bitrate=bitrate)
+            else:
+                encoder = None
 
             accumulated_duration = 0.0
             chunk_count = 0

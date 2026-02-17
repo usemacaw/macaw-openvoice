@@ -265,8 +265,8 @@ class TTSSpeakCommand(BaseModel):
     ref_audio: str | None = None  # base64
     ref_text: str | None = None
     instruction: str | None = None
-    # Audio codec for TTS output (e.g., "opus"); None = raw PCM
-    codec: str | None = None
+    # Audio codec for TTS output; None = raw PCM
+    codec: Literal["opus"] | None = None
 
 
 class TTSCancelCommand(BaseModel):

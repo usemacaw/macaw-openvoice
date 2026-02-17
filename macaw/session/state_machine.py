@@ -249,5 +249,13 @@ def _default_session_timeouts() -> SessionTimeouts:
             hold_timeout_s=s.hold_timeout_s,
             closing_timeout_s=s.closing_timeout_s,
         )
+    except ImportError:
+        return SessionTimeouts()
     except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Failed to load session timeouts from settings, using defaults",
+            exc_info=True,
+        )
         return SessionTimeouts()
