@@ -47,3 +47,8 @@ SILERO_VAD_CHUNK_SIZE: int = 512
 # Values above this indicate flat spectrum (white noise/silence).
 # Tonal speech typically has flatness ~0.1-0.5.
 DEFAULT_SPECTRAL_FLATNESS_THRESHOLD: float = 0.8
+
+# --- DSP defaults ---
+DEFAULT_FFT_SIZE: int = 1024
+DEFAULT_HOP_LENGTH: int = 256
+DEFAULT_N_MELS: int = 80

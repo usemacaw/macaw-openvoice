@@ -93,7 +93,7 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 def _make_postprocessor_mock() -> Mock:
     mock = Mock()
-    mock.process.side_effect = lambda text: f"ITN({text})"
+    mock.process.side_effect = lambda text, **kwargs: f"ITN({text})"
     return mock
 
 
@@ -668,8 +668,8 @@ class TestStreamingSessionEdgeCases:
         await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
-        # ITN should be called with empty string
-        postprocessor.process.assert_called_once_with("")
+        # ITN should be called with empty string (language=None since segment has no language)
+        postprocessor.process.assert_called_once_with("", language=None)
 
         await session.close()
 

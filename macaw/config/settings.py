@@ -21,7 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from macaw._audio_constants import DEFAULT_DC_CUTOFF_HZ, DEFAULT_ITN_LANGUAGE, DEFAULT_TARGET_DBFS
@@ -414,9 +414,22 @@ class PostProcessingSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    itn_language: str = Field(
+    itn_default_language: str = Field(
         default=DEFAULT_ITN_LANGUAGE,
-        validation_alias="MACAW_ITN_LANGUAGE",
+        validation_alias=AliasChoices("MACAW_ITN_DEFAULT_LANGUAGE", "MACAW_ITN_LANGUAGE"),
+    )
+
+
+class CodecSettings(BaseSettings):
+    """Audio codec encoding settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    opus_bitrate: int = Field(
+        default=64000,
+        ge=6000,
+        le=512000,
+        validation_alias="MACAW_CODEC_OPUS_BITRATE",
     )
 
 
@@ -443,6 +456,7 @@ class MacawSettings(BaseSettings):
     vad: VADSettings = Field(default_factory=VADSettings)
     preprocessing: PreprocessingSettings = Field(default_factory=PreprocessingSettings)
     postprocessing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
+    codec: CodecSettings = Field(default_factory=CodecSettings)
 
 
 @lru_cache(maxsize=1)

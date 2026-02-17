@@ -15,7 +15,7 @@ class ITNConfig(BaseModel):
     """
 
     enabled: bool = True
-    language: str = DEFAULT_ITN_LANGUAGE
+    default_language: str = DEFAULT_ITN_LANGUAGE
 
 
 class PostProcessingConfig(BaseModel):

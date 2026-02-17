@@ -212,7 +212,7 @@ def _build_postprocessing_pipeline() -> PostProcessingPipeline:
     config = PostProcessingConfig()
     stages: list[TextStage] = []
     if config.itn.enabled:
-        stages.append(ITNStage(config.itn.language))
+        stages.append(ITNStage(default_language=config.itn.default_language))
     return PostProcessingPipeline(config, stages)
 
 

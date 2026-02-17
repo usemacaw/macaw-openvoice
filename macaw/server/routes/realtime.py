@@ -463,6 +463,7 @@ async def _prepare_tts_request(
     ref_audio: str | None = None,
     ref_text: str | None = None,
     instruction: str | None = None,
+    codec: str | None = None,
 ) -> tuple[str, Any] | None:
     """Resolve TTS model/worker and build gRPC proto request.
 
@@ -549,6 +550,7 @@ async def _prepare_tts_request(
         ref_audio=ref_audio_bytes,
         ref_text=ref_text,
         instruction=instruction,
+        codec=codec,
     )
     return worker_address, proto_request
 
@@ -569,6 +571,7 @@ async def _tts_speak_task(
     ref_audio: str | None = None,
     ref_text: str | None = None,
     instruction: str | None = None,
+    codec: str | None = None,
 ) -> None:
     """Background task that runs TTS synthesis and streams audio to the client.
 
@@ -599,6 +602,7 @@ async def _tts_speak_task(
             ref_audio=ref_audio,
             ref_text=ref_text,
             instruction=instruction,
+            codec=codec,
         )
         if result is None:
             return
@@ -815,6 +819,7 @@ async def _handle_tts_speak_command(
             ref_audio=cmd.ref_audio,
             ref_text=cmd.ref_text,
             instruction=cmd.instruction,
+            codec=cmd.codec,
         ),
     )
     return False

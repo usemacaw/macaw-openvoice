@@ -46,7 +46,7 @@ class _UpperCaseStage(TextStage):
     def name(self) -> str:
         return "uppercase"
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         return text.upper()
 
 
@@ -60,7 +60,7 @@ class _SuffixStage(TextStage):
     def __init__(self, suffix: str = " [processado]") -> None:
         self._suffix = suffix
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         return text + self._suffix
 
 

@@ -177,7 +177,7 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 def _make_postprocessor_mock() -> Mock:
     """Cria mock de PostProcessingPipeline."""
     mock = Mock()
-    mock.process.side_effect = lambda text: f"ITN({text})"
+    mock.process.side_effect = lambda text, **kwargs: f"ITN({text})"
     return mock
 
 
@@ -656,7 +656,8 @@ async def test_ws_itn_applied_only_on_final() -> None:
     await session.process_frame(_make_pcm_silence())
 
     # Assert: ITN chamado APENAS uma vez (para o final)
-    postprocessor.process.assert_called_once_with("dois mil e vinte e cinco")
+    postprocessor.process.assert_called_once()
+    assert postprocessor.process.call_args.args[0] == "dois mil e vinte e cinco"
 
     # Verificar partial sem ITN
     partial_calls = [

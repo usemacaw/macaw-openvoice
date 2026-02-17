@@ -88,7 +88,7 @@ class _LightVAD:
 class _LightPostprocessor:
     """Postprocessor mock que simula ITN simples."""
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, **kwargs: object) -> str:
         # Simula ITN: "dois mil" -> "2000"
         return text.replace("dois mil", "2000")
 

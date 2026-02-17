@@ -1,7 +1,7 @@
-"""Testes do ITNStage (Inverse Text Normalization).
+"""Tests for ITNStage (Inverse Text Normalization).
 
-nemo_text_processing NAO esta instalado no ambiente de teste.
-Todos os testes usam mocks para simular a biblioteca.
+nemo_text_processing is NOT installed in the test environment.
+All tests use mocks to simulate the library.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from macaw.postprocessing.itn import ITNStage
 
 class TestITNProcessWithMockNemo:
     def test_itn_process_calls_normalizer_and_returns_result(self) -> None:
-        """Mock nemo_text_processing, verifica que process chama o mock e retorna resultado."""
+        """Mock nemo_text_processing, verify process calls mock and returns result."""
         mock_normalizer = MagicMock()
         mock_normalizer.inverse_normalize.return_value = "2000"
 
@@ -27,7 +27,7 @@ class TestITNProcessWithMockNemo:
                 "nemo_text_processing.inverse_text_normalization": mock_module,
             },
         ):
-            stage = ITNStage(language="pt")
+            stage = ITNStage(default_language="pt")
             result = stage.process("dois mil")
 
         assert result == "2000"
@@ -36,22 +36,19 @@ class TestITNProcessWithMockNemo:
 
 class TestITNFallbackWhenNotInstalled:
     def test_returns_text_unchanged_when_import_fails(self) -> None:
-        """Quando nemo_text_processing nao esta instalado, process retorna texto original."""
-        stage = ITNStage(language="pt")
-        # Reset state para forcar re-check
-        stage._available = None
-        stage._normalizer = None
+        """When nemo_text_processing is not installed, process returns original text."""
+        stage = ITNStage(default_language="pt")
 
-        # nemo_text_processing nao esta instalado no ambiente de teste
+        # nemo_text_processing is not installed in the test environment
         result = stage.process("dois mil")
 
         assert result == "dois mil"
-        assert stage._available is False
+        assert "pt" in stage._unavailable_languages
 
 
 class TestITNFallbackOnInitError:
     def test_returns_text_unchanged_when_normalizer_init_raises(self) -> None:
-        """Quando InverseNormalize() levanta excecao, process retorna texto original."""
+        """When InverseNormalize() raises, process returns original text."""
         mock_module = MagicMock()
         mock_module.InverseNormalize.side_effect = RuntimeError("init failed")
 
@@ -62,17 +59,17 @@ class TestITNFallbackOnInitError:
                 "nemo_text_processing.inverse_text_normalization": mock_module,
             },
         ):
-            stage = ITNStage(language="pt")
+            stage = ITNStage(default_language="pt")
             result = stage.process("dois mil")
 
         assert result == "dois mil"
-        assert stage._available is False
-        assert stage._normalizer is None
+        assert "pt" in stage._unavailable_languages
+        assert "pt" not in stage._normalizers
 
 
 class TestITNFallbackOnProcessError:
     def test_returns_text_unchanged_when_inverse_normalize_raises(self) -> None:
-        """Quando inverse_normalize() levanta excecao, retorna texto original."""
+        """When inverse_normalize() raises, returns original text."""
         mock_normalizer = MagicMock()
         mock_normalizer.inverse_normalize.side_effect = RuntimeError("process failed")
 
@@ -86,16 +83,16 @@ class TestITNFallbackOnProcessError:
                 "nemo_text_processing.inverse_text_normalization": mock_module,
             },
         ):
-            stage = ITNStage(language="pt")
+            stage = ITNStage(default_language="pt")
             result = stage.process("dois mil")
 
         assert result == "dois mil"
-        assert stage._available is True
+        assert "pt" in stage._normalizers
 
 
 class TestITNEmptyAndWhitespace:
     def test_empty_text_returned_without_calling_nemo(self) -> None:
-        """String vazia retornada sem chamar NeMo."""
+        """Empty string returned without calling NeMo."""
         mock_normalizer = MagicMock()
         mock_module = MagicMock()
         mock_module.InverseNormalize.return_value = mock_normalizer
@@ -107,7 +104,7 @@ class TestITNEmptyAndWhitespace:
                 "nemo_text_processing.inverse_text_normalization": mock_module,
             },
         ):
-            stage = ITNStage(language="pt")
+            stage = ITNStage(default_language="pt")
             result = stage.process("")
 
         assert result == ""
@@ -115,7 +112,7 @@ class TestITNEmptyAndWhitespace:
         mock_normalizer.inverse_normalize.assert_not_called()
 
     def test_whitespace_text_returned_without_calling_nemo(self) -> None:
-        """String com apenas espacos retornada sem chamar NeMo."""
+        """Whitespace-only string returned without calling NeMo."""
         mock_normalizer = MagicMock()
         mock_module = MagicMock()
         mock_module.InverseNormalize.return_value = mock_normalizer
@@ -127,7 +124,7 @@ class TestITNEmptyAndWhitespace:
                 "nemo_text_processing.inverse_text_normalization": mock_module,
             },
         ):
-            stage = ITNStage(language="pt")
+            stage = ITNStage(default_language="pt")
             result = stage.process("   ")
 
         assert result == "   "
@@ -137,7 +134,7 @@ class TestITNEmptyAndWhitespace:
 
 class TestITNLazyLoading:
     def test_first_call_triggers_import_second_call_uses_cache(self) -> None:
-        """Primeira chamada dispara import, segunda usa cache (nao re-importa)."""
+        """First call triggers import, second call uses cache (no re-import)."""
         mock_normalizer = MagicMock()
         mock_normalizer.inverse_normalize.return_value = "2000"
 
@@ -151,23 +148,23 @@ class TestITNLazyLoading:
                 "nemo_text_processing.inverse_text_normalization": mock_module,
             },
         ):
-            stage = ITNStage(language="pt")
+            stage = ITNStage(default_language="pt")
 
-            # Primeira chamada: dispara _ensure_loaded e cria normalizer
+            # First call: triggers _get_normalizer and creates normalizer
             stage.process("dois mil")
             assert mock_module.InverseNormalize.call_count == 1
 
-            # Segunda chamada: usa cache, NAO cria normalizer novamente
+            # Second call: uses cache, does NOT create normalizer again
             stage.process("tres mil")
             assert mock_module.InverseNormalize.call_count == 1
 
-            # Confirma que ambas as chamadas usaram o mesmo normalizer
+            # Confirms both calls used the same normalizer
             assert mock_normalizer.inverse_normalize.call_count == 2
 
 
 class TestITNLanguageParam:
-    def test_language_passed_to_normalizer_constructor(self) -> None:
-        """Parametro language e repassado para InverseNormalize(lang=...)."""
+    def test_default_language_passed_to_normalizer_constructor(self) -> None:
+        """Default language is passed to InverseNormalize(lang=...)."""
         mock_normalizer = MagicMock()
         mock_normalizer.inverse_normalize.return_value = "result"
 
@@ -181,13 +178,13 @@ class TestITNLanguageParam:
                 "nemo_text_processing.inverse_text_normalization": mock_module,
             },
         ):
-            stage = ITNStage(language="en")
+            stage = ITNStage(default_language="en")
             stage.process("two thousand")
 
         mock_module.InverseNormalize.assert_called_once_with(lang="en")
 
     def test_default_language_is_pt(self) -> None:
-        """Language padrao e 'pt'."""
+        """Default language is 'pt'."""
         mock_normalizer = MagicMock()
         mock_normalizer.inverse_normalize.return_value = "result"
 

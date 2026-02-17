@@ -336,7 +336,7 @@ class TestSpeechInvalidResponseFormat:
 
         resp = await _post_speech(
             app,
-            _default_body(response_format="opus"),
+            _default_body(response_format="aac"),
             raise_app_exceptions=False,
         )
 

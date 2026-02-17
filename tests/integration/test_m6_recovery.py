@@ -72,7 +72,7 @@ class _LightVAD:
 
 
 class _LightPostprocessor:
-    def process(self, text: str) -> str:
+    def process(self, text: str, **kwargs: object) -> str:
         return text
 
 

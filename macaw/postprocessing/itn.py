@@ -5,6 +5,9 @@ Converts written-out numeric text to numeric format:
 
 Uses nemo_text_processing as an optional dependency. If not installed,
 the stage operates in fail-open mode: returns the original text unmodified.
+
+Supports multiple languages via a per-language normalizer cache. Each
+language is lazily loaded on first use and cached for subsequent calls.
 """
 
 from __future__ import annotations
@@ -20,9 +23,14 @@ logger = get_logger("postprocessing.itn")
 class ITNStage(TextStage):
     """Inverse Text Normalization stage using NeMo.
 
+    Maintains a per-language cache of ``InverseNormalize`` instances.
+    When ``process()`` is called with a ``language`` parameter, that
+    language's normalizer is used (lazy-loaded on first call). When
+    ``language`` is None, the ``default_language`` is used.
+
     Operates in fail-open mode: if nemo_text_processing is not installed,
-    fails to initialize, or fails during processing, returns the original
-    text unchanged. Transcription works -- just without numeric formatting.
+    fails to initialize for a language, or fails during processing,
+    returns the original text unchanged.
     """
 
     @property
@@ -30,52 +38,59 @@ class ITNStage(TextStage):
         """Identifier name for the stage."""
         return "itn"
 
-    def __init__(self, language: str = "pt") -> None:
-        self._language = language
-        self._normalizer: Any | None = None
-        self._available: bool | None = None
+    def __init__(self, default_language: str = "pt") -> None:
+        self._default_language = default_language
+        self._normalizers: dict[str, Any] = {}
+        self._unavailable_languages: set[str] = set()
 
-    def _ensure_loaded(self) -> bool:
-        """Lazily load the NeMo normalizer.
+    def _get_normalizer(self, language: str) -> Any | None:
+        """Get or create normalizer for language (lazy, cached).
 
         Returns:
-            True if the normalizer is available, False otherwise.
+            The cached normalizer, or None if the language is unavailable.
         """
-        if self._available is not None:
-            return self._available
+        if language in self._unavailable_languages:
+            return None
+
+        if language in self._normalizers:
+            return self._normalizers[language]
 
         try:
             from nemo_text_processing.inverse_text_normalization import (
                 InverseNormalize,
             )
 
-            self._normalizer = InverseNormalize(lang=self._language)
-            self._available = True
+            normalizer = InverseNormalize(lang=language)
+            self._normalizers[language] = normalizer
+            return normalizer
         except ImportError:
             logger.warning(
                 "nemo_text_processing_not_available",
-                language=self._language,
+                language=language,
                 msg="nemo_text_processing not installed, ITN disabled",
             )
-            self._available = False
+            self._unavailable_languages.add(language)
+            return None
         except Exception:
             logger.warning(
                 "itn_init_failed",
-                language=self._language,
+                language=language,
                 exc_info=True,
             )
-            self._available = False
+            self._unavailable_languages.add(language)
+            return None
 
-        return self._available
+    def process(self, text: str, *, language: str | None = None) -> str:
+        """Apply ITN to text using the appropriate language normalizer.
 
-    def process(self, text: str) -> str:
-        """Apply ITN to text.
-
-        If the text is empty, NeMo is not available, or any error occurs,
-        returns the original text unchanged (fail-open).
+        If the text is empty, NeMo is not available for the requested
+        language, or any error occurs, returns the original text
+        unchanged (fail-open).
 
         Args:
             text: Raw text from the engine.
+            language: ISO 639-1 language code. Falls back to
+                ``default_language`` when None.
 
         Returns:
             Text with formatted numbers, or original text on failure.
@@ -83,16 +98,19 @@ class ITNStage(TextStage):
         if not text.strip():
             return text
 
-        if not self._ensure_loaded():
+        effective_language = language or self._default_language
+        normalizer = self._get_normalizer(effective_language)
+        if normalizer is None:
             return text
 
         try:
-            result: str = self._normalizer.inverse_normalize(text, verbose=False)  # type: ignore[union-attr]
+            result: str = normalizer.inverse_normalize(text, verbose=False)
             return result
         except Exception:
             logger.warning(
                 "itn_process_failed",
                 text_length=len(text),
+                language=effective_language,
                 exc_info=True,
             )
             return text

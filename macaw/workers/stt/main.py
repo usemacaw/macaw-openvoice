@@ -76,6 +76,10 @@ async def serve(
     await backend.load(model_path, engine_config)
     logger.info("model_loaded", engine=engine)
 
+    logger.info("post_load_hook_start", engine=engine)
+    await backend.post_load_hook()
+    logger.info("post_load_hook_complete", engine=engine)
+
     warmup_steps = int(engine_config.get("warmup_steps", DEFAULT_WARMUP_STEPS))  # type: ignore[call-overload]
     await _warmup_backend(backend, warmup_steps=warmup_steps)
 

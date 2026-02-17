@@ -20,11 +20,14 @@ class TextStage(ABC):
         ...
 
     @abstractmethod
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         """Process text and return transformed text.
 
         Args:
             text: Input text (may be empty).
+            language: ISO 639-1 language code (optional). Stages that are
+                language-aware (e.g. ITN) use this to select the correct
+                normalizer. Stages that are language-agnostic ignore it.
 
         Returns:
             Processed text.

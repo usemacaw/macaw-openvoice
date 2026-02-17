@@ -162,13 +162,20 @@ async def create_speech(
 
     # Stream response — TTFB is now time-to-first-gRPC-chunk instead of
     # total synthesis time.
-    is_wav = body.response_format == "wav"
-    media_type = "audio/wav" if is_wav else "audio/pcm"
+    fmt = body.response_format
+    if fmt == "wav":
+        media_type = "audio/wav"
+    elif fmt == "opus":
+        media_type = "audio/ogg"
+    else:
+        media_type = "audio/pcm"
+
     return StreamingResponse(
         _stream_tts_audio(
             response_stream=response_stream,
             first_audio_chunk=first_audio_chunk,
-            is_wav=is_wav,
+            is_wav=(fmt == "wav"),
+            is_opus=(fmt == "opus"),
             sample_rate=TTS_DEFAULT_SAMPLE_RATE,
             request_id=request_id,
         ),
@@ -224,17 +231,27 @@ async def _stream_tts_audio(
     response_stream: grpc.aio.UnaryStreamCall[Any, Any],
     first_audio_chunk: bytes,
     is_wav: bool,
+    is_opus: bool = False,
     sample_rate: int,
     request_id: str,
 ) -> AsyncIterator[bytes]:
     """Async generator that yields TTS audio chunks for StreamingResponse.
 
     For WAV format: yields a WAV header (with max data size placeholder)
-    followed by raw PCM chunks. For PCM format: yields raw PCM directly.
+    followed by raw PCM chunks. For Opus format: encodes PCM chunks via
+    CodecEncoder. For PCM format: yields raw PCM directly.
 
     The gRPC channel is pooled and NOT closed here — it is reused across
     requests and closed on server shutdown via close_tts_channels().
     """
+    from macaw.codec import create_encoder
+    from macaw.config.settings import get_settings
+
+    encoder = None
+    if is_opus:
+        bitrate = get_settings().codec.opus_bitrate
+        encoder = create_encoder("opus", sample_rate=sample_rate, bitrate=bitrate)
+
     total_audio_bytes = 0
     try:
         # WAV header with streaming-compatible max size placeholder
@@ -244,15 +261,31 @@ async def _stream_tts_audio(
         # Yield pre-fetched first chunk
         if first_audio_chunk:
             total_audio_bytes += len(first_audio_chunk)
-            yield first_audio_chunk
+            if encoder is not None:
+                encoded = encoder.encode(first_audio_chunk)
+                if encoded:
+                    yield encoded
+            else:
+                yield first_audio_chunk
 
         # Stream remaining chunks
         async for chunk in response_stream:
             if chunk.audio_data:
                 total_audio_bytes += len(chunk.audio_data)
-                yield chunk.audio_data
+                if encoder is not None:
+                    encoded = encoder.encode(chunk.audio_data)
+                    if encoded:
+                        yield encoded
+                else:
+                    yield chunk.audio_data
             if chunk.is_last:
                 break
+
+        # Flush remaining encoder buffer
+        if encoder is not None:
+            flushed = encoder.flush()
+            if flushed:
+                yield flushed
 
         logger.info(
             "speech_done",

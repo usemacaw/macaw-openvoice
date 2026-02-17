@@ -535,7 +535,7 @@ class TestStreamingSessionCrossSegment:
         preprocessor.process_frame.return_value = make_float32_frame()
 
         postprocessor = Mock()
-        postprocessor.process.side_effect = lambda text: "2025"
+        postprocessor.process.side_effect = lambda text, **kwargs: "2025"
 
         cross_ctx = CrossSegmentContext()
         on_event = AsyncMock()

@@ -1088,7 +1088,7 @@ class StreamingSession:
         # Apply post-processing (ITN) on finals
         text = segment.text
         if self._enable_itn and self._postprocessor is not None:
-            text = self._postprocessor.process(text)
+            text = self._postprocessor.process(text, language=segment.language)
 
         # Convert word timestamps
         words: list[WordEvent] | None = None

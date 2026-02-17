@@ -17,7 +17,7 @@ class UppercaseStage(TextStage):
     def name(self) -> str:
         return "uppercase"
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         return text.upper()
 
 
@@ -28,7 +28,7 @@ class StripStage(TextStage):
     def name(self) -> str:
         return "strip"
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         return text.strip()
 
 
@@ -42,7 +42,7 @@ class PrefixStage(TextStage):
     def __init__(self, prefix: str) -> None:
         self._prefix = prefix
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         return f"{self._prefix}{text}"
 
 

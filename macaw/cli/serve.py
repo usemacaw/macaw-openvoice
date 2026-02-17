@@ -181,11 +181,11 @@ def _build_pipelines() -> tuple[AudioPreprocessingPipeline, PostProcessingPipeli
     preprocessing = PrePipeline(pre_config, pre_stages)
 
     post_config = PostProcessingConfig(
-        itn=ITNConfig(language=settings.postprocessing.itn_language),
+        itn=ITNConfig(default_language=settings.postprocessing.itn_default_language),
     )
     post_stages: list[TextStage] = []
     if post_config.itn.enabled:
-        post_stages.append(ITNStage(post_config.itn.language))
+        post_stages.append(ITNStage(default_language=post_config.itn.default_language))
     postprocessing = PostPipeline(post_config, post_stages)
 
     logger.info(

@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Multi-language ITN support — `ITNStage` maintains per-language normalizer cache, `TextStage.process()` accepts optional `language` parameter, detected language from STT flows automatically to post-processing (#dsp-hooks)
+- Environment variable `MACAW_ITN_DEFAULT_LANGUAGE` (replaces `MACAW_ITN_LANGUAGE` which remains as backward-compatible alias) (#dsp-hooks)
+- Runtime codec layer (`macaw/codec/`) with `CodecEncoder` ABC and `OpusEncoder` — engine-agnostic audio encoding injected between TTS backend and transport layer (#dsp-hooks)
+- `response_format=opus` support in `POST /v1/audio/speech` for Opus-encoded TTS output (#dsp-hooks)
+- `codec` field in `tts.speak` WebSocket command for Opus-encoded TTS streaming (#dsp-hooks)
+- `MACAW_CODEC_OPUS_BITRATE` environment variable for Opus encoder bitrate configuration (#dsp-hooks)
+- `ISTFTCache` class in `macaw/_dsp.py` — pre-computed overlap-add buffers for streaming iSTFT, infrastructure for future vocoder-based TTS engines (#dsp-hooks)
+- Centralized DSP module (`macaw/_dsp.py`) with window functions, STFT/iSTFT, and mel filterbank — pure signal processing primitives for future vocoder and feature extraction engines (#dsp-hooks)
+- DSP constants `DEFAULT_FFT_SIZE`, `DEFAULT_HOP_LENGTH`, `DEFAULT_N_MELS` in `_audio_constants.py` (#dsp-hooks)
+- `post_load_hook()` optional lifecycle method in `TTSBackend` and `STTBackend` ABCs — engines can override to load auxiliary models (vocoder, speaker embeddings) after main model load, before warmup (#dsp-hooks)
 - Environment variable `MACAW_SESSION_CROSS_SEGMENT_MAX_TOKENS` — configurable cross-segment context window size, operators can tune per model (Whisper default 224 = half of 448-token window) (#hardcode-audit-v7)
 - Environment variable `MACAW_VAD_SILERO_THRESHOLD` — optional override for Silero VAD speech probability threshold, decoupled from sensitivity presets for fine-grained tuning (#hardcode-audit-v7)
 - Cross-segment context now wired in production WebSocket sessions — `_create_streaming_session` passes `CrossSegmentContext` to `StreamingSession` (#hardcode-audit-v7)
@@ -52,6 +62,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coverage reporting with HTML artifacts and XML upload in CI pipeline (#quality-gates)
 
 ### Changed
+- `TextStage.process()` signature extended with optional `language` keyword parameter — backward compatible, existing stages ignore it (#dsp-hooks)
+- `ITNStage` refactored from single-language to multi-language with `Dict[str, InverseNormalize]` lazy cache — eliminates need to restart runtime when switching languages (#dsp-hooks)
 - `macaw serve --log-level` now propagates to uvicorn — previously uvicorn always ran at "warning" level regardless of CLI flag (#hardcode-audit-v7)
 - `macaw serve --cors-origins` now falls back to `MACAW_CORS_ORIGINS` env var when CLI flag is not provided (#hardcode-audit-v7)
 - Streaming STT inference uses named `_DEFAULT_TEMPERATURE` constant instead of magic `0.0` for consistency with batch path (#hardcode-audit-v7)
