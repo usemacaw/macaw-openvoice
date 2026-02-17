@@ -14,6 +14,9 @@ from __future__ import annotations
 import json
 import uuid
 
+import pytest
+from pydantic import ValidationError
+
 from macaw.server.models.events import (
     ClientCommand,
     ServerEvent,
@@ -70,6 +73,18 @@ class TestTTSSpeakCommand:
         assert data["text"] == "Ola"
         restored = TTSSpeakCommand.model_validate(data)
         assert restored == cmd
+
+    def test_codec_default_none(self) -> None:
+        cmd = TTSSpeakCommand(text="Hello")
+        assert cmd.codec is None
+
+    def test_codec_accepts_opus(self) -> None:
+        cmd = TTSSpeakCommand(text="Hello", codec="opus")
+        assert cmd.codec == "opus"
+
+    def test_codec_rejects_invalid_value(self) -> None:
+        with pytest.raises(ValidationError):
+            TTSSpeakCommand(text="Hello", codec="mp3")
 
 
 # ─── TTSCancelCommand ───

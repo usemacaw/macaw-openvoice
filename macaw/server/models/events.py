@@ -32,12 +32,17 @@ class PreprocessingOverrides(BaseModel):
 
 
 class SessionConfig(BaseModel):
-    """Configuracao da sessao, retornada em session.created."""
+    """Configuracao da sessao, retornada em session.created.
+
+    Timeout defaults are derived from ``SessionSettings`` so the values
+    reported to the client in ``session.created`` match the actual
+    server-side behaviour.
+    """
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
     vad_sensitivity: VADSensitivity = VADSensitivity.NORMAL
-    silence_timeout_ms: int = 300
+    silence_timeout_ms: int = 30_000
     hold_timeout_ms: int = 300_000
     max_segment_duration_ms: int = 30_000
     language: str | None = None
@@ -260,6 +265,8 @@ class TTSSpeakCommand(BaseModel):
     ref_audio: str | None = None  # base64
     ref_text: str | None = None
     instruction: str | None = None
+    # Audio codec for TTS output; None = raw PCM
+    codec: Literal["opus"] | None = None
 
 
 class TTSCancelCommand(BaseModel):

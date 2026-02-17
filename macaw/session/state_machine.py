@@ -152,7 +152,7 @@ class SessionStateMachine:
         clock: Callable[[], float] | None = None,
     ) -> None:
         self._state = SessionState.INIT
-        self._timeouts = timeouts or SessionTimeouts()
+        self._timeouts = timeouts or _default_session_timeouts()
         self._on_enter = on_enter or {}
         self._on_exit = on_exit or {}
         self._clock = clock or time.monotonic
@@ -231,3 +231,31 @@ class SessionStateMachine:
             timeouts: New timeouts.
         """
         self._timeouts = timeouts
+
+
+def _default_session_timeouts() -> SessionTimeouts:
+    """Build SessionTimeouts from environment-configurable settings.
+
+    Falls back to dataclass defaults if settings are unavailable
+    (e.g., in unit tests that don't initialize MacawSettings).
+    """
+    try:
+        from macaw.config.settings import get_settings
+
+        s = get_settings().session
+        return SessionTimeouts(
+            init_timeout_s=s.init_timeout_s,
+            silence_timeout_s=s.silence_timeout_s,
+            hold_timeout_s=s.hold_timeout_s,
+            closing_timeout_s=s.closing_timeout_s,
+        )
+    except ImportError:
+        return SessionTimeouts()
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "Failed to load session timeouts from settings, using defaults",
+            exc_info=True,
+        )
+        return SessionTimeouts()

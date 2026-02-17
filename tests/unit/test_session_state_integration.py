@@ -52,7 +52,7 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 def _make_postprocessor_mock() -> Mock:
     """Cria mock de PostProcessingPipeline."""
     mock = Mock()
-    mock.process.side_effect = lambda text: f"ITN({text})"
+    mock.process.side_effect = lambda text, **kwargs: f"ITN({text})"
     return mock
 
 

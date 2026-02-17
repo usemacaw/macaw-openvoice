@@ -28,15 +28,15 @@ class TestPostProcessingConfig:
     def test_defaults(self) -> None:
         config = PostProcessingConfig()
         assert config.itn.enabled is True
-        assert config.itn.language == "pt"
+        assert config.itn.default_language == "pt"
 
     def test_itn_config(self) -> None:
-        config = ITNConfig(enabled=False, language="en")
+        config = ITNConfig(enabled=False, default_language="en")
         assert config.enabled is False
-        assert config.language == "en"
+        assert config.default_language == "en"
 
     def test_nested_config(self) -> None:
         config = PostProcessingConfig(
-            itn=ITNConfig(enabled=True, language="en"),
+            itn=ITNConfig(enabled=True, default_language="en"),
         )
-        assert config.itn.language == "en"
+        assert config.itn.default_language == "en"

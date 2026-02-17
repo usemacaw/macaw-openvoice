@@ -61,6 +61,30 @@ class TestServerSettingsDefaults:
         s = ServerSettings()
         assert s.ws_check_interval_s == 5.0
 
+    def test_default_cors_origins_empty(self) -> None:
+        s = ServerSettings()
+        assert s.cors_origins == ""
+
+    def test_cors_origins_list_empty_string(self) -> None:
+        s = ServerSettings()
+        assert s.cors_origins_list == []
+
+    def test_cors_origins_list_single(self) -> None:
+        s = ServerSettings(cors_origins="http://localhost:3000")  # type: ignore[call-arg]
+        assert s.cors_origins_list == ["http://localhost:3000"]
+
+    def test_cors_origins_list_multiple(self) -> None:
+        s = ServerSettings(cors_origins="http://localhost:3000, https://example.com")  # type: ignore[call-arg]
+        assert s.cors_origins_list == ["http://localhost:3000", "https://example.com"]
+
+    def test_cors_origins_list_strips_whitespace(self) -> None:
+        s = ServerSettings(cors_origins=" http://a.com , http://b.com ")  # type: ignore[call-arg]
+        assert s.cors_origins_list == ["http://a.com", "http://b.com"]
+
+    def test_cors_origins_list_ignores_empty_segments(self) -> None:
+        s = ServerSettings(cors_origins="http://a.com,,http://b.com,")  # type: ignore[call-arg]
+        assert s.cors_origins_list == ["http://a.com", "http://b.com"]
+
 
 class TestTTSSettingsDefaults:
     def test_default_grpc_timeout(self) -> None:
@@ -95,6 +119,10 @@ class TestWorkerSettingsDefaults:
         s = WorkerSettings()
         assert s.models_path == Path("~/.macaw/models").expanduser()
         assert "~" not in str(s.models_path)
+
+    def test_default_stt_max_cancelled_requests(self) -> None:
+        s = WorkerSettings()
+        assert s.stt_max_cancelled_requests == 10_000
 
 
 class TestServerSettingsValidation:
@@ -594,6 +622,10 @@ class TestVADSettingsDefaults:
         s = VADSettings()
         assert s.max_speech_duration_ms == 30_000
 
+    def test_default_energy_threshold_dbfs_none(self) -> None:
+        s = VADSettings()
+        assert s.energy_threshold_dbfs is None
+
 
 class TestVADSettingsValidation:
     def test_sensitivity_invalid_raises(self) -> None:
@@ -687,6 +719,24 @@ class TestVADSettingsEnvOverrides:
         s = VADSettings()
         assert s.max_speech_duration_ms == 60_000
 
+    def test_energy_threshold_dbfs_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_VAD_ENERGY_THRESHOLD_DBFS", "-45.0")
+        s = VADSettings()
+        assert s.energy_threshold_dbfs == -45.0
+
+    def test_energy_threshold_dbfs_too_low_raises(self) -> None:
+        with pytest.raises(ValidationError, match="energy_threshold_dbfs"):
+            VADSettings(energy_threshold_dbfs=-81.0)  # type: ignore[call-arg]
+
+    def test_energy_threshold_dbfs_too_high_raises(self) -> None:
+        with pytest.raises(ValidationError, match="energy_threshold_dbfs"):
+            VADSettings(energy_threshold_dbfs=1.0)  # type: ignore[call-arg]
+
+    def test_stt_max_cancelled_requests_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_STT_MAX_CANCELLED_REQUESTS", "50000")
+        s = WorkerSettings()
+        assert s.stt_max_cancelled_requests == 50_000
+
 
 class TestWorkerHostSetting:
     def test_worker_host_default(self) -> None:
@@ -702,3 +752,45 @@ class TestWorkerHostSetting:
         monkeypatch.setenv("MACAW_WORKER_HOST", "worker.internal.svc")
         s = WorkerSettings()
         assert s.worker_host == "worker.internal.svc"
+
+
+class TestCrossSegmentMaxTokensSetting:
+    """Tests for MACAW_SESSION_CROSS_SEGMENT_MAX_TOKENS."""
+
+    def test_default_is_224(self) -> None:
+        s = SessionSettings()
+        assert s.cross_segment_max_tokens == 224
+
+    def test_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_SESSION_CROSS_SEGMENT_MAX_TOKENS", "448")
+        s = SessionSettings()
+        assert s.cross_segment_max_tokens == 448
+
+    def test_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="cross_segment_max_tokens"):
+            SessionSettings(cross_segment_max_tokens=0)  # type: ignore[call-arg]
+
+    def test_over_limit_raises(self) -> None:
+        with pytest.raises(ValidationError, match="cross_segment_max_tokens"):
+            SessionSettings(cross_segment_max_tokens=2049)  # type: ignore[call-arg]
+
+
+class TestSileroThresholdSetting:
+    """Tests for MACAW_VAD_SILERO_THRESHOLD."""
+
+    def test_default_is_none(self) -> None:
+        s = VADSettings()
+        assert s.silero_threshold is None
+
+    def test_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("MACAW_VAD_SILERO_THRESHOLD", "0.4")
+        s = VADSettings()
+        assert s.silero_threshold == pytest.approx(0.4)
+
+    def test_zero_raises(self) -> None:
+        with pytest.raises(ValidationError, match="silero_threshold"):
+            VADSettings(silero_threshold=0.0)  # type: ignore[call-arg]
+
+    def test_one_raises(self) -> None:
+        with pytest.raises(ValidationError, match="silero_threshold"):
+            VADSettings(silero_threshold=1.0)  # type: ignore[call-arg]

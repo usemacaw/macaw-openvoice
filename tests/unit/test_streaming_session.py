@@ -69,7 +69,7 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 def _make_postprocessor_mock() -> Mock:
     """Cria mock de PostProcessingPipeline."""
     mock = Mock()
-    mock.process.side_effect = lambda text: f"ITN({text})"
+    mock.process.side_effect = lambda text, **kwargs: f"ITN({text})"
     return mock
 
 
@@ -235,7 +235,7 @@ async def test_final_transcript_applies_postprocessing():
     await session.process_frame(make_raw_bytes())
 
     # Assert: ITN foi aplicado ao texto final
-    postprocessor.process.assert_called_once_with("dois mil e vinte e cinco")
+    postprocessor.process.assert_called_once_with("dois mil e vinte e cinco", language="pt")
 
     # Verificar que o evento final tem texto pos-processado
     final_calls = [

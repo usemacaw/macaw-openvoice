@@ -21,8 +21,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from macaw._audio_constants import DEFAULT_DC_CUTOFF_HZ, DEFAULT_ITN_LANGUAGE, DEFAULT_TARGET_DBFS
 
 if TYPE_CHECKING:
     from macaw._types import VADSensitivity
@@ -51,6 +53,15 @@ class ServerSettings(BaseSettings):
     ws_check_interval_s: float = Field(
         default=5.0, gt=0, validation_alias="MACAW_WS_CHECK_INTERVAL_S"
     )
+    cors_origins: str = Field(
+        default="",
+        validation_alias="MACAW_CORS_ORIGINS",
+    )
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """CORS origins as a list (parsed from comma-separated string)."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def max_file_size_bytes(self) -> int:
@@ -79,6 +90,12 @@ class TTSSettings(BaseSettings):
         ge=512,
         le=65536,
         validation_alias="MACAW_TTS_CHUNK_SIZE_BYTES",
+    )
+    max_text_length: int = Field(
+        default=4096,
+        ge=1,
+        le=1_000_000,
+        validation_alias="MACAW_TTS_MAX_TEXT_LENGTH",
     )
 
 
@@ -109,6 +126,18 @@ class WorkerSettings(BaseSettings):
         ge=1,
         le=16,
         validation_alias="MACAW_STT_WORKER_MAX_CONCURRENT",
+    )
+    stt_accumulation_threshold_s: float = Field(
+        default=5.0,
+        gt=0,
+        le=30.0,
+        validation_alias="MACAW_STT_ACCUMULATION_THRESHOLD_S",
+    )
+    stt_max_cancelled_requests: int = Field(
+        default=10_000,
+        ge=100,
+        le=1_000_000,
+        validation_alias="MACAW_STT_MAX_CANCELLED_REQUESTS",
     )
 
     @property
@@ -215,6 +244,18 @@ class VADSettings(BaseSettings):
         le=600_000,
         validation_alias="MACAW_VAD_MAX_SPEECH_DURATION_MS",
     )
+    energy_threshold_dbfs: float | None = Field(
+        default=None,
+        ge=-80.0,
+        le=0.0,
+        validation_alias="MACAW_VAD_ENERGY_THRESHOLD_DBFS",
+    )
+    silero_threshold: float | None = Field(
+        default=None,
+        gt=0.0,
+        lt=1.0,
+        validation_alias="MACAW_VAD_SILERO_THRESHOLD",
+    )
 
     @model_validator(mode="after")
     def _validate_sensitivity(self) -> VADSettings:
@@ -266,6 +307,42 @@ class SessionSettings(BaseSettings):
         gt=1.0,
         le=5.0,
         validation_alias="MACAW_SESSION_BACKPRESSURE_RATE_LIMIT_THRESHOLD",
+    )
+    init_timeout_s: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=600,
+        validation_alias="MACAW_SESSION_INIT_TIMEOUT_S",
+    )
+    silence_timeout_s: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=600,
+        validation_alias="MACAW_SESSION_SILENCE_TIMEOUT_S",
+    )
+    hold_timeout_s: float = Field(
+        default=300.0,
+        ge=1.0,
+        le=3600,
+        validation_alias="MACAW_SESSION_HOLD_TIMEOUT_S",
+    )
+    closing_timeout_s: float = Field(
+        default=2.0,
+        ge=1.0,
+        le=60,
+        validation_alias="MACAW_SESSION_CLOSING_TIMEOUT_S",
+    )
+    ring_buffer_force_commit_threshold: float = Field(
+        default=0.90,
+        gt=0.5,
+        lt=1.0,
+        validation_alias="MACAW_SESSION_RING_BUFFER_FORCE_COMMIT_THRESHOLD",
+    )
+    cross_segment_max_tokens: int = Field(
+        default=224,
+        ge=1,
+        le=2048,
+        validation_alias="MACAW_SESSION_CROSS_SEGMENT_MAX_TOKENS",
     )
 
 
@@ -319,13 +396,13 @@ class PreprocessingSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     dc_cutoff_hz: int = Field(
-        default=20,
+        default=DEFAULT_DC_CUTOFF_HZ,
         ge=1,
         le=500,
         validation_alias="MACAW_PREPROCESSING_DC_CUTOFF_HZ",
     )
     target_dbfs: float = Field(
-        default=-3.0,
+        default=DEFAULT_TARGET_DBFS,
         ge=-60.0,
         le=0.0,
         validation_alias="MACAW_PREPROCESSING_TARGET_DBFS",
@@ -337,9 +414,22 @@ class PostProcessingSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    itn_language: str = Field(
-        default="pt",
-        validation_alias="MACAW_ITN_LANGUAGE",
+    itn_default_language: str = Field(
+        default=DEFAULT_ITN_LANGUAGE,
+        validation_alias=AliasChoices("MACAW_ITN_DEFAULT_LANGUAGE", "MACAW_ITN_LANGUAGE"),
+    )
+
+
+class CodecSettings(BaseSettings):
+    """Audio codec encoding settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    opus_bitrate: int = Field(
+        default=64000,
+        ge=6000,
+        le=512000,
+        validation_alias="MACAW_CODEC_OPUS_BITRATE",
     )
 
 
@@ -366,6 +456,7 @@ class MacawSettings(BaseSettings):
     vad: VADSettings = Field(default_factory=VADSettings)
     preprocessing: PreprocessingSettings = Field(default_factory=PreprocessingSettings)
     postprocessing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
+    codec: CodecSettings = Field(default_factory=CodecSettings)
 
 
 @lru_cache(maxsize=1)

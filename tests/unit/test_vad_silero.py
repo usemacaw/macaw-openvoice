@@ -181,6 +181,49 @@ class TestSileroVADClassifier:
         assert result is False
 
 
+class TestSileroThresholdOverride:
+    """Tests for the threshold_override keyword argument."""
+
+    def test_override_bypasses_sensitivity_preset(self) -> None:
+        """threshold_override=0.4 ignores NORMAL preset (0.5)."""
+        # Arrange & Act
+        classifier = SileroVADClassifier(
+            sensitivity=VADSensitivity.NORMAL,
+            threshold_override=0.4,
+        )
+
+        # Assert
+        assert classifier.threshold == pytest.approx(0.4)
+
+    def test_override_none_uses_preset(self) -> None:
+        """threshold_override=None falls back to sensitivity preset."""
+        # Arrange & Act
+        classifier = SileroVADClassifier(
+            sensitivity=VADSensitivity.HIGH,
+            threshold_override=None,
+        )
+
+        # Assert
+        assert classifier.threshold == pytest.approx(0.3)
+
+    def test_override_affects_is_speech(self) -> None:
+        """Override threshold changes speech detection behavior."""
+        # Arrange — prob 0.35, override threshold 0.3 => speech
+        classifier = SileroVADClassifier(
+            sensitivity=VADSensitivity.NORMAL,
+            threshold_override=0.3,
+        )
+        classifier._model = _make_mock_model(return_prob=0.35)
+        classifier._model_loaded = True
+        frame = np.zeros(512, dtype=np.float32)
+
+        # Act
+        result = classifier.is_speech(frame)
+
+        # Assert — 0.35 > 0.3 threshold
+        assert result is True
+
+
 class TestSileroSubFramePadding:
     """Tests for trailing sub-frame zero-padding (M-33 fix)."""
 

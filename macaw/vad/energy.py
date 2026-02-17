@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from macaw._audio_constants import DEFAULT_SPECTRAL_FLATNESS_THRESHOLD
 from macaw._types import VADSensitivity
 
 # Energy thresholds (dBFS) by sensitivity level.
@@ -22,9 +23,7 @@ _ENERGY_THRESHOLDS: dict[VADSensitivity, float] = {
     VADSensitivity.LOW: -30.0,  # Noisy environment, call center
 }
 
-# Spectral flatness threshold above which the spectrum is considered
-# flat (white noise / silence). Tonal speech has low flatness (~0.1-0.5).
-_SPECTRAL_FLATNESS_THRESHOLD = 0.8
+_SPECTRAL_FLATNESS_THRESHOLD = DEFAULT_SPECTRAL_FLATNESS_THRESHOLD
 
 # Minimum samples for FFT to produce meaningful result.
 _MIN_SAMPLES_FOR_FFT = 2
@@ -62,9 +61,18 @@ class EnergyPreFilter:
     Cost: ~0.1ms/frame.
     """
 
-    def __init__(self, sensitivity: VADSensitivity = VADSensitivity.NORMAL) -> None:
+    def __init__(
+        self,
+        sensitivity: VADSensitivity = VADSensitivity.NORMAL,
+        *,
+        energy_threshold_dbfs_override: float | None = None,
+    ) -> None:
         self._sensitivity = sensitivity
-        self._energy_threshold_dbfs = _ENERGY_THRESHOLDS[sensitivity]
+        self._energy_threshold_dbfs = (
+            energy_threshold_dbfs_override
+            if energy_threshold_dbfs_override is not None
+            else _ENERGY_THRESHOLDS[sensitivity]
+        )
 
     @property
     def energy_threshold_dbfs(self) -> float:

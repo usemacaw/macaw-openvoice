@@ -23,9 +23,9 @@ class SpeechRequest(BaseModel):
         default="default",
         description="Identificador da voz.",
     )
-    response_format: Literal["wav", "pcm"] = Field(
+    response_format: Literal["wav", "pcm", "opus"] = Field(
         default="wav",
-        description="Formato de audio de saida (wav ou pcm).",
+        description="Formato de audio de saida (wav, pcm ou opus).",
     )
     speed: float = Field(
         default=1.0,

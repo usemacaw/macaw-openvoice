@@ -62,7 +62,7 @@ class MockITNStage(TextStage):
     def name(self) -> str:
         return "mock_itn"
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         replacements = {
             "dois mil e quinhentos reais": "R$2.500",
             "dez por cento": "10%",

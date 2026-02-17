@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from macaw.config.manifest import ModelManifest
+from macaw.config.manifest import MANIFEST_FILENAME, ModelManifest
 from macaw.exceptions import ManifestParseError, ManifestValidationError, ModelNotFoundError
 from macaw.logging import get_logger
 
@@ -44,7 +44,7 @@ class ModelRegistry:
             if not subdir.is_dir():
                 continue
 
-            manifest_path = subdir / "macaw.yaml"
+            manifest_path = subdir / MANIFEST_FILENAME
             if not manifest_path.exists():
                 logger.debug("no_manifest", dir=str(subdir))
                 continue

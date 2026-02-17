@@ -38,18 +38,21 @@ class PostProcessingPipeline:
         """Stages configured in the pipeline."""
         return list(self._stages)
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         """Process text through all stages in sequence.
 
         Args:
             text: Raw text from the engine.
+            language: ISO 639-1 language code (optional). Forwarded to
+                language-aware stages (e.g. ITN) for per-language
+                normalization. Language-agnostic stages ignore it.
 
         Returns:
             Text processed by all stages.
         """
         for stage in self._stages:
             logger.debug("stage_start", stage=stage.name, text_length=len(text))
-            text = stage.process(text)
+            text = stage.process(text, language=language)
             logger.debug("stage_complete", stage=stage.name, text_length=len(text))
         return text
 
@@ -61,16 +64,22 @@ class PostProcessingPipeline:
         are frozen dataclasses, so new instances are created via
         dataclasses.replace().
 
+        Uses ``result.language`` (detected by the STT engine) as the
+        language for post-processing stages. This ensures ITN uses the
+        correct normalizer for the detected language.
+
         Args:
             result: Original BatchResult with raw text.
 
         Returns:
             New BatchResult with processed texts.
         """
-        processed_text = self.process(result.text)
+        language = result.language or None
+        processed_text = self.process(result.text, language=language)
 
         processed_segments = tuple(
-            replace(segment, text=self.process(segment.text)) for segment in result.segments
+            replace(segment, text=self.process(segment.text, language=language))
+            for segment in result.segments
         )
 
         return replace(

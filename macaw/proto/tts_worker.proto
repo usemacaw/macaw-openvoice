@@ -26,12 +26,14 @@ message SynthesizeRequest {
   bytes ref_audio = 7;           // Reference audio for voice cloning (PCM/WAV)
   string ref_text = 8;           // Reference transcript for voice cloning
   string instruction = 9;        // Voice design / style instruction
+  string codec = 10;              // Output codec (e.g., "opus"); empty = raw PCM
 }
 
 message SynthesizeChunk {
   bytes audio_data = 1;          // 16-bit PCM audio chunk
   bool is_last = 2;              // Signals last chunk of the stream
   float duration = 3;            // Accumulated audio duration in seconds
+  string codec = 4;              // Codec used for audio_data (e.g., "opus"); empty = raw PCM
 }
 
 // --- ListVoices ---

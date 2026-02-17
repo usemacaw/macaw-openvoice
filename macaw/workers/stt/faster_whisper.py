@@ -38,6 +38,7 @@ logger = get_logger("worker.stt.faster_whisper")
 
 # --- Faster-Whisper defaults (shared between __init__ and load) ---
 _DEFAULT_BEAM_SIZE = 5
+_DEFAULT_TEMPERATURE = 0.0
 _DEFAULT_ACCUMULATION_THRESHOLD_S = 5.0
 
 
@@ -65,8 +66,17 @@ class FasterWhisperBackend(STTBackend):
         compute_type = str(config.get("compute_type", "auto"))
         device = str(config.get("device", "auto"))
         self._beam_size = int(config.get("beam_size", _DEFAULT_BEAM_SIZE))  # type: ignore[call-overload]
+
+        # Three-tier resolution: engine_config (manifest) > env var (settings) > constant.
+        accumulation_default = _DEFAULT_ACCUMULATION_THRESHOLD_S
+        try:
+            from macaw.config.settings import get_settings
+
+            accumulation_default = get_settings().worker.stt_accumulation_threshold_s
+        except Exception:
+            logger.debug("settings unavailable, using default accumulation threshold")
         self._accumulation_threshold_seconds = float(
-            config.get("accumulation_threshold_seconds", _DEFAULT_ACCUMULATION_THRESHOLD_S)  # type: ignore[arg-type]
+            config.get("accumulation_threshold_seconds", accumulation_default)  # type: ignore[arg-type]
         )
 
         loop = asyncio.get_running_loop()
@@ -257,7 +267,7 @@ class FasterWhisperBackend(STTBackend):
                 audio,
                 language=language,
                 initial_prompt=initial_prompt,
-                temperature=0.0,
+                temperature=_DEFAULT_TEMPERATURE,
                 beam_size=self._beam_size,
                 vad_filter=False,
             ),

@@ -115,6 +115,17 @@ class STTBackend(ABC):
         """
         ...
 
+    async def post_load_hook(self) -> None:  # noqa: B027
+        """Optional hook called after load() and before warmup.
+
+        Override this method to load auxiliary models that depend on the
+        main model being in memory (e.g., language-specific adapters,
+        punctuation models, speaker diarization components).
+
+        The default implementation is a no-op — engines opt in by
+        overriding, existing engines are unaffected.
+        """
+
     @abstractmethod
     async def unload(self) -> None:
         """Unload the model from memory.

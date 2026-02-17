@@ -106,6 +106,18 @@ class TTSWorkerServicer(_BaseServicer):
             else:
                 stream = result  # type: ignore[assignment]
 
+            # Create codec encoder if requested
+            from macaw.codec import create_encoder
+
+            codec_name = request.codec
+            if codec_name:
+                from macaw.config.settings import get_settings
+
+                bitrate = get_settings().codec.opus_bitrate
+                encoder = create_encoder(codec_name, params.sample_rate, bitrate=bitrate)
+            else:
+                encoder = None
+
             accumulated_duration = 0.0
             chunk_count = 0
 
@@ -115,24 +127,44 @@ class TTSWorkerServicer(_BaseServicer):
                     return
 
                 chunk_count += 1
-                # Estimate chunk duration: bytes / (sample_rate * 2 bytes per sample)
+                # Estimate chunk duration from PCM (before encoding)
                 chunk_duration = (
                     len(audio_chunk) / (params.sample_rate * 2) if params.sample_rate > 0 else 0.0
                 )
                 accumulated_duration += chunk_duration
 
+                if encoder is not None:
+                    encoded = encoder.encode(audio_chunk)
+                    if encoded:
+                        yield audio_chunk_to_proto(
+                            audio_data=encoded,
+                            is_last=False,
+                            duration=accumulated_duration,
+                            codec=codec_name,
+                        )
+                else:
+                    yield audio_chunk_to_proto(
+                        audio_data=audio_chunk,
+                        is_last=False,
+                        duration=accumulated_duration,
+                    )
+
+            # Flush encoder and send final chunk
+            if encoder is not None:
+                flushed = encoder.flush()
                 yield audio_chunk_to_proto(
-                    audio_data=audio_chunk,
-                    is_last=False,
+                    audio_data=flushed,
+                    is_last=True,
+                    duration=accumulated_duration,
+                    codec=codec_name,
+                )
+            else:
+                # Send empty final chunk signaling end of stream
+                yield audio_chunk_to_proto(
+                    audio_data=b"",
+                    is_last=True,
                     duration=accumulated_duration,
                 )
-
-            # Send empty final chunk signaling end of stream
-            yield audio_chunk_to_proto(
-                audio_data=b"",
-                is_last=True,
-                duration=accumulated_duration,
-            )
 
         except Exception as exc:
             from macaw.exceptions import TTSSynthesisError

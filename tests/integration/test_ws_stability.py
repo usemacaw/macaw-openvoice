@@ -106,7 +106,7 @@ class _LightVAD:
 class _LightPostprocessor:
     """Postprocessor mock sem acumulacao de historico."""
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, **kwargs: object) -> str:
         return text
 
 

@@ -71,12 +71,14 @@ def audio_chunk_to_proto(
     audio_data: bytes,
     is_last: bool,
     duration: float,
+    codec: str = "",
 ) -> SynthesizeChunk:
     """Convert audio chunk to SynthesizeChunk protobuf."""
     return SynthesizeChunk(
         audio_data=audio_data,
         is_last=is_last,
         duration=duration,
+        codec=codec,
     )
 
 

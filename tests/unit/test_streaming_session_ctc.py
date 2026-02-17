@@ -229,6 +229,7 @@ class TestCTCReceiveWorkerEvents:
 
         mock_postprocessor.process.assert_called_once_with(
             "dois mil e vinte e cinco",
+            language="pt",
         )
         on_event.assert_called_once()
         event = on_event.call_args[0][0]

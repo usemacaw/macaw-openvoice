@@ -20,6 +20,7 @@ def build_tts_proto_request(
     ref_audio: bytes | None = None,
     ref_text: str | None = None,
     instruction: str | None = None,
+    codec: str | None = None,
 ) -> SynthesizeRequest:
     """Build SynthesizeRequest proto from REST API parameters."""
     req = SynthesizeRequest(
@@ -37,4 +38,6 @@ def build_tts_proto_request(
         req.ref_text = ref_text
     if instruction:
         req.instruction = instruction
+    if codec:
+        req.codec = codec
     return req

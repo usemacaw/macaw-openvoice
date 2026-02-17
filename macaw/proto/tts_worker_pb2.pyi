@@ -7,7 +7,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class SynthesizeRequest(_message.Message):
-    __slots__ = ("request_id", "text", "voice", "sample_rate", "speed", "language", "ref_audio", "ref_text", "instruction")
+    __slots__ = ("request_id", "text", "voice", "sample_rate", "speed", "language", "ref_audio", "ref_text", "instruction", "codec")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     VOICE_FIELD_NUMBER: _ClassVar[int]
@@ -17,6 +17,7 @@ class SynthesizeRequest(_message.Message):
     REF_AUDIO_FIELD_NUMBER: _ClassVar[int]
     REF_TEXT_FIELD_NUMBER: _ClassVar[int]
     INSTRUCTION_FIELD_NUMBER: _ClassVar[int]
+    CODEC_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     text: str
     voice: str
@@ -26,17 +27,20 @@ class SynthesizeRequest(_message.Message):
     ref_audio: bytes
     ref_text: str
     instruction: str
-    def __init__(self, request_id: _Optional[str] = ..., text: _Optional[str] = ..., voice: _Optional[str] = ..., sample_rate: _Optional[int] = ..., speed: _Optional[float] = ..., language: _Optional[str] = ..., ref_audio: _Optional[bytes] = ..., ref_text: _Optional[str] = ..., instruction: _Optional[str] = ...) -> None: ...
+    codec: str
+    def __init__(self, request_id: _Optional[str] = ..., text: _Optional[str] = ..., voice: _Optional[str] = ..., sample_rate: _Optional[int] = ..., speed: _Optional[float] = ..., language: _Optional[str] = ..., ref_audio: _Optional[bytes] = ..., ref_text: _Optional[str] = ..., instruction: _Optional[str] = ..., codec: _Optional[str] = ...) -> None: ...
 
 class SynthesizeChunk(_message.Message):
-    __slots__ = ("audio_data", "is_last", "duration")
+    __slots__ = ("audio_data", "is_last", "duration", "codec")
     AUDIO_DATA_FIELD_NUMBER: _ClassVar[int]
     IS_LAST_FIELD_NUMBER: _ClassVar[int]
     DURATION_FIELD_NUMBER: _ClassVar[int]
+    CODEC_FIELD_NUMBER: _ClassVar[int]
     audio_data: bytes
     is_last: bool
     duration: float
-    def __init__(self, audio_data: _Optional[bytes] = ..., is_last: bool = ..., duration: _Optional[float] = ...) -> None: ...
+    codec: str
+    def __init__(self, audio_data: _Optional[bytes] = ..., is_last: bool = ..., duration: _Optional[float] = ..., codec: _Optional[str] = ...) -> None: ...
 
 class ListVoicesRequest(_message.Message):
     __slots__ = ()

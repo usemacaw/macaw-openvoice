@@ -646,7 +646,9 @@ class TestWebSocketContractBothEngines:
 
             await session._receive_worker_events()
 
-            mock_postprocessor.process.assert_called_once_with("dois mil e vinte e cinco")
+            mock_postprocessor.process.assert_called_once_with(
+                "dois mil e vinte e cinco", language="pt"
+            )
             event = on_event.call_args[0][0]
             assert event.type == "transcript.final"
             assert event.text == "2025"

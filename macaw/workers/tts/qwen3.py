@@ -316,18 +316,9 @@ def _synthesize_with_model(
     Returns:
         16-bit PCM audio as bytes.
     """
-    from contextlib import nullcontext
-    from typing import Any
+    from macaw.workers.torch_utils import get_inference_context
 
-    inference_ctx: Any = nullcontext()
-    try:
-        import torch
-
-        inference_ctx = torch.inference_mode()
-    except ImportError:
-        pass
-
-    with inference_ctx:
+    with get_inference_context():
         if variant == "custom_voice":
             wavs, _sr = model.generate_custom_voice(  # type: ignore[attr-defined]
                 text=text,

@@ -1,10 +1,16 @@
 """Centralized audio format constants for the Macaw runtime.
 
-Single source of truth for PCM format parameters and standard sample rates
-used across preprocessing, VAD, session, scheduler, workers, and CLI.
+Single source of truth for PCM format parameters, standard sample rates,
+and default values shared across preprocessing, VAD, session, scheduler,
+workers, and CLI.
 """
 
 from __future__ import annotations
+
+# --- Preprocessing defaults (single source of truth for settings + config) ---
+DEFAULT_DC_CUTOFF_HZ: int = 20
+DEFAULT_TARGET_DBFS: float = -3.0
+DEFAULT_ITN_LANGUAGE: str = "pt"
 
 # --- PCM 16-bit format ---
 # Signed 16-bit integer range: [-32768, 32767]
@@ -36,3 +42,13 @@ TTS_DEFAULT_SAMPLE_RATE: int = 24000
 # Silero VAD maximum input chunk size (samples at 16kHz).
 # Silero expects exactly 512 samples (32ms). Longer frames are split.
 SILERO_VAD_CHUNK_SIZE: int = 512
+
+# Spectral flatness threshold for energy pre-filter.
+# Values above this indicate flat spectrum (white noise/silence).
+# Tonal speech typically has flatness ~0.1-0.5.
+DEFAULT_SPECTRAL_FLATNESS_THRESHOLD: float = 0.8
+
+# --- DSP defaults ---
+DEFAULT_FFT_SIZE: int = 1024
+DEFAULT_HOP_LENGTH: int = 256
+DEFAULT_N_MELS: int = 80

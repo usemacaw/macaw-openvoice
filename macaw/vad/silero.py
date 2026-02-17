@@ -50,12 +50,17 @@ class SileroVADClassifier:
         self,
         sensitivity: VADSensitivity = VADSensitivity.NORMAL,
         sample_rate: int = STT_SAMPLE_RATE,
+        *,
+        threshold_override: float | None = None,
     ) -> None:
         """Initialize the classifier.
 
         Args:
             sensitivity: Sensitivity level (adjusts threshold).
             sample_rate: Expected sample rate (must be 16000).
+            threshold_override: Optional explicit speech probability threshold
+                (0.0-1.0) that bypasses the sensitivity preset. Useful for
+                fine-tuning via ``MACAW_VAD_SILERO_THRESHOLD``.
 
         Raises:
             ValueError: If sample_rate is not 16000.
@@ -69,7 +74,9 @@ class SileroVADClassifier:
 
         self._sensitivity = sensitivity
         self._sample_rate = sample_rate
-        self._threshold = _THRESHOLDS[sensitivity]
+        self._threshold = (
+            threshold_override if threshold_override is not None else _THRESHOLDS[sensitivity]
+        )
         self._model: object | None = None
         self._model_loaded = False
         self._to_tensor: Callable[[Any], Any] | None = None

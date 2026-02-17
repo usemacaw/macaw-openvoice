@@ -25,7 +25,7 @@ class UppercaseStage(TextStage):
     def name(self) -> str:
         return "uppercase"
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, *, language: str | None = None) -> str:
         return text.upper()
 
 

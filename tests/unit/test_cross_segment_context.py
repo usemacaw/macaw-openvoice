@@ -173,6 +173,17 @@ class TestCrossSegmentContext:
         assert len(result.split()) == 224
         assert result.endswith("word249")
 
+    def test_default_uses_named_constant(self) -> None:
+        """Default max_tokens matches _DEFAULT_CROSS_SEGMENT_MAX_TOKENS constant."""
+        from macaw.session.cross_segment import _DEFAULT_CROSS_SEGMENT_MAX_TOKENS
+
+        ctx = CrossSegmentContext()
+        words = [f"w{i}" for i in range(_DEFAULT_CROSS_SEGMENT_MAX_TOKENS + 10)]
+        ctx.update(" ".join(words))
+        result = ctx.get_prompt()
+        assert result is not None
+        assert len(result.split()) == _DEFAULT_CROSS_SEGMENT_MAX_TOKENS
+
 
 # ---------------------------------------------------------------------------
 # Integration with StreamingSession
@@ -524,7 +535,7 @@ class TestStreamingSessionCrossSegment:
         preprocessor.process_frame.return_value = make_float32_frame()
 
         postprocessor = Mock()
-        postprocessor.process.side_effect = lambda text: "2025"
+        postprocessor.process.side_effect = lambda text, **kwargs: "2025"
 
         cross_ctx = CrossSegmentContext()
         on_event = AsyncMock()
