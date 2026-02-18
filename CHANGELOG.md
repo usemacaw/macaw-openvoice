@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rewritten `docs/docs/guides/adding-engine.mdx` (Docusaurus public guide) to match actual codebase — fixes 21 issues including wrong file paths, wrong imports, wrong method signatures, missing required patterns, and stale manifest schema (#engine-extensibility)
 
 ### Added
+- Validation notebooks for pre-release regression testing on Google Colab — `validate_cli.ipynb` (48 cells, all CLI commands) and `validate_api.ipynb` (81 cells, REST + WebSocket + error handling) with round-trip TTS-to-STT verification (#validation)
 - Qwen3-ASR-0.6B STT backend with 52-language support, auto-detection, and word timestamps — encoder-decoder architecture with runtime LocalAgreement for streaming (#engine-catalog)
 - Chatterbox Turbo TTS backend with voice cloning via reference audio and configurable sampling parameters (temperature, top_p, top_k, repetition_penalty) (#engine-catalog)
 - Dynamic external engine loading via `python_package` manifest field — external STT/TTS backends are loaded automatically via `importlib` without modifying runtime code (#engine-extensibility)
