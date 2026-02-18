@@ -46,6 +46,8 @@ from macaw.server.models.events import (
     SessionFramesDroppedEvent,
     SessionRateLimitEvent,
     StreamingErrorEvent,
+    TTSAlignmentEvent,
+    TTSAlignmentItemEvent,
     TTSCancelCommand,
     TTSSpeakCommand,
     TTSSpeakingEndEvent,
@@ -118,6 +120,7 @@ router = APIRouter(tags=["Realtime"])
                                     "session.rate_limit",
                                     "session.frames_dropped",
                                     "tts.speaking_start",
+                                    "tts.alignment",
                                     "tts.speaking_end",
                                     "error",
                                     "session.closed",
@@ -230,6 +233,7 @@ async def realtime_docs(
     | `session.rate_limit` | Client sending audio faster than real-time |
     | `session.frames_dropped` | Audio frames dropped due to backlog |
     | `tts.speaking_start` | TTS audio streaming began (STT is muted) |
+    | `tts.alignment` | Per-word/character timing for upcoming audio chunk (opt-in via `include_alignment`) |
     | `tts.speaking_end` | TTS audio streaming ended (STT is unmuted) |
     | `error` | Error with `code`, `message`, and `recoverable` flag |
     | `session.closed` | Session ended — contains `reason` and `total_duration_ms` |
@@ -455,16 +459,9 @@ async def _prepare_tts_request(
     websocket: WebSocket,
     session_id: str,
     request_id: str,
-    text: str,
-    voice: str,
-    speed: float,
+    cmd: TTSSpeakCommand,
     model_tts: str | None,
     send_event: Callable[[ServerEvent], Awaitable[None]],
-    language: str | None = None,
-    ref_audio: str | None = None,
-    ref_text: str | None = None,
-    instruction: str | None = None,
-    codec: str | None = None,
 ) -> tuple[str, Any] | None:
     """Resolve TTS model/worker and build gRPC proto request.
 
@@ -523,9 +520,9 @@ async def _prepare_tts_request(
         return None
 
     ref_audio_bytes: bytes | None = None
-    if ref_audio:
+    if cmd.ref_audio:
         try:
-            ref_audio_bytes = _b64.b64decode(ref_audio)
+            ref_audio_bytes = _b64.b64decode(cmd.ref_audio)
         except Exception:
             logger.warning(
                 "tts_invalid_ref_audio_base64",
@@ -543,15 +540,22 @@ async def _prepare_tts_request(
 
     proto_request = build_tts_proto_request(
         request_id=request_id,
-        text=text,
-        voice=voice,
+        text=cmd.text,
+        voice=cmd.voice,
         sample_rate=TTS_DEFAULT_SAMPLE_RATE,
-        speed=speed,
-        language=language,
+        speed=cmd.speed,
+        language=cmd.language,
         ref_audio=ref_audio_bytes,
-        ref_text=ref_text,
-        instruction=instruction,
-        codec=codec,
+        ref_text=cmd.ref_text,
+        instruction=cmd.instruction,
+        codec=cmd.codec,
+        include_alignment=cmd.include_alignment,
+        alignment_granularity=cmd.alignment_granularity,
+        seed=cmd.seed,
+        text_normalization=cmd.text_normalization,
+        temperature=cmd.temperature,
+        top_k=cmd.top_k,
+        top_p=cmd.top_p,
     )
     return worker_address, proto_request
 
@@ -562,17 +566,10 @@ async def _tts_speak_task(
     session_id: str,
     session: StreamingSession | None,
     request_id: str,
-    text: str,
-    voice: str,
-    speed: float,
+    cmd: TTSSpeakCommand,
     model_tts: str | None,
     send_event: Callable[[ServerEvent], Awaitable[None]],
     cancel_event: asyncio.Event,
-    language: str | None = None,
-    ref_audio: str | None = None,
-    ref_text: str | None = None,
-    instruction: str | None = None,
-    codec: str | None = None,
     effect_chain: AudioEffectChain | None = None,
 ) -> None:
     """Background task that runs TTS synthesis and streams audio to the client.
@@ -595,16 +592,9 @@ async def _tts_speak_task(
             websocket=websocket,
             session_id=session_id,
             request_id=request_id,
-            text=text,
-            voice=voice,
-            speed=speed,
+            cmd=cmd,
             model_tts=model_tts,
             send_event=send_event,
-            language=language,
-            ref_audio=ref_audio,
-            ref_text=ref_text,
-            instruction=instruction,
-            codec=codec,
         )
         if result is None:
             return
@@ -645,6 +635,33 @@ async def _tts_speak_task(
                     )
                 )
                 first_chunk_sent = True
+
+            # Send alignment event before audio (if requested and present)
+            if cmd.include_alignment and chunk.alignment and chunk.alignment.items:
+                norm_items = None
+                if chunk.normalized_alignment and chunk.normalized_alignment.items:
+                    norm_items = [
+                        TTSAlignmentItemEvent(
+                            text=item.text,
+                            start_ms=item.start_ms,
+                            duration_ms=item.duration_ms,
+                        )
+                        for item in chunk.normalized_alignment.items
+                    ]
+                alignment_event = TTSAlignmentEvent(
+                    request_id=request_id,
+                    items=[
+                        TTSAlignmentItemEvent(
+                            text=item.text,
+                            start_ms=item.start_ms,
+                            duration_ms=item.duration_ms,
+                        )
+                        for item in chunk.alignment.items
+                    ],
+                    normalized_items=norm_items,
+                    granularity=chunk.alignment.granularity or "word",
+                )
+                await send_event(alignment_event)
 
             # Apply effects to PCM before sending
             audio_data = chunk.audio_data
@@ -829,17 +846,10 @@ async def _handle_tts_speak_command(
             session_id=ctx.session_id,
             session=ctx.session,
             request_id=tts_req_id,
-            text=cmd.text,
-            voice=cmd.voice,
-            speed=cmd.speed,
+            cmd=cmd,
             model_tts=ctx.model_tts,
             send_event=ctx.send_event,
             cancel_event=cancel_ev,
-            language=cmd.language,
-            ref_audio=cmd.ref_audio,
-            ref_text=cmd.ref_text,
-            instruction=cmd.instruction,
-            codec=cmd.codec,
             effect_chain=effect_chain,
         ),
     )

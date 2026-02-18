@@ -199,6 +199,39 @@ class TTSSpeakingEndEvent(BaseModel):
     cancelled: bool = False
 
 
+class TTSAlignmentItemEvent(BaseModel):
+    """Single word/character timing in a TTS alignment event.
+
+    Named ``TTSAlignmentItemEvent`` to avoid collision with the runtime
+    dataclass ``macaw._types.TTSAlignmentItem``.
+    """
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    text: str
+    start_ms: int
+    duration_ms: int
+
+
+class TTSAlignmentEvent(BaseModel):
+    """Emitted before each TTS binary audio frame when alignment is requested.
+
+    Contains per-word or per-character timing for the upcoming audio chunk.
+    Sent as a JSON text frame immediately before the corresponding binary frame.
+
+    ``normalized_items`` carries the same timing against normalized/phonemized
+    text (only present for engines that expose phoneme data, e.g. Kokoro).
+    """
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    type: Literal["tts.alignment"] = "tts.alignment"
+    request_id: str
+    items: list[TTSAlignmentItemEvent]
+    normalized_items: list[TTSAlignmentItemEvent] | None = None
+    granularity: Literal["word", "character"] = "word"
+
+
 # ---------------------------------------------------------------------------
 # Client -> Server commands
 # ---------------------------------------------------------------------------
@@ -270,6 +303,16 @@ class TTSSpeakCommand(BaseModel):
     codec: Literal["opus"] | None = None
     # Post-synthesis audio effects (applied server-side before transport)
     effects: AudioEffectsParams | None = None
+    # Alignment options (opt-in per-word/character timing)
+    include_alignment: bool = False
+    alignment_granularity: Literal["word", "character"] = "word"
+    # Seed and generation control
+    seed: int | None = Field(default=None, ge=1)
+    text_normalization: Literal["auto", "on", "off"] = "auto"
+    # Sampling parameters (LLM-based TTS engines)
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    top_k: int | None = Field(default=None, ge=0)
+    top_p: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class TTSCancelCommand(BaseModel):
@@ -302,6 +345,7 @@ ServerEvent = (
     | SessionClosedEvent
     | TTSSpeakingStartEvent
     | TTSSpeakingEndEvent
+    | TTSAlignmentEvent
 )
 
 ClientCommand = (

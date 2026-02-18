@@ -166,6 +166,23 @@ class Qwen3TTSBackend(TTSBackend):
         ref_audio = options.get("ref_audio") if options else None
         ref_text = str(options.get("ref_text", "")) if options else ""
         instruction = str(options.get("instruction", "")) if options else ""
+        seed = int(str(options.get("seed", 0))) if options else 0
+        text_normalization = str(options.get("text_normalization", "auto")) if options else "auto"
+        temperature = float(str(options.get("temperature", 0))) if options else 0.0
+        top_k = int(str(options.get("top_k", 0))) if options else 0
+        top_p = float(str(options.get("top_p", 0))) if options else 0.0
+
+        # For "off" text normalization, set instruction to avoid normalizing.
+        # If a custom instruction already exists, log that normalization-off
+        # cannot be honored (instruction field takes priority).
+        if text_normalization == "off":
+            if not instruction:
+                instruction = "Pronounce the text exactly as written, without expanding abbreviations or numbers."
+            else:
+                logger.warning(
+                    "text_normalization_off_overridden_by_instruction",
+                    instruction_length=len(instruction),
+                )
 
         if voice == "default":
             voice = self._default_voice
@@ -183,6 +200,10 @@ class Qwen3TTSBackend(TTSBackend):
                     ref_audio=ref_audio,
                     ref_text=ref_text,
                     instruction=instruction,
+                    seed=seed,
+                    temperature=temperature,
+                    top_k=top_k,
+                    top_p=top_p,
                 ),
             )
         except (TTSSynthesisError, TTSEngineError):
@@ -307,16 +328,43 @@ def _synthesize_with_model(
     ref_audio: object | None,
     ref_text: str,
     instruction: str,
+    seed: int = 0,
+    temperature: float = 0.0,
+    top_k: int = 0,
+    top_p: float = 0.0,
 ) -> bytes:
     """Synthesize audio using Qwen3-TTS model (blocking).
 
     Dispatches to the appropriate generate method based on variant.
     Runs under torch.inference_mode() to eliminate autograd overhead.
 
+    Args:
+        seed: Random seed for reproducible generation (0 = random).
+        temperature: Sampling temperature (0 = engine default ~0.9).
+        top_k: Top-k sampling limit (0 = engine default ~50).
+        top_p: Nucleus sampling threshold (0 = engine default ~1.0).
+
     Returns:
         16-bit PCM audio as bytes.
     """
+    import torch
+
     from macaw.workers.torch_utils import get_inference_context
+
+    # Set random seed for reproducibility before generation
+    if seed > 0:
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
+    # Build optional sampling kwargs for generate methods
+    generate_kwargs: dict[str, object] = {}
+    if temperature > 0:
+        generate_kwargs["temperature"] = temperature
+    if top_k > 0:
+        generate_kwargs["top_k"] = top_k
+    if top_p > 0:
+        generate_kwargs["top_p"] = top_p
 
     with get_inference_context():
         if variant == "custom_voice":
@@ -325,6 +373,7 @@ def _synthesize_with_model(
                 language=language,
                 speaker=voice,
                 instruct=instruction if instruction else None,
+                **generate_kwargs,
             )
         elif variant == "base":
             if ref_audio is None:
@@ -341,6 +390,7 @@ def _synthesize_with_model(
                 language=language,
                 ref_audio=ref_audio_decoded,
                 ref_text=ref_text,
+                **generate_kwargs,
             )
         elif variant == "voice_design":
             if not instruction:
@@ -350,6 +400,7 @@ def _synthesize_with_model(
                 text=text,
                 language=language,
                 instruct=instruction,
+                **generate_kwargs,
             )
         else:
             msg = f"Unknown variant: {variant}"

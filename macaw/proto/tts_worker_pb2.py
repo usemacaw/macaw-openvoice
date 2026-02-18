@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10tts_worker.proto\x12\tmacaw.tts\"\xc3\x01\n\x11SynthesizeRequest\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05voice\x18\x03 \x01(\t\x12\x13\n\x0bsample_rate\x18\x04 \x01(\x05\x12\r\n\x05speed\x18\x05 \x01(\x02\x12\x10\n\x08language\x18\x06 \x01(\t\x12\x11\n\tref_audio\x18\x07 \x01(\x0c\x12\x10\n\x08ref_text\x18\x08 \x01(\t\x12\x13\n\x0binstruction\x18\t \x01(\t\x12\r\n\x05\x63odec\x18\n \x01(\t\"W\n\x0fSynthesizeChunk\x12\x12\n\naudio_data\x18\x01 \x01(\x0c\x12\x0f\n\x07is_last\x18\x02 \x01(\x08\x12\x10\n\x08\x64uration\x18\x03 \x01(\x02\x12\r\n\x05\x63odec\x18\x04 \x01(\t\"\x13\n\x11ListVoicesRequest\"R\n\x0eVoiceInfoProto\x12\x10\n\x08voice_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08language\x18\x03 \x01(\t\x12\x0e\n\x06gender\x18\x04 \x01(\t\"?\n\x12ListVoicesResponse\x12)\n\x06voices\x18\x01 \x03(\x0b\x32\x19.macaw.tts.VoiceInfoProto\"\x0f\n\rHealthRequest\"\xb0\x01\n\x0eHealthResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x12\n\nmodel_name\x18\x02 \x01(\t\x12\x0e\n\x06\x65ngine\x18\x03 \x01(\t\x12\x39\n\x08metadata\x18\x04 \x03(\x0b\x32\'.macaw.tts.HealthResponse.MetadataEntry\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x32\xdf\x01\n\tTTSWorker\x12H\n\nSynthesize\x12\x1c.macaw.tts.SynthesizeRequest\x1a\x1a.macaw.tts.SynthesizeChunk0\x01\x12I\n\nListVoices\x12\x1c.macaw.tts.ListVoicesRequest\x1a\x1d.macaw.tts.ListVoicesResponse\x12=\n\x06Health\x12\x18.macaw.tts.HealthRequest\x1a\x19.macaw.tts.HealthResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10tts_worker.proto\x12\tmacaw.tts\"\xda\x02\n\x11SynthesizeRequest\x12\x12\n\nrequest_id\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05voice\x18\x03 \x01(\t\x12\x13\n\x0bsample_rate\x18\x04 \x01(\x05\x12\r\n\x05speed\x18\x05 \x01(\x02\x12\x10\n\x08language\x18\x06 \x01(\t\x12\x11\n\tref_audio\x18\x07 \x01(\x0c\x12\x10\n\x08ref_text\x18\x08 \x01(\t\x12\x13\n\x0binstruction\x18\t \x01(\t\x12\r\n\x05\x63odec\x18\n \x01(\t\x12\x19\n\x11include_alignment\x18\x0b \x01(\x08\x12\x1d\n\x15\x61lignment_granularity\x18\x0c \x01(\t\x12\x0c\n\x04seed\x18\r \x01(\x05\x12\x1a\n\x12text_normalization\x18\x0e \x01(\t\x12\x13\n\x0btemperature\x18\x0f \x01(\x02\x12\r\n\x05top_k\x18\x10 \x01(\x05\x12\r\n\x05top_p\x18\x11 \x01(\x02\"D\n\rAlignmentItem\x12\x0c\n\x04text\x18\x01 \x01(\t\x12\x10\n\x08start_ms\x18\x02 \x01(\x05\x12\x13\n\x0b\x64uration_ms\x18\x03 \x01(\x05\"N\n\x0e\x43hunkAlignment\x12\'\n\x05items\x18\x01 \x03(\x0b\x32\x18.macaw.tts.AlignmentItem\x12\x13\n\x0bgranularity\x18\x02 \x01(\t\"\xbe\x01\n\x0fSynthesizeChunk\x12\x12\n\naudio_data\x18\x01 \x01(\x0c\x12\x0f\n\x07is_last\x18\x02 \x01(\x08\x12\x10\n\x08\x64uration\x18\x03 \x01(\x02\x12\r\n\x05\x63odec\x18\x04 \x01(\t\x12,\n\talignment\x18\x05 \x01(\x0b\x32\x19.macaw.tts.ChunkAlignment\x12\x37\n\x14normalized_alignment\x18\x06 \x01(\x0b\x32\x19.macaw.tts.ChunkAlignment\"\x13\n\x11ListVoicesRequest\"R\n\x0eVoiceInfoProto\x12\x10\n\x08voice_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08language\x18\x03 \x01(\t\x12\x0e\n\x06gender\x18\x04 \x01(\t\"?\n\x12ListVoicesResponse\x12)\n\x06voices\x18\x01 \x03(\x0b\x32\x19.macaw.tts.VoiceInfoProto\"\x0f\n\rHealthRequest\"\xb0\x01\n\x0eHealthResponse\x12\x0e\n\x06status\x18\x01 \x01(\t\x12\x12\n\nmodel_name\x18\x02 \x01(\t\x12\x0e\n\x06\x65ngine\x18\x03 \x01(\t\x12\x39\n\x08metadata\x18\x04 \x03(\x0b\x32\'.macaw.tts.HealthResponse.MetadataEntry\x1a/\n\rMetadataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x32\xdf\x01\n\tTTSWorker\x12H\n\nSynthesize\x12\x1c.macaw.tts.SynthesizeRequest\x1a\x1a.macaw.tts.SynthesizeChunk0\x01\x12I\n\nListVoices\x12\x1c.macaw.tts.ListVoicesRequest\x1a\x1d.macaw.tts.ListVoicesResponse\x12=\n\x06Health\x12\x18.macaw.tts.HealthRequest\x1a\x19.macaw.tts.HealthResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,21 +34,25 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_HEALTHRESPONSE_METADATAENTRY']._loaded_options = None
   _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_options = b'8\001'
   _globals['_SYNTHESIZEREQUEST']._serialized_start=32
-  _globals['_SYNTHESIZEREQUEST']._serialized_end=227
-  _globals['_SYNTHESIZECHUNK']._serialized_start=229
-  _globals['_SYNTHESIZECHUNK']._serialized_end=316
-  _globals['_LISTVOICESREQUEST']._serialized_start=318
-  _globals['_LISTVOICESREQUEST']._serialized_end=337
-  _globals['_VOICEINFOPROTO']._serialized_start=339
-  _globals['_VOICEINFOPROTO']._serialized_end=421
-  _globals['_LISTVOICESRESPONSE']._serialized_start=423
-  _globals['_LISTVOICESRESPONSE']._serialized_end=486
-  _globals['_HEALTHREQUEST']._serialized_start=488
-  _globals['_HEALTHREQUEST']._serialized_end=503
-  _globals['_HEALTHRESPONSE']._serialized_start=506
-  _globals['_HEALTHRESPONSE']._serialized_end=682
-  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_start=635
-  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_end=682
-  _globals['_TTSWORKER']._serialized_start=685
-  _globals['_TTSWORKER']._serialized_end=908
+  _globals['_SYNTHESIZEREQUEST']._serialized_end=378
+  _globals['_ALIGNMENTITEM']._serialized_start=380
+  _globals['_ALIGNMENTITEM']._serialized_end=448
+  _globals['_CHUNKALIGNMENT']._serialized_start=450
+  _globals['_CHUNKALIGNMENT']._serialized_end=528
+  _globals['_SYNTHESIZECHUNK']._serialized_start=531
+  _globals['_SYNTHESIZECHUNK']._serialized_end=721
+  _globals['_LISTVOICESREQUEST']._serialized_start=723
+  _globals['_LISTVOICESREQUEST']._serialized_end=742
+  _globals['_VOICEINFOPROTO']._serialized_start=744
+  _globals['_VOICEINFOPROTO']._serialized_end=826
+  _globals['_LISTVOICESRESPONSE']._serialized_start=828
+  _globals['_LISTVOICESRESPONSE']._serialized_end=891
+  _globals['_HEALTHREQUEST']._serialized_start=893
+  _globals['_HEALTHREQUEST']._serialized_end=908
+  _globals['_HEALTHRESPONSE']._serialized_start=911
+  _globals['_HEALTHRESPONSE']._serialized_end=1087
+  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_start=1040
+  _globals['_HEALTHRESPONSE_METADATAENTRY']._serialized_end=1087
+  _globals['_TTSWORKER']._serialized_start=1090
+  _globals['_TTSWORKER']._serialized_end=1313
 # @@protoc_insertion_point(module_scope)

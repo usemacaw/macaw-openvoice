@@ -26,7 +26,30 @@ message SynthesizeRequest {
   bytes ref_audio = 7;           // Reference audio for voice cloning (PCM/WAV)
   string ref_text = 8;           // Reference transcript for voice cloning
   string instruction = 9;        // Voice design / style instruction
-  string codec = 10;              // Output codec (e.g., "opus"); empty = raw PCM
+  string codec = 10;             // Output codec (e.g., "opus"); empty = raw PCM
+  // Alignment options (field numbers > 10 for backward compatibility)
+  bool include_alignment = 11;           // Request alignment data in response chunks
+  string alignment_granularity = 12;     // "word" (default) or "character"
+  // Seed and generation control
+  int32 seed = 13;                       // Random seed for reproducibility (0 = random/default)
+  string text_normalization = 14;        // "auto" (default), "on", or "off"
+  // Sampling parameters (LLM-based TTS engines like Qwen3)
+  float temperature = 15;               // Sampling temperature (0 = engine default)
+  int32 top_k = 16;                     // Top-k sampling (0 = engine default)
+  float top_p = 17;                     // Nucleus sampling threshold (0 = engine default)
+}
+
+// Alignment data for a single text element (character or word)
+message AlignmentItem {
+  string text = 1;               // The aligned character or word
+  int32 start_ms = 2;            // Start time in ms relative to chunk start
+  int32 duration_ms = 3;         // Duration in ms
+}
+
+// Alignment metadata for a TTS audio chunk
+message ChunkAlignment {
+  repeated AlignmentItem items = 1;
+  string granularity = 2;        // "word" or "character"
 }
 
 message SynthesizeChunk {
@@ -34,6 +57,8 @@ message SynthesizeChunk {
   bool is_last = 2;              // Signals last chunk of the stream
   float duration = 3;            // Accumulated audio duration in seconds
   string codec = 4;              // Codec used for audio_data (e.g., "opus"); empty = raw PCM
+  ChunkAlignment alignment = 5;  // Optional word/char-level alignment for this chunk
+  ChunkAlignment normalized_alignment = 6;  // Optional alignment against normalized/phonemized text
 }
 
 // --- ListVoices ---

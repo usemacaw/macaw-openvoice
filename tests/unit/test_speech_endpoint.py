@@ -44,15 +44,23 @@ def _make_open_tts_stream_mock(
     audio_data: bytes = b"\x00\x01" * 100,
 ) -> AsyncMock:
     """Create an AsyncMock for _open_tts_stream that returns
-    an empty async iterator and the audio data as first chunk."""
+    an empty async iterator and a SynthesizeChunk-like mock as first chunk.
 
-    # Empty async iterator (no more chunks after first_audio_chunk)
+    _open_tts_stream returns (stream, SynthesizeChunk | None), so the
+    second element must have an .audio_data attribute.
+    """
+
+    # Empty async iterator (no more chunks after first chunk)
     async def _empty_iter():
         return
         yield  # make it a generator
 
+    # Mock SynthesizeChunk with .audio_data attribute
+    first_chunk = MagicMock()
+    first_chunk.audio_data = audio_data
+
     mock = AsyncMock(
-        return_value=(_empty_iter(), audio_data),
+        return_value=(_empty_iter(), first_chunk),
     )
     return mock
 

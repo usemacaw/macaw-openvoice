@@ -12,6 +12,7 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from macaw.server.models.events import TTSSpeakCommand
 from macaw.server.routes.realtime import (
     SessionContext,
     _cancel_active_tts,
@@ -103,9 +104,7 @@ async def _run_tts_speak(
                 session_id="sess_test",
                 session=session,
                 request_id=request_id,
-                text=text,
-                voice="default",
-                speed=1.0,
+                cmd=TTSSpeakCommand(text=text),
                 model_tts=model_tts,
                 send_event=send_event,
                 cancel_event=cancel,
@@ -385,9 +384,7 @@ class TestFullDuplexErrorRecovery:
             session_id="sess_test",
             session=session,
             request_id="req_2",
-            text="Hello",
-            voice="default",
-            speed=1.0,
+            cmd=TTSSpeakCommand(text="Hello"),
             model_tts="kokoro-v1",
             send_event=send_event2,
             cancel_event=cancel2,
@@ -553,9 +550,7 @@ class TestFullDuplexEdgeCases:
             session_id="sess_test",
             session=session,
             request_id="req_1",
-            text="Hello",
-            voice="default",
-            speed=1.0,
+            cmd=TTSSpeakCommand(text="Hello"),
             model_tts="kokoro-v1",
             send_event=send_event,
             cancel_event=cancel,

@@ -74,6 +74,9 @@ qwen3-tts = [
 codec = [
     "opuslib>=3.0.0",
 ]
+alignment = [
+    "torchaudio>=2.1",
+]
 stream = [
     "sounddevice>=0.4,<1.0",
     "websockets>=12.0,<14.0",
