@@ -7,7 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Rewritten `docs/ADDING_ENGINE.md` with complete TTS/STT backend examples, import guard pattern, executor pattern, error handling guidance, shared utilities reference, and verification checklist (#engine-extensibility)
+- Rewritten `docs/docs/guides/adding-engine.mdx` (Docusaurus public guide) to match actual codebase — fixes 21 issues including wrong file paths, wrong imports, wrong method signatures, missing required patterns, and stale manifest schema (#engine-extensibility)
+
 ### Added
+- Qwen3-ASR-0.6B STT backend with 52-language support, auto-detection, and word timestamps — encoder-decoder architecture with runtime LocalAgreement for streaming (#engine-catalog)
+- Chatterbox Turbo TTS backend with voice cloning via reference audio and configurable sampling parameters (temperature, top_p, top_k, repetition_penalty) (#engine-catalog)
+- Dynamic external engine loading via `python_package` manifest field — external STT/TTS backends are loaded automatically via `importlib` without modifying runtime code (#engine-extensibility)
+- `python_package` field on `ModelManifest` with dotted-module-path validation — external engines declare their Python entry point in `macaw.yaml` (#engine-extensibility)
+- `load_external_backend()` helper in `macaw/workers/_engine_loader.py` — discovers the single concrete subclass of `STTBackend`/`TTSBackend` in an external module (#engine-extensibility)
+- `--python-package` CLI argument for STT and TTS worker subprocesses — enables dynamic engine loading from manifest through the worker lifecycle (#engine-extensibility)
+- `ModelCapabilities(extra="forbid")` — unknown capability fields in `macaw.yaml` are now rejected at scan time instead of silently ignored (#engine-extensibility)
+- Registry scan warning for unknown engines without `python_package` — warns about engines not in `ENGINE_PACKAGE` that may fail to start (#engine-extensibility)
+- `is_engine_available()` now checks external package importability when `python_package` is set (#engine-extensibility)
 - TTS word-level alignment — Kokoro backend extracts native per-token timing from `MToken.start_ts/end_ts` at zero extra latency cost, streamed alongside audio via `ChunkAlignment` proto messages (#tts-alignment)
 - `synthesize_with_alignment()` method on `TTSBackend` ABC — non-abstract default wraps `synthesize()` for engines without native alignment; Kokoro overrides with timing extraction (#tts-alignment)
 - `include_alignment` and `alignment_granularity` fields in gRPC `SynthesizeRequest` — opt-in alignment with backward-compatible proto field numbers 11-12 (#tts-alignment)

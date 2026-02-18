@@ -234,6 +234,28 @@ class TestFix2BuildWorkerCmd:
         parsed = json.loads(cmd[idx + 1])
         assert parsed == {}
 
+    def test_python_package_included_when_set(self) -> None:
+        cmd = _build_worker_cmd(
+            port=50051,
+            engine="my-engine",
+            model_path="/models/test",
+            engine_config={},
+            python_package="my_company.engines.stt",
+        )
+        assert "--python-package" in cmd
+        idx = cmd.index("--python-package")
+        assert cmd[idx + 1] == "my_company.engines.stt"
+
+    def test_python_package_omitted_when_none(self) -> None:
+        cmd = _build_worker_cmd(
+            port=50051,
+            engine="faster-whisper",
+            model_path="/models/test",
+            engine_config={},
+            python_package=None,
+        )
+        assert "--python-package" not in cmd
+
 
 # ============================================================
 # Fix 3: _check_worker_health — import fora do try
@@ -420,6 +442,7 @@ class TestFix5TasksAwaitedAfterCancel:
                 "/models/test",
                 {"device": "cpu"},
                 worker_type=WorkerType.STT,
+                python_package=None,
             )
 
             await manager.stop_all()

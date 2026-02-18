@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import yaml
@@ -14,8 +15,14 @@ from macaw.exceptions import ManifestParseError, ManifestValidationError
 MANIFEST_FILENAME = "macaw.yaml"
 
 
-class ModelCapabilities(BaseModel):
-    """Capabilities declared in the manifest."""
+class ModelCapabilities(BaseModel, extra="forbid"):
+    """Capabilities declared in the manifest.
+
+    Uses extra="forbid" so that unknown capability fields in macaw.yaml
+    are rejected at scan time instead of silently ignored.  This prevents
+    external engines from declaring capabilities the runtime cannot
+    consume (e.g. ``supports_foo: true``).
+    """
 
     streaming: bool = False
     architecture: STTArchitecture | None = None
@@ -56,6 +63,10 @@ class EngineConfig(BaseModel, extra="allow"):
     vad_filter: bool = False
 
 
+# Valid Python dotted module path: identifiers separated by dots.
+_PYTHON_MODULE_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$")
+
+
 class ModelManifest(BaseModel):
     """Macaw model manifest (macaw.yaml).
 
@@ -72,9 +83,23 @@ class ModelManifest(BaseModel):
     engine: str
     model_type: ModelType
     description: str = ""
+    python_package: str | None = None
     capabilities: ModelCapabilities = ModelCapabilities()
     resources: ModelResources
     engine_config: EngineConfig = EngineConfig()
+
+    @field_validator("python_package")
+    @classmethod
+    def python_package_must_be_valid(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        if not v:
+            msg = "python_package must not be empty. Use None to omit."
+            raise ValueError(msg)
+        if not _PYTHON_MODULE_RE.match(v):
+            msg = f"Invalid python_package: '{v}'. Must be a valid Python dotted module path."
+            raise ValueError(msg)
+        return v
 
     @field_validator("name")
     @classmethod

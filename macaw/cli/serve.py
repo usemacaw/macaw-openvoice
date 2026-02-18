@@ -93,7 +93,7 @@ async def _spawn_all_workers(
 
     stt_models = [m for m in models if m.model_type == ModelType.STT]
     for manifest in stt_models:
-        if not is_engine_available(manifest.engine):
+        if not is_engine_available(manifest.engine, python_package=manifest.python_package):
             logger.warning(
                 "engine_not_installed",
                 model=manifest.name,
@@ -109,6 +109,7 @@ async def _spawn_all_workers(
             model_path=model_path,
             engine_config=manifest.engine_config.model_dump(),
             worker_type="stt",
+            python_package=manifest.python_package,
         )
         logger.info(
             "worker_spawned",
@@ -121,7 +122,7 @@ async def _spawn_all_workers(
 
     tts_models = [m for m in models if m.model_type == ModelType.TTS]
     for manifest in tts_models:
-        if not is_engine_available(manifest.engine):
+        if not is_engine_available(manifest.engine, python_package=manifest.python_package):
             logger.warning(
                 "engine_not_installed",
                 model=manifest.name,
@@ -139,6 +140,7 @@ async def _spawn_all_workers(
             model_path=model_path,
             engine_config=tts_engine_config,
             worker_type="tts",
+            python_package=manifest.python_package,
         )
         logger.info(
             "worker_spawned",

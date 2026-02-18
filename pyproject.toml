@@ -71,6 +71,12 @@ kokoro = [
 qwen3-tts = [
     "qwen-tts>=0.1,<2.0",
 ]
+qwen3-asr = [
+    "qwen-asr>=0.1,<2.0",
+]
+chatterbox = [
+    "chatterbox-tts>=0.1,<1.0",
+]
 codec = [
     "opuslib>=3.0.0",
 ]
@@ -190,6 +196,14 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "qwen_tts.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "qwen_asr.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "chatterbox.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

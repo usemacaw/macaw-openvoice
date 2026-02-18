@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from macaw.config.manifest import MANIFEST_FILENAME, ModelManifest
+from macaw.engines import ENGINE_PACKAGE
 from macaw.exceptions import ManifestParseError, ManifestValidationError, ModelNotFoundError
 from macaw.logging import get_logger
 
@@ -53,6 +54,15 @@ class ModelRegistry:
                 manifest = ModelManifest.from_yaml_path(manifest_path)
                 self._manifests[manifest.name] = manifest
                 self._model_paths[manifest.name] = subdir
+
+                if manifest.engine not in ENGINE_PACKAGE and not manifest.python_package:
+                    logger.warning(
+                        "unknown_engine",
+                        name=manifest.name,
+                        engine=manifest.engine,
+                        hint="Engine not in built-in registry. Worker may fail to start.",
+                    )
+
                 logger.info("model_found", name=manifest.name, engine=manifest.engine)
             except (ManifestParseError, ManifestValidationError, ValueError) as exc:
                 logger.error("manifest_error", path=str(manifest_path), error=str(exc))
