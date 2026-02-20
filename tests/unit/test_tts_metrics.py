@@ -1,12 +1,12 @@
-"""Testes do modulo tts_metrics.
+"""Tests for the tts_metrics module.
 
-Valida:
-- Metricas TTS criadas com tipos corretos quando prometheus_client esta disponivel
-- HAS_TTS_METRICS flag reflete disponibilidade de prometheus
-- Metricas sao None quando prometheus nao esta instalado
-- Histograms tem buckets corretos
-- Counter tem labels corretos
-- Instrumentacao em _tts_speak_task: TTFB, duration, requests_total, active_sessions
+Validates:
+- TTS metrics created with correct types when prometheus_client is available
+- HAS_TTS_METRICS flag reflects prometheus availability
+- Metrics are None when prometheus is not installed
+- Histograms have correct buckets
+- Counter has correct labels
+- Instrumentation in _tts_speak_task: TTFB, duration, requests_total, active_sessions
 """
 
 from __future__ import annotations
@@ -107,7 +107,7 @@ class TestTTSMetricsNoPrometheus:
 
 
 class TestTTSMetricsInstrumentation:
-    """Testa que _tts_speak_task instrui as metricas corretamente."""
+    """Tests that _tts_speak_task instruments metrics correctly."""
 
     async def test_ttfb_observed_on_first_chunk(self) -> None:
         """TTFB metric is observed when first chunk arrives."""

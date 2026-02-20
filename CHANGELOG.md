@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `--voice-dir` CLI option and `MACAW_VOICE_DIR` env var to enable voice persistence in `macaw serve` — operators can now configure a directory for Voice CRUD without code changes (#voice-store-wiring)
+- API Examples documentation page (`docs/docs/guides/api-examples.mdx`) — complete request/response reference for all REST endpoints, WebSocket protocol, voice CRUD, audio effects, alignment, and error handling with real captured outputs (#docs)
 
 ### Changed
 - Rewritten `docs/ADDING_ENGINE.md` with complete TTS/STT backend examples, import guard pattern, executor pattern, error handling guidance, shared utilities reference, and verification checklist (#engine-extensibility)
@@ -124,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `_tts_speak_task` refactored from 22 individual keyword arguments to `cmd: TTSSpeakCommand` Parameter Object — cleaner interface, future TTS fields auto-propagate (#tts-alignment-review)
 - `include_alignment` Field description on `SpeechRequest` now documents NDJSON content-type switch behavior (#tts-alignment-review)
 - `AlignmentStreamDone` now includes `alignment_available` feedback field — clients can detect when alignment was requested but engine couldn't provide it (#tts-alignment-review)
+- All remaining Portuguese strings in codebase translated to English — catalog descriptions, demo UI/scripts, test docstrings/comments, Pydantic model descriptions, and notebook test text for international community adoption (#i18n)
 
 ### Fixed
 - `seed` field on `SpeechRequest` and `TTSSpeakCommand` now validates `ge=1` — rejects 0 (proto3 wire default) and negative values at the API boundary, preventing silent no-ops (#tts-alignment-review)

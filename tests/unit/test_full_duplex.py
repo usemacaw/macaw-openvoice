@@ -1,15 +1,15 @@
-"""Testes de integracao full-duplex STT+TTS no endpoint WebSocket.
+"""Integration tests for full-duplex STT+TTS on the WebSocket endpoint.
 
-Valida:
-- tts.speak resolve modelo, abre gRPC stream, mute STT, envia chunks
-- tts.cancel cancela TTS ativa, unmute, emite tts.speaking_end(cancelled=true)
-- Sequential speaks: segundo cancela primeiro
-- TTS worker crash: emite error, unmute
-- Modelo TTS nao encontrado: emite error
-- TTS roda em background task (nao bloqueia main loop)
-- Mute/unmute lifecycle coordenado com StreamingSession
+Validates:
+- tts.speak resolves model, opens gRPC stream, mutes STT, sends chunks
+- tts.cancel cancels active TTS, unmutes, emits tts.speaking_end(cancelled=true)
+- Sequential speaks: second cancels first
+- TTS worker crash: emits error, unmutes
+- TTS model not found: emits error
+- TTS runs in background task (does not block main loop)
+- Mute/unmute lifecycle coordinated with StreamingSession
 - model_tts via session.configure
-- Cleanup no disconnect durante TTS ativa
+- Cleanup on disconnect during active TTS
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from macaw.server.routes.realtime import (
 
 
 def _make_mock_session() -> MagicMock:
-    """Cria mock de StreamingSession com mute/unmute."""
+    """Create a mock StreamingSession with mute/unmute."""
     session = MagicMock()
     session.is_closed = False
     session.is_muted = False
@@ -51,7 +51,7 @@ def _make_mock_session() -> MagicMock:
 
 
 def _make_mock_websocket() -> MagicMock:
-    """Cria mock de WebSocket."""
+    """Create a mock WebSocket."""
     from starlette.websockets import WebSocketState
 
     ws = AsyncMock()
@@ -63,7 +63,7 @@ def _make_mock_websocket() -> MagicMock:
 
 
 def _make_mock_registry(has_tts: bool = True, model_name: str = "kokoro-v1") -> MagicMock:
-    """Cria mock de ModelRegistry."""
+    """Create a mock ModelRegistry."""
     from macaw._types import ModelType
 
     registry = MagicMock()
@@ -84,21 +84,21 @@ def _make_mock_registry(has_tts: bool = True, model_name: str = "kokoro-v1") -> 
 
 
 def _make_mock_worker(port: int = 50052) -> MagicMock:
-    """Cria mock de WorkerInfo."""
+    """Create a mock WorkerInfo."""
     worker = MagicMock()
     worker.port = port
     return worker
 
 
 def _make_mock_worker_manager(worker: MagicMock | None = None) -> MagicMock:
-    """Cria mock de WorkerManager."""
+    """Create a mock WorkerManager."""
     wm = MagicMock()
     wm.get_ready_worker.return_value = worker
     return wm
 
 
 def _make_send_event() -> tuple[AsyncMock, list[Any]]:
-    """Cria send_event callback que coleta eventos."""
+    """Create a send_event callback that collects events."""
     events: list[Any] = []
 
     async def _send(event: Any) -> None:
@@ -125,7 +125,7 @@ def _make_cancel_ctx(
 
 
 def _make_mock_grpc_stream(chunks: list[MagicMock] | None = None) -> Any:
-    """Cria mock de gRPC Synthesize response stream."""
+    """Create a mock gRPC Synthesize response stream."""
     if chunks is None:
         chunk1 = MagicMock()
         chunk1.audio_data = b"\x00\x01" * 100

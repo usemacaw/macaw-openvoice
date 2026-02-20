@@ -1,4 +1,4 @@
-"""Testes dos comandos `Macaw list` e `Macaw inspect`."""
+"""Tests for `Macaw list` and `Macaw inspect` commands."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from macaw.cli import cli
 
 
 def _create_model_dir(base: Path, name: str, engine: str = "faster-whisper") -> None:
-    """Cria diretorio de modelo com macaw.yaml valido."""
+    """Creates a model directory with a valid macaw.yaml."""
     model_dir = base / name
     model_dir.mkdir()
     manifest = f"""

@@ -1,14 +1,14 @@
-"""Testes do Ring Buffer — read fence, force commit e integracao com StreamingSession.
+"""Ring Buffer tests -- read fence, force commit, and StreamingSession integration.
 
-Cobre:
+Covers:
 - Read fence (commit, uncommitted_bytes, available_for_write_bytes)
-- Protecao de dados nao commitados (BufferOverrunError)
-- Force commit callback (>90% de uso nao commitado)
-- Integracao com StreamingSession (write no ring buffer, commit apos final,
-  force commit via callback sync -> flag async)
+- Uncommitted data protection (BufferOverrunError)
+- Force commit callback (>90% uncommitted usage)
+- Integration with StreamingSession (write to ring buffer, commit after final,
+  force commit via sync callback -> async flag)
 
-Testes de funcionalidade basica do ring buffer (write, read, wrap-around)
-estao em test_ring_buffer.py.
+Basic ring buffer functionality tests (write, read, wrap-around)
+are in test_ring_buffer.py.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ from tests.helpers import (
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create a StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
@@ -52,7 +52,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
 
 
 def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
-    """Cria mock de StreamingGRPCClient."""
+    """Create a StreamingGRPCClient mock."""
     client = AsyncMock()
     if stream_handle is None:
         stream_handle = _make_stream_handle_mock()
@@ -62,34 +62,34 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 
 def _make_postprocessor_mock() -> Mock:
-    """Cria mock de PostProcessingPipeline."""
+    """Create a PostProcessingPipeline mock."""
     mock = Mock()
-    mock.process.side_effect = lambda text, **kwargs: text  # identity (sem transformacao)
+    mock.process.side_effect = lambda text, **kwargs: text  # identity (no transformation)
     return mock
 
 
 # ---------------------------------------------------------------------------
-# Read Fence: propriedades e commit
+# Read Fence: properties and commit
 # ---------------------------------------------------------------------------
 
 
 class TestReadFence:
-    """Testes do read fence (last_committed_offset)."""
+    """Tests for read fence (last_committed_offset)."""
 
     def test_read_fence_starts_at_zero(self) -> None:
-        """Read fence inicia em 0 (nada commitado)."""
+        """Read fence starts at 0 (nothing committed)."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         assert rb.read_fence == 0
 
     def test_commit_advances_fence(self) -> None:
-        """commit() avanca o read fence para o offset dado."""
+        """commit() advances the read fence to the given offset."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 5)
         rb.commit(3)
         assert rb.read_fence == 3
 
     def test_commit_to_total_written(self) -> None:
-        """commit() pode avancar ate total_written (tudo commitado)."""
+        """commit() can advance up to total_written (everything committed)."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 7)
         rb.commit(rb.total_written)
@@ -97,7 +97,7 @@ class TestReadFence:
         assert rb.uncommitted_bytes == 0
 
     def test_commit_below_current_fence_raises(self) -> None:
-        """commit() com offset menor que o fence atual levanta ValueError."""
+        """commit() with offset less than the current fence raises ValueError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 5)
         rb.commit(3)
@@ -105,22 +105,22 @@ class TestReadFence:
             rb.commit(2)
 
     def test_commit_above_total_written_raises(self) -> None:
-        """commit() com offset maior que total_written levanta ValueError."""
+        """commit() with offset greater than total_written raises ValueError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 5)
         with pytest.raises(ValueError, match="cannot exceed"):
             rb.commit(10)
 
     def test_commit_same_fence_is_noop(self) -> None:
-        """commit() com o mesmo offset do fence atual e no-op (valido)."""
+        """commit() with the same offset as the current fence is a no-op (valid)."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 5)
         rb.commit(3)
-        rb.commit(3)  # No-op, nao deve levantar
+        rb.commit(3)  # No-op, should not raise
         assert rb.read_fence == 3
 
     def test_commit_incremental(self) -> None:
-        """commit() pode ser chamado incrementalmente."""
+        """commit() can be called incrementally."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 10)
         rb.commit(2)
@@ -137,30 +137,30 @@ class TestReadFence:
 
 
 class TestUncommittedBytes:
-    """Testes de uncommitted_bytes e available_for_write_bytes."""
+    """Tests for uncommitted_bytes and available_for_write_bytes."""
 
     def test_uncommitted_bytes_equals_total_written_when_no_commit(self) -> None:
-        """Sem commit, tudo e nao commitado."""
+        """Without commit, everything is uncommitted."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 7)
         assert rb.uncommitted_bytes == 7
 
     def test_uncommitted_bytes_decreases_after_commit(self) -> None:
-        """uncommitted_bytes diminui apos commit."""
+        """uncommitted_bytes decreases after commit."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 7)
         rb.commit(3)
         assert rb.uncommitted_bytes == 4
 
     def test_uncommitted_bytes_zero_after_full_commit(self) -> None:
-        """uncommitted_bytes = 0 apos commit total."""
+        """uncommitted_bytes = 0 after full commit."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 7)
         rb.commit(rb.total_written)
         assert rb.uncommitted_bytes == 0
 
     def test_available_for_write_equals_capacity_when_all_committed(self) -> None:
-        """Quando tudo e commitado, available = capacity."""
+        """When everything is committed, available = capacity."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         # capacity = 10
         rb.write(b"\x01" * 7)
@@ -168,7 +168,7 @@ class TestUncommittedBytes:
         assert rb.available_for_write_bytes == 10
 
     def test_available_for_write_decreases_with_uncommitted(self) -> None:
-        """available_for_write diminui com dados nao commitados."""
+        """available_for_write decreases with uncommitted data."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         # capacity = 10
         rb.write(b"\x01" * 7)
@@ -176,7 +176,7 @@ class TestUncommittedBytes:
         assert rb.available_for_write_bytes == 3
 
     def test_available_for_write_zero_when_uncommitted_fills_capacity(self) -> None:
-        """available_for_write = 0 quando uncommitted >= capacity."""
+        """available_for_write = 0 when uncommitted >= capacity."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         # capacity = 10
         rb.write(b"\x01" * 10)
@@ -185,15 +185,15 @@ class TestUncommittedBytes:
 
 
 # ---------------------------------------------------------------------------
-# Write protection (fence protege dados nao commitados)
+# Write protection (fence protects uncommitted data)
 # ---------------------------------------------------------------------------
 
 
 class TestWriteProtection:
-    """Testes de protecao de escrita — fence impede sobrescrita de dados nao commitados."""
+    """Write protection tests -- fence prevents overwriting uncommitted data."""
 
     def test_write_raises_when_would_overwrite_uncommitted(self) -> None:
-        """Escrita que sobrescreveria dados nao commitados levanta BufferOverrunError."""
+        """Write that would overwrite uncommitted data raises BufferOverrunError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         # capacity = 10
         rb.write(b"\x01" * 10)
@@ -202,17 +202,17 @@ class TestWriteProtection:
             rb.write(b"\x02" * 1)
 
     def test_write_succeeds_after_partial_commit(self) -> None:
-        """Escrita sucede apos commit parcial liberar espaco."""
+        """Write succeeds after partial commit frees space."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         # capacity = 10
         rb.write(b"\x01" * 10)
-        rb.commit(5)  # libera 5 bytes
+        rb.commit(5)  # frees 5 bytes
         # available = 10 - 5 = 5
-        rb.write(b"\x02" * 5)  # Nao deve levantar
+        rb.write(b"\x02" * 5)  # Should not raise
         assert rb.total_written == 15
 
     def test_write_exceeding_available_raises(self) -> None:
-        """Escrita maior que available_for_write levanta BufferOverrunError."""
+        """Write larger than available_for_write raises BufferOverrunError."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 8)
         # uncommitted = 8, available = 2
@@ -220,24 +220,24 @@ class TestWriteProtection:
             rb.write(b"\x02" * 3)
 
     def test_write_exactly_available_succeeds(self) -> None:
-        """Escrita exatamente do tamanho available nao levanta erro."""
+        """Write exactly the size of available does not raise an error."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 8)
         # uncommitted = 8, available = 2
-        rb.write(b"\x02" * 2)  # Nao deve levantar
+        rb.write(b"\x02" * 2)  # Should not raise
         assert rb.total_written == 10
 
     def test_write_unrestricted_when_all_committed(self) -> None:
-        """Escrita e livre quando tudo esta commitado (nada para proteger)."""
+        """Write is free when everything is committed (nothing to protect)."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         rb.write(b"\x01" * 10)
         rb.commit(rb.total_written)
-        # Tudo commitado — escrita livre, mesmo que > capacity
+        # Everything committed -- write is free, even if > capacity
         rb.write(b"\x02" * 25)
         assert rb.total_written == 35
 
     def test_write_with_zero_uncommitted_allows_large_write(self) -> None:
-        """Zero uncommitted permite escrita maior que capacity."""
+        """Zero uncommitted allows writes larger than capacity."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
         # fence=0, total_written=0 -> uncommitted=0
         data = bytes(range(25))
@@ -251,14 +251,14 @@ class TestWriteProtection:
 
 
 class TestForceCommit:
-    """Testes do callback on_force_commit (>90% de uso nao commitado)."""
+    """Tests for on_force_commit callback (>90% uncommitted usage)."""
 
     def test_force_commit_threshold_is_90_percent(self) -> None:
-        """Threshold de force commit e 90%."""
+        """Force commit threshold is 90%."""
         assert pytest.approx(0.90) == _DEFAULT_FORCE_COMMIT_THRESHOLD
 
     def test_force_commit_triggered_above_90_percent(self) -> None:
-        """Callback e invocado quando uncommitted > 90% da capacidade."""
+        """Callback is invoked when uncommitted > 90% of capacity."""
         callback = Mock()
         rb = RingBuffer(
             duration_s=1.0,
@@ -268,13 +268,13 @@ class TestForceCommit:
         )
         # capacity = 10, 90% = 9 bytes
 
-        # Escrever 10 bytes (100% uncommitted) -> dispara callback
+        # Write 10 bytes (100% uncommitted) -> triggers callback
         rb.write(b"\x01" * 10)
 
         callback.assert_called_once_with(10)  # total_written = 10
 
     def test_force_commit_not_triggered_at_90_percent(self) -> None:
-        """Callback NAO e invocado quando uncommitted = exatamente 90%."""
+        """Callback is NOT invoked when uncommitted = exactly 90%."""
         callback = Mock()
         rb = RingBuffer(
             duration_s=1.0,
@@ -284,13 +284,13 @@ class TestForceCommit:
         )
         # capacity = 10, 90% = 9 bytes. Threshold e STRICT > 0.90
 
-        # Escrever exatamente 9 bytes (90% = exatamente threshold, nao > threshold)
+        # Write exactly 9 bytes (90% = exactly threshold, not > threshold)
         rb.write(b"\x01" * 9)
 
         callback.assert_not_called()
 
     def test_force_commit_not_triggered_below_90_percent(self) -> None:
-        """Callback NAO e invocado quando uncommitted < 90%."""
+        """Callback is NOT invoked when uncommitted < 90%."""
         callback = Mock()
         rb = RingBuffer(
             duration_s=1.0,
@@ -304,7 +304,7 @@ class TestForceCommit:
         callback.assert_not_called()
 
     def test_force_commit_not_triggered_when_committed(self) -> None:
-        """Callback NAO e invocado quando dados ja estao commitados."""
+        """Callback is NOT invoked when data is already committed."""
         callback = Mock()
         rb = RingBuffer(
             duration_s=1.0,
@@ -315,14 +315,14 @@ class TestForceCommit:
         # capacity = 10
 
         rb.write(b"\x01" * 5)
-        rb.commit(rb.total_written)  # Tudo commitado
+        rb.commit(rb.total_written)  # Everything committed
 
-        # Escrever mais 5 — uncommitted = 5 (50%) -> sem callback
+        # Write 5 more -- uncommitted = 5 (50%) -> no callback
         rb.write(b"\x02" * 5)
         callback.assert_not_called()
 
     def test_force_commit_not_triggered_without_callback(self) -> None:
-        """Sem callback configurado, nenhum erro ocorre ao ultrapassar 90%."""
+        """Without a configured callback, no error occurs when exceeding 90%."""
         rb = RingBuffer(
             duration_s=1.0,
             sample_rate=10,
@@ -331,12 +331,12 @@ class TestForceCommit:
         )
         # capacity = 10
 
-        # Escrever 10 bytes sem callback — nao deve levantar erro
+        # Write 10 bytes without callback -- should not raise an error
         rb.write(b"\x01" * 10)
         assert rb.total_written == 10
 
     def test_force_commit_called_multiple_times(self) -> None:
-        """Callback pode ser chamado multiplas vezes conforme buffer enche."""
+        """Callback can be called multiple times as buffer fills up."""
         callback = Mock()
         rb = RingBuffer(
             duration_s=1.0,
@@ -350,22 +350,22 @@ class TestForceCommit:
         rb.write(b"\x01" * 95)
         assert callback.call_count == 1
 
-        # Comitar tudo e escrever novamente
+        # Commit everything and write again
         rb.commit(rb.total_written)
         rb.write(b"\x02" * 91)  # 91% > 90%
         assert callback.call_count == 2
 
 
 # ---------------------------------------------------------------------------
-# Integracao: StreamingSession + Ring Buffer
+# Integration: StreamingSession + Ring Buffer
 # ---------------------------------------------------------------------------
 
 
 class TestStreamingSessionRingBuffer:
-    """Testes de integracao StreamingSession com Ring Buffer."""
+    """Integration tests for StreamingSession with Ring Buffer."""
 
     async def test_session_writes_pcm_to_ring_buffer(self) -> None:
-        """StreamingSession escreve frames PCM no ring buffer durante fala."""
+        """StreamingSession writes PCM frames to the ring buffer during speech."""
         # Arrange
         rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
         stream_handle = _make_stream_handle_mock()
@@ -390,13 +390,13 @@ class TestStreamingSessionRingBuffer:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Enviar mais frames durante fala
+        # Send more frames during speech
         vad.process_frame.return_value = None
         await session.process_frame(make_raw_bytes())
         await session.process_frame(make_raw_bytes())
 
-        # Assert: ring buffer tem dados escritos.
-        # Cada frame e 1024 samples * 2 bytes = 2048 bytes PCM int16.
+        # Assert: ring buffer has written data.
+        # Each frame is 1024 samples * 2 bytes = 2048 bytes PCM int16.
         expected_bytes = 3 * FRAME_SIZE * 2  # 3 frames
         assert rb.total_written == expected_bytes
 
@@ -404,7 +404,7 @@ class TestStreamingSessionRingBuffer:
         await session.close()
 
     async def test_session_without_ring_buffer_works(self) -> None:
-        """StreamingSession funciona normalmente sem ring buffer (backward compat)."""
+        """StreamingSession works normally without ring buffer (backward compat)."""
         stream_handle = _make_stream_handle_mock()
         grpc_client = _make_grpc_client_mock(stream_handle)
         vad = make_vad_mock()
@@ -416,10 +416,10 @@ class TestStreamingSessionRingBuffer:
             grpc_client=grpc_client,
             postprocessor=_make_postprocessor_mock(),
             on_event=AsyncMock(),
-            ring_buffer=None,  # Sem ring buffer
+            ring_buffer=None,  # No ring buffer
         )
 
-        # Trigger speech_start e enviar frames — nao deve levantar erro
+        # Trigger speech_start and send frames -- should not raise an error
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
@@ -430,13 +430,13 @@ class TestStreamingSessionRingBuffer:
         vad.process_frame.return_value = None
         await session.process_frame(make_raw_bytes())
 
-        # Assert: frames enviados ao worker normalmente
+        # Assert: frames sent to the worker normally
         assert stream_handle.send_frame.call_count == 2
 
         await session.close()
 
     async def test_ring_buffer_fence_advances_on_transcript_final(self) -> None:
-        """Ring buffer read fence avanca apos transcript.final."""
+        """Ring buffer read fence advances after transcript.final."""
         # Arrange
         final_segment = TranscriptSegment(
             text="ola mundo",
@@ -465,7 +465,7 @@ class TestStreamingSessionRingBuffer:
             ring_buffer=rb,
         )
 
-        # Trigger speech_start (abre stream, inicia receiver)
+        # Trigger speech_start (opens stream, starts receiver)
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
@@ -473,18 +473,18 @@ class TestStreamingSessionRingBuffer:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Enviar mais frames
+        # Send more frames
         vad.process_frame.return_value = None
         await session.process_frame(make_raw_bytes())
 
-        # Aguardar receiver task processar o transcript.final
+        # Wait for receiver task to process the transcript.final
         await asyncio.sleep(0.05)
 
-        # Assert: fence avancou para total_written
+        # Assert: fence advanced to total_written
         assert rb.read_fence == rb.total_written
         assert rb.uncommitted_bytes == 0
 
-        # Verificar que transcript.final foi emitido
+        # Verify that transcript.final was emitted
         final_calls = [
             call
             for call in on_event.call_args_list
@@ -495,7 +495,7 @@ class TestStreamingSessionRingBuffer:
         await session.close()
 
     async def test_force_commit_triggers_session_commit(self) -> None:
-        """Force commit do ring buffer (>90%) dispara session.commit()."""
+        """Force commit from ring buffer (>90%) triggers session.commit()."""
         # Arrange: ring buffer pequeno para facilitar atingir 90%
         # 0.01s * 16000 * 2 = 320 bytes de capacidade
         rb = RingBuffer(duration_s=0.01, sample_rate=16000, bytes_per_sample=2)
@@ -514,7 +514,7 @@ class TestStreamingSessionRingBuffer:
             ring_buffer=rb,
         )
 
-        # Verificar que o callback foi wired
+        # Verify that the callback was wired
         assert rb._on_force_commit is not None
 
         # Trigger speech_start
@@ -524,27 +524,27 @@ class TestStreamingSessionRingBuffer:
         )
         vad.is_speaking = True
 
-        # Usar frames pequenos para controlar o tamanho exato.
-        # Cada frame default = 1024 * 2 = 2048 bytes.
-        # rb.capacity = 320 bytes. Primeiro frame ja excede capacity,
-        # mas fence=0 e total_written=0 entao uncommitted=0 e write e livre.
-        # Apos o write, uncommitted = 2048 > 320 * 0.9 = 288 -> force commit.
+        # Use small frames to control the exact size.
+        # Each default frame = 1024 * 2 = 2048 bytes.
+        # rb.capacity = 320 bytes. First frame already exceeds capacity,
+        # but fence=0 and total_written=0 so uncommitted=0 and write is free.
+        # After the write, uncommitted = 2048 > 320 * 0.9 = 288 -> force commit.
 
-        # O force commit seta _force_commit_pending = True
-        # E no final de process_frame, commit() e chamado.
+        # The force commit sets _force_commit_pending = True
+        # And at the end of process_frame, commit() is called.
         await session.process_frame(make_raw_bytes())
 
-        # Apos process_frame com force commit:
-        # - commit() fecha o stream handle e aguarda receiver
-        # - segment_id incrementa
-        assert session.segment_id == 1  # Incrementou por causa do commit
+        # After process_frame with force commit:
+        # - commit() closes the stream handle and waits for receiver
+        # - segment_id increments
+        assert session.segment_id == 1  # Incremented because of the commit
 
         await session.close()
 
     async def test_ring_buffer_callback_wired_in_init(self) -> None:
-        """StreamingSession configura on_force_commit no ring buffer ao ser criada."""
+        """StreamingSession configures on_force_commit on the ring buffer when created."""
         rb = RingBuffer(duration_s=1.0, sample_rate=10, bytes_per_sample=1)
-        assert rb._on_force_commit is None  # Antes de criar session
+        assert rb._on_force_commit is None  # Before creating session
 
         session = StreamingSession(
             session_id="test_session",
@@ -556,7 +556,7 @@ class TestStreamingSessionRingBuffer:
             ring_buffer=rb,
         )
 
-        # Apos criar session, callback esta wired
+        # After creating session, callback is wired
         assert rb._on_force_commit is not None
         assert rb._on_force_commit == session._metrics.on_ring_buffer_force_commit
 

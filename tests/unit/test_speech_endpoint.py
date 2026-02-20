@@ -1,9 +1,9 @@
-"""Testes do endpoint POST /v1/audio/speech e tts_converters.
+"""Tests for the POST /v1/audio/speech endpoint and tts_converters.
 
-Valida:
-- Pydantic model SpeechRequest (validacao, defaults)
-- build_tts_proto_request (conversor)
-- Rota POST /v1/audio/speech (sucesso, erros, formatos)
+Validates:
+- Pydantic model SpeechRequest (validation, defaults)
+- build_tts_proto_request (converter)
+- POST /v1/audio/speech route (success, errors, formats)
 """
 
 from __future__ import annotations

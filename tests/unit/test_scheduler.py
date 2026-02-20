@@ -1,4 +1,4 @@
-"""Testes do Scheduler."""
+"""Tests for the Scheduler."""
 
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def _make_proto_response() -> TranscribeFileResponse:
 
 
 class TestBuildProtoRequest:
-    """Testes da conversao TranscribeRequest -> protobuf."""
+    """Tests for TranscribeRequest -> protobuf conversion."""
 
     def test_maps_required_fields(self) -> None:
         request = _make_request()
@@ -146,7 +146,7 @@ class TestBuildProtoRequest:
 
 
 class TestProtoResponseToBatchResult:
-    """Testes da conversao protobuf -> BatchResult."""
+    """Tests for protobuf -> BatchResult conversion."""
 
     def test_maps_text_and_metadata(self) -> None:
         proto = _make_proto_response()
@@ -189,7 +189,7 @@ class TestProtoResponseToBatchResult:
 
 
 class TestSchedulerTranscribe:
-    """Testes do metodo Scheduler.transcribe."""
+    """Tests for the Scheduler.transcribe method."""
 
     async def test_model_not_found_raises_error(self) -> None:
         registry = MagicMock()
@@ -272,7 +272,7 @@ class TestSchedulerTranscribe:
         mock_channel.close.assert_awaited_once()
 
     async def test_validates_model_before_finding_worker(self) -> None:
-        """Registry e consultado antes do WorkerManager."""
+        """Registry is consulted before WorkerManager."""
         registry = MagicMock()
         registry.get_manifest.side_effect = ModelNotFoundError("model")
         worker_manager = MagicMock()

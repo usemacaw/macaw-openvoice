@@ -1,4 +1,4 @@
-"""Testes para STTWorkerServicer.TranscribeStream."""
+"""Tests for STTWorkerServicer.TranscribeStream."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 
 class StreamingMockBackend(STTBackend):
-    """Backend mock com suporte a transcribe_stream."""
+    """Mock backend with transcribe_stream support."""
 
     def __init__(
         self,
@@ -88,7 +88,7 @@ class StreamingMockBackend(STTBackend):
 
 
 def _make_context(*, cancelled: bool = False) -> MagicMock:
-    """Cria mock de grpc.aio.ServicerContext."""
+    """Creates a mock of grpc.aio.ServicerContext."""
     ctx = MagicMock()
     ctx.abort = AsyncMock()
     ctx.cancelled = MagicMock(return_value=cancelled)
@@ -98,7 +98,7 @@ def _make_context(*, cancelled: bool = False) -> MagicMock:
 async def _make_frame_iterator(
     frames: list[AudioFrame],
 ) -> AsyncIterator[AudioFrame]:
-    """Cria async iterator a partir de lista de AudioFrames."""
+    """Creates an async iterator from a list of AudioFrames."""
     for frame in frames:
         yield frame
 
@@ -106,7 +106,7 @@ async def _make_frame_iterator(
 async def _collect_events(
     async_gen: AsyncIterator[object],
 ) -> list[object]:
-    """Coleta todos os eventos de um async generator."""
+    """Collects all events from an async generator."""
     events = []
     async for event in async_gen:
         events.append(event)

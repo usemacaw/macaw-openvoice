@@ -1,12 +1,12 @@
-"""Testes de hot words por sessao na StreamingSession.
+"""Tests for per-session hot words in StreamingSession.
 
-Valida que hot words sao:
-- Armazenados corretamente no init e via update_hot_words().
-- Enviados ao worker apenas no primeiro frame de cada segmento de fala.
-- Atualizados dinamicamente e usados no proximo segmento.
+Validates that hot words are:
+- Stored correctly on init and via update_hot_words().
+- Sent to the worker only on the first frame of each speech segment.
+- Updated dynamically and used in the next segment.
 
-Todos os testes usam mocks para dependencias externas.
-Testes sao deterministicos — sem dependencia de timing real.
+All tests use mocks for external dependencies.
+Tests are deterministic -- no dependency on real timing.
 """
 
 from __future__ import annotations
@@ -20,15 +20,15 @@ from tests.helpers import make_float32_frame, make_raw_bytes
 
 
 def _make_stream_handle_mock() -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
 
-    # receive_events retorna async iterator vazio
+    # receive_events returns empty async iterator
     async def _empty_iter():
         return
-        yield  # necessario para tornar um async generator
+        yield  # needed to make it an async generator
 
     handle.receive_events.return_value = _empty_iter()
     handle.send_frame = AsyncMock()
@@ -40,7 +40,7 @@ def _make_stream_handle_mock() -> Mock:
 def _make_session(
     hot_words: list[str] | None = None,
 ) -> tuple[StreamingSession, Mock, Mock, AsyncMock, AsyncMock]:
-    """Cria StreamingSession com mocks configurados.
+    """Create StreamingSession with configured mocks.
 
     Returns:
         (session, preprocessor, vad, stream_handle, on_event)
@@ -74,12 +74,12 @@ def _make_session(
 
 
 # ---------------------------------------------------------------------------
-# Tests: armazenamento de hot words
+# Tests: hot words storage
 # ---------------------------------------------------------------------------
 
 
 async def test_session_created_with_hot_words():
-    """Hot words fornecidos no init sao armazenados corretamente."""
+    """Hot words provided on init are stored correctly."""
     # Arrange & Act
     session, _, _, _, _ = _make_session(hot_words=["PIX", "TED", "Selic"])
 
@@ -91,7 +91,7 @@ async def test_session_created_with_hot_words():
 
 
 async def test_session_created_without_hot_words():
-    """Sessao criada sem hot words tem None como default."""
+    """Session created without hot words has None as default."""
     # Arrange & Act
     session, _, _, _, _ = _make_session(hot_words=None)
 
@@ -103,7 +103,7 @@ async def test_session_created_without_hot_words():
 
 
 async def test_update_hot_words():
-    """update_hot_words() altera os hot words armazenados."""
+    """update_hot_words() changes the stored hot words."""
     # Arrange
     session, _, _, _, _ = _make_session(hot_words=["PIX"])
 
@@ -118,7 +118,7 @@ async def test_update_hot_words():
 
 
 async def test_update_hot_words_to_none():
-    """update_hot_words(None) limpa os hot words."""
+    """update_hot_words(None) clears the hot words."""
     # Arrange
     session, _, _, _, _ = _make_session(hot_words=["PIX", "TED"])
 
@@ -133,12 +133,12 @@ async def test_update_hot_words_to_none():
 
 
 # ---------------------------------------------------------------------------
-# Tests: envio de hot words ao worker
+# Tests: sending hot words to worker
 # ---------------------------------------------------------------------------
 
 
 async def test_hot_words_sent_on_first_frame():
-    """Hot words sao enviados ao worker no primeiro frame do segmento."""
+    """Hot words are sent to the worker on the first frame of the segment."""
     # Arrange
     session, _, vad, stream_handle, _ = _make_session(
         hot_words=["PIX", "TED", "Selic"],
@@ -149,10 +149,10 @@ async def test_hot_words_sent_on_first_frame():
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
     )
-    vad.is_speaking = True  # Apos speech_start
+    vad.is_speaking = True  # After speech_start
     await session.process_frame(make_raw_bytes())
 
-    # Assert: primeiro send_frame deve incluir hot_words
+    # Assert: first send_frame should include hot_words
     assert stream_handle.send_frame.call_count == 1
     first_call = stream_handle.send_frame.call_args_list[0]
     assert first_call.kwargs.get("hot_words") == ["PIX", "TED", "Selic"]
@@ -162,13 +162,13 @@ async def test_hot_words_sent_on_first_frame():
 
 
 async def test_hot_words_not_sent_on_subsequent_frames():
-    """Hot words NAO sao enviados nos frames subsequentes do mesmo segmento."""
+    """Hot words are NOT sent on subsequent frames of the same segment."""
     # Arrange
     session, _, vad, stream_handle, _ = _make_session(
         hot_words=["PIX", "TED"],
     )
 
-    # Act: trigger speech_start + enviar 2 frames adicionais
+    # Act: trigger speech_start + send 2 additional frames
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -176,14 +176,14 @@ async def test_hot_words_not_sent_on_subsequent_frames():
     vad.is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    vad.process_frame.return_value = None  # Sem transicao
+    vad.process_frame.return_value = None  # No transition
     await session.process_frame(make_raw_bytes())
     await session.process_frame(make_raw_bytes())
 
-    # Assert: 3 frames enviados
+    # Assert: 3 frames sent
     assert stream_handle.send_frame.call_count == 3
 
-    # Segundo e terceiro frames: hot_words deve ser None
+    # Second and third frames: hot_words should be None
     second_call = stream_handle.send_frame.call_args_list[1]
     third_call = stream_handle.send_frame.call_args_list[2]
     assert second_call.kwargs.get("hot_words") is None
@@ -194,14 +194,14 @@ async def test_hot_words_not_sent_on_subsequent_frames():
 
 
 async def test_hot_words_reset_on_new_segment():
-    """Hot words sao reenviados no primeiro frame de um novo segmento."""
+    """Hot words are resent on the first frame of a new segment."""
     # Arrange
     session, _, vad, _, _ = _make_session(
         hot_words=["PIX"],
     )
     grpc_client = session._grpc_client
 
-    # Primeiro segmento: speech_start -> speech_end
+    # First segment: speech_start -> speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -210,7 +210,7 @@ async def test_hot_words_reset_on_new_segment():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
-    # Preparar novo stream_handle para proximo segmento
+    # Prepare new stream_handle for next segment
     stream_handle_2 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle_2)
 
@@ -221,7 +221,7 @@ async def test_hot_words_reset_on_new_segment():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Segundo segmento: speech_start
+    # Second segment: speech_start
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=3000,
@@ -229,7 +229,7 @@ async def test_hot_words_reset_on_new_segment():
     vad.is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    # Assert: hot_words enviados no primeiro frame do segundo segmento
+    # Assert: hot_words sent on first frame of the second segment
     assert stream_handle_2.send_frame.call_count == 1
     first_call_seg2 = stream_handle_2.send_frame.call_args_list[0]
     assert first_call_seg2.kwargs.get("hot_words") == ["PIX"]
@@ -239,14 +239,14 @@ async def test_hot_words_reset_on_new_segment():
 
 
 async def test_updated_hot_words_used_in_next_segment():
-    """Apos update_hot_words(), os NOVOS hot words sao usados no proximo segmento."""
+    """After update_hot_words(), the NEW hot words are used in the next segment."""
     # Arrange
     session, _, vad, stream_handle, _ = _make_session(
         hot_words=["PIX", "TED"],
     )
     grpc_client = session._grpc_client
 
-    # Primeiro segmento: speech_start -> frame -> speech_end
+    # First segment: speech_start -> frame -> speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -255,15 +255,15 @@ async def test_updated_hot_words_used_in_next_segment():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
-    # Verificar que os hot words originais foram enviados
+    # Verify the original hot words were sent
     first_call = stream_handle.send_frame.call_args_list[0]
     assert first_call.kwargs.get("hot_words") == ["PIX", "TED"]
 
-    # Preparar novo stream_handle para proximo segmento
+    # Prepare new stream_handle for next segment
     stream_handle_2 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle_2)
 
-    # Speech end: fecha primeiro segmento
+    # Speech end: closes first segment
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_END,
         timestamp_ms=2000,
@@ -271,10 +271,10 @@ async def test_updated_hot_words_used_in_next_segment():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Act: atualizar hot words entre segmentos
+    # Act: update hot words between segments
     session.update_hot_words(["Selic", "CDI", "IPCA"])
 
-    # Segundo segmento: speech_start
+    # Second segment: speech_start
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=3000,
@@ -282,7 +282,7 @@ async def test_updated_hot_words_used_in_next_segment():
     vad.is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    # Assert: hot words ATUALIZADOS enviados no primeiro frame do segundo segmento
+    # Assert: UPDATED hot words sent on first frame of the second segment
     assert stream_handle_2.send_frame.call_count == 1
     first_call_seg2 = stream_handle_2.send_frame.call_args_list[0]
     assert first_call_seg2.kwargs.get("hot_words") == ["Selic", "CDI", "IPCA"]
@@ -292,7 +292,7 @@ async def test_updated_hot_words_used_in_next_segment():
 
 
 async def test_no_hot_words_sent_when_none():
-    """Quando hot_words e None, nenhum hot word e enviado ao worker."""
+    """When hot_words is None, no hot words are sent to the worker."""
     # Arrange
     session, _, vad, stream_handle, _ = _make_session(hot_words=None)
 
@@ -304,7 +304,7 @@ async def test_no_hot_words_sent_when_none():
     vad.is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    # Assert: send_frame chamado sem hot_words
+    # Assert: send_frame called without hot_words
     assert stream_handle.send_frame.call_count == 1
     first_call = stream_handle.send_frame.call_args_list[0]
     assert first_call.kwargs.get("hot_words") is None
@@ -314,15 +314,15 @@ async def test_no_hot_words_sent_when_none():
 
 
 async def test_update_hot_words_empty_list_sent_as_none():
-    """Lista vazia de hot words resulta em None enviado ao worker.
+    """Empty hot words list results in None sent to the worker.
 
-    A logica em _send_frame_to_worker verifica `if self._hot_words` (truthy),
-    entao lista vazia e tratada como falsy e nao e enviada.
+    The logic in _send_frame_to_worker checks `if self._hot_words` (truthy),
+    so an empty list is treated as falsy and is not sent.
     """
     # Arrange
     session, _, vad, stream_handle, _ = _make_session(hot_words=["PIX"])
 
-    # Act: atualizar para lista vazia
+    # Act: update to empty list
     session.update_hot_words([])
 
     # Trigger speech_start
@@ -333,7 +333,7 @@ async def test_update_hot_words_empty_list_sent_as_none():
     vad.is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    # Assert: hot_words nao enviado (lista vazia e falsy)
+    # Assert: hot_words not sent (empty list is falsy)
     assert stream_handle.send_frame.call_count == 1
     first_call = stream_handle.send_frame.call_args_list[0]
     assert first_call.kwargs.get("hot_words") is None

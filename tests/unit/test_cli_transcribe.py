@@ -1,4 +1,4 @@
-"""Testes dos comandos `Macaw transcribe` e `Macaw translate`."""
+"""Tests for `Macaw transcribe` and `Macaw translate` commands."""
 
 from __future__ import annotations
 
@@ -323,7 +323,7 @@ class TestTranslateCommand:
         assert "--model" in result.output
         assert "--format" in result.output
         assert "--server" in result.output
-        # translate nao tem --language (sempre traduz para ingles)
+        # translate does not have --language (always translates to English)
         assert "--language" not in result.output
 
     def test_translate_help_shows_hot_words(self) -> None:

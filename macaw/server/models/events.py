@@ -1,7 +1,7 @@
-"""Modelos Pydantic para o protocolo WebSocket de streaming STT.
+"""Pydantic models for the WebSocket STT streaming protocol.
 
-Define todos os eventos server->client e comandos client->server
-conforme o protocolo definido no PRD (secao 9 — WS /v1/realtime).
+Defines all server->client events and client->server commands
+as per the protocol defined in the PRD (section 9 — WS /v1/realtime).
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from macaw.server.models.effects import AudioEffectsParams
 
 
 class PreprocessingOverrides(BaseModel):
-    """Overrides de preprocessing configuráveis por sessão."""
+    """Per-session configurable preprocessing overrides."""
 
     # Allow fields beginning with "model_" (eg. `model_tts`) without
     # triggering Pydantic's protected namespace warning during model
@@ -33,7 +33,7 @@ class PreprocessingOverrides(BaseModel):
 
 
 class SessionConfig(BaseModel):
-    """Configuracao da sessao, retornada em session.created.
+    """Session configuration, returned in session.created.
 
     Timeout defaults are derived from ``SessionSettings`` so the values
     reported to the client in ``session.created`` match the actual
@@ -55,7 +55,7 @@ class SessionConfig(BaseModel):
 
 
 class WordEvent(BaseModel):
-    """Palavra com timestamps para transcript.final."""
+    """Word with timestamps for transcript.final."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -70,7 +70,7 @@ class WordEvent(BaseModel):
 
 
 class SessionCreatedEvent(BaseModel):
-    """Emitido quando a sessao WebSocket e criada."""
+    """Emitted when the WebSocket session is created."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -81,7 +81,7 @@ class SessionCreatedEvent(BaseModel):
 
 
 class VADSpeechStartEvent(BaseModel):
-    """Emitido quando o VAD detecta inicio de fala."""
+    """Emitted when VAD detects speech start."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -90,7 +90,7 @@ class VADSpeechStartEvent(BaseModel):
 
 
 class VADSpeechEndEvent(BaseModel):
-    """Emitido quando o VAD detecta fim de fala."""
+    """Emitted when VAD detects speech end."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -99,7 +99,7 @@ class VADSpeechEndEvent(BaseModel):
 
 
 class TranscriptPartialEvent(BaseModel):
-    """Hipotese intermediaria de transcricao (pode mudar)."""
+    """Intermediate transcription hypothesis (may change)."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -110,7 +110,7 @@ class TranscriptPartialEvent(BaseModel):
 
 
 class TranscriptFinalEvent(BaseModel):
-    """Segmento confirmado de transcricao (nao muda)."""
+    """Confirmed transcription segment (immutable)."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -125,7 +125,7 @@ class TranscriptFinalEvent(BaseModel):
 
 
 class SessionHoldEvent(BaseModel):
-    """Emitido quando a sessao transita para estado HOLD."""
+    """Emitted when the session transitions to HOLD state."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -135,7 +135,7 @@ class SessionHoldEvent(BaseModel):
 
 
 class SessionRateLimitEvent(BaseModel):
-    """Backpressure: cliente enviando audio mais rapido que real-time."""
+    """Backpressure: client sending audio faster than real-time."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -145,7 +145,7 @@ class SessionRateLimitEvent(BaseModel):
 
 
 class SessionFramesDroppedEvent(BaseModel):
-    """Frames descartados por excesso de backlog (>10s)."""
+    """Frames dropped due to excessive backlog (>10s)."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -155,7 +155,7 @@ class SessionFramesDroppedEvent(BaseModel):
 
 
 class StreamingErrorEvent(BaseModel):
-    """Erro durante streaming (com flag de recuperabilidade)."""
+    """Error during streaming (with recoverability flag)."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -167,7 +167,7 @@ class StreamingErrorEvent(BaseModel):
 
 
 class SessionClosedEvent(BaseModel):
-    """Emitido quando a sessao e encerrada."""
+    """Emitted when the session is terminated."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -178,7 +178,7 @@ class SessionClosedEvent(BaseModel):
 
 
 class TTSSpeakingStartEvent(BaseModel):
-    """Emitido quando o TTS comeca a produzir audio."""
+    """Emitted when TTS starts producing audio."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -188,7 +188,7 @@ class TTSSpeakingStartEvent(BaseModel):
 
 
 class TTSSpeakingEndEvent(BaseModel):
-    """Emitido quando o TTS termina de produzir audio."""
+    """Emitted when TTS finishes producing audio."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -238,7 +238,7 @@ class TTSAlignmentEvent(BaseModel):
 
 
 class SessionConfigureCommand(BaseModel):
-    """Configura parametros da sessao de streaming."""
+    """Configures streaming session parameters."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -258,7 +258,7 @@ class SessionConfigureCommand(BaseModel):
 
 
 class SessionCancelCommand(BaseModel):
-    """Cancela a sessao de streaming."""
+    """Cancels the streaming session."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -266,7 +266,7 @@ class SessionCancelCommand(BaseModel):
 
 
 class InputAudioBufferCommitCommand(BaseModel):
-    """Forca commit manual do segmento de audio atual."""
+    """Forces manual commit of the current audio segment."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -274,7 +274,7 @@ class InputAudioBufferCommitCommand(BaseModel):
 
 
 class SessionCloseCommand(BaseModel):
-    """Encerra a sessao de streaming gracefully."""
+    """Terminates the streaming session gracefully."""
 
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
@@ -282,9 +282,9 @@ class SessionCloseCommand(BaseModel):
 
 
 class TTSSpeakCommand(BaseModel):
-    """Comando para sintetizar voz via TTS no WebSocket full-duplex.
+    """Command to synthesize voice via TTS on full-duplex WebSocket.
 
-    O cliente envia texto e recebe audio TTS como binary frames.
+    The client sends text and receives TTS audio as binary frames.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -316,10 +316,10 @@ class TTSSpeakCommand(BaseModel):
 
 
 class TTSCancelCommand(BaseModel):
-    """Cancela a sintese TTS em andamento.
+    """Cancels in-progress TTS synthesis.
 
-    Se request_id e fornecido, cancela apenas essa sintese.
-    Se omitido, cancela qualquer sintese ativa.
+    If request_id is provided, cancels only that synthesis.
+    If omitted, cancels any active synthesis.
     """
 
     model_config = ConfigDict(frozen=True)

@@ -1,4 +1,4 @@
-"""Testes do Model Registry."""
+"""Tests for the Model Registry."""
 
 from __future__ import annotations
 
@@ -174,7 +174,7 @@ async def test_get_model_path_raises_model_not_found(tmp_path: Path) -> None:
 
 
 async def test_scan_indexes_by_manifest_name_not_dir_name(tmp_path: Path) -> None:
-    """O registry indexa por manifest.name, nao pelo nome do diretorio."""
+    """The registry indexes by manifest.name, not by directory name."""
     _create_model_dir(tmp_path, "my-custom-dir-name", VALID_STT_MANIFEST)
 
     registry = ModelRegistry(tmp_path)
@@ -185,7 +185,7 @@ async def test_scan_indexes_by_manifest_name_not_dir_name(tmp_path: Path) -> Non
 
 
 async def test_scan_ignores_files_in_models_dir(tmp_path: Path) -> None:
-    """Arquivos soltos no models_dir sao ignorados (nao sao subdiretorios)."""
+    """Loose files in models_dir are ignored (they are not subdirectories)."""
     _create_model_dir(tmp_path, "whisper-tiny", VALID_STT_MANIFEST)
     (tmp_path / "random_file.txt").write_text("not a model")
 

@@ -1,18 +1,18 @@
-"""Teste de integracao end-to-end dos componentes M6.
+"""End-to-end integration test for M6 components.
 
-Valida que todos os componentes M6 funcionam juntos em um fluxo real:
-- SessionStateMachine (6 estados com transicoes e timeouts)
-- RingBuffer (escrita, read fence, force commit)
-- WAL (checkpoint apos transcript.final)
-- CrossSegmentContext (initial_prompt entre segmentos)
-- Hot Words (envio no primeiro frame de cada segmento)
-- Recovery (crash de worker -> retomada sem duplicacao)
+Validates that all M6 components work together in a real flow:
+- SessionStateMachine (6 states with transitions and timeouts)
+- RingBuffer (write, read fence, force commit)
+- WAL (checkpoint after transcript.final)
+- CrossSegmentContext (initial_prompt between segments)
+- Hot Words (sent on the first frame of each segment)
+- Recovery (worker crash -> resume without duplication)
 
-Todos os componentes sao mocked no nivel do gRPC e VAD, mas os
-componentes M6 (state machine, ring buffer, WAL, cross-segment)
-sao reais.
+All components are mocked at the gRPC and VAD level, but the
+M6 components (state machine, ring buffer, WAL, cross-segment)
+are real.
 
-Executar com:
+Run with:
     python -m pytest tests/integration/test_m6_integration.py -v --tb=short
 """
 
@@ -86,10 +86,10 @@ class _LightVAD:
 
 
 class _LightPostprocessor:
-    """Postprocessor mock que simula ITN simples."""
+    """Postprocessor mock that simulates simple ITN."""
 
     def process(self, text: str, **kwargs: object) -> str:
-        # Simula ITN: "dois mil" -> "2000"
+        # Simulates ITN: "dois mil" -> "2000"
         return text.replace("dois mil", "2000")
 
 
@@ -173,14 +173,14 @@ def _make_raw_bytes(n_samples: int = _FRAME_SIZE) -> bytes:
 
 
 async def test_full_session_lifecycle_with_all_m6_components() -> None:
-    """Sessao completa: INIT -> ACTIVE -> SILENCE -> ACTIVE -> SILENCE -> close.
+    """Full session: INIT -> ACTIVE -> SILENCE -> ACTIVE -> SILENCE -> close.
 
-    Verifica que todos os componentes M6 participam corretamente:
-    - State machine transita entre estados
-    - Ring buffer armazena frames
-    - WAL registra checkpoints apos transcript.final
-    - Cross-segment context fornece initial_prompt no segundo segmento
-    - Hot words enviados no primeiro frame de cada segmento
+    Verifies that all M6 components participate correctly:
+    - State machine transitions between states
+    - Ring buffer stores frames
+    - WAL records checkpoints after transcript.final
+    - Cross-segment context provides initial_prompt on the second segment
+    - Hot words sent on the first frame of each segment
     """
     preprocessor = _LightPreprocessor()
     postprocessor = _LightPostprocessor()
@@ -326,7 +326,7 @@ async def test_full_session_lifecycle_with_all_m6_components() -> None:
 
 
 async def test_hot_words_and_cross_segment_in_initial_prompt() -> None:
-    """Verifica que hot words + cross-segment context sao combinados no initial_prompt."""
+    """Verifies that hot words + cross-segment context are combined in initial_prompt."""
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
     raw_frame = _make_raw_bytes()
@@ -436,7 +436,7 @@ async def test_hot_words_and_cross_segment_in_initial_prompt() -> None:
 
 
 async def test_ring_buffer_and_wal_consistency() -> None:
-    """Verifica consistencia entre ring buffer e WAL apos multiplos segmentos."""
+    """Verifies consistency between ring buffer and WAL after multiple segments."""
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
     raw_frame = _make_raw_bytes()
@@ -523,9 +523,9 @@ async def test_ring_buffer_and_wal_consistency() -> None:
 
 
 async def test_state_machine_timeouts_integration() -> None:
-    """Verifica que timeouts da state machine disparam transicoes corretas.
+    """Verifies that state machine timeouts trigger correct transitions.
 
-    Usa clock mockado para controlar tempo sem esperar timeouts reais.
+    Uses a mocked clock to control time without waiting for real timeouts.
     """
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
@@ -589,7 +589,7 @@ async def test_state_machine_timeouts_integration() -> None:
 
 
 async def test_silence_to_hold_timeout_integration() -> None:
-    """Verifica transicao SILENCE -> HOLD -> CLOSING via timeouts."""
+    """Verifies SILENCE -> HOLD -> CLOSING transition via timeouts."""
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
     raw_frame = _make_raw_bytes()
@@ -680,7 +680,7 @@ async def test_silence_to_hold_timeout_integration() -> None:
 
 
 async def test_force_commit_via_ring_buffer_threshold() -> None:
-    """Verifica que force commit dispara quando ring buffer atinge 90% de uso."""
+    """Verifies that force commit triggers when ring buffer reaches 90% usage."""
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
 
@@ -754,7 +754,7 @@ async def test_force_commit_via_ring_buffer_threshold() -> None:
 
 
 async def test_update_hot_words_mid_session() -> None:
-    """Verifica que hot words podem ser atualizados durante a sessao."""
+    """Verifies that hot words can be updated during the session."""
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
     raw_frame = _make_raw_bytes()
@@ -835,14 +835,14 @@ async def test_update_hot_words_mid_session() -> None:
 
 
 async def test_recovery_with_ring_buffer_and_wal() -> None:
-    """Verifica recovery apos crash com ring buffer e WAL reais.
+    """Verifies recovery after crash with real ring buffer and WAL.
 
-    Simula:
-    1. Segmento 0 completo (transcript.final -> WAL checkpoint)
-    2. Segmento 1 em andamento (frames no ring buffer, nao commitados)
+    Simulates:
+    1. Segment 0 complete (transcript.final -> WAL checkpoint)
+    2. Segment 1 in progress (frames in ring buffer, not committed)
     3. Worker crash
-    4. Recovery: reabre stream, reenvia uncommitted do ring buffer
-    5. Restaura segment_id do WAL
+    4. Recovery: reopens stream, resends uncommitted from ring buffer
+    5. Restores segment_id from WAL
     """
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
@@ -947,7 +947,7 @@ async def test_recovery_with_ring_buffer_and_wal() -> None:
 
 
 async def test_zero_errors_in_normal_multi_segment_session() -> None:
-    """Sessao com multiplos segmentos: zero erros emitidos."""
+    """Session with multiple segments: zero errors emitted."""
     preprocessor = _LightPreprocessor()
     vad = _LightVAD()
     raw_frame = _make_raw_bytes()

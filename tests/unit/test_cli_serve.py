@@ -1,4 +1,4 @@
-"""Testes do comando `Macaw serve`."""
+"""Tests for the `Macaw serve` CLI command."""
 
 from __future__ import annotations
 

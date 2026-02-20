@@ -132,7 +132,7 @@ packages = ["macaw"]
 target-version = "py311"
 line-length = 99
 src = ["."]
-extend-exclude = ["macaw/proto/stt_worker_pb2*", "macaw/proto/tts_worker_pb2*", "inspiracao/", "notebooks/"]
+extend-exclude = ["macaw/proto/stt_worker_pb2*", "macaw/proto/tts_worker_pb2*", "inspiracao/", "notebooks/", "docs/"]
 
 [tool.ruff.lint]
 select = [

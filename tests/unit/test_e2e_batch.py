@@ -1,7 +1,7 @@
-"""Testes end-to-end do fluxo batch: HTTP -> API Server -> Scheduler (mock) -> Response.
+"""End-to-end tests for the batch flow: HTTP -> API Server -> Scheduler (mock) -> Response.
 
-Valida que o pipeline completo funciona para todos os formatos de resposta
-e cenarios de erro, sem necessidade de worker gRPC real.
+Validates that the complete pipeline works for all response formats
+and error scenarios, without requiring a real gRPC worker.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ def _make_app(
     )
 
 
-# --- Formatos de resposta ---
+# --- Response formats ---
 
 
 class TestTranscribeJsonFormat:
@@ -179,7 +179,7 @@ class TestTranscribeSrtFormat:
             )
         assert response.status_code == 200
         body = response.text
-        # SRT tem numeros de segmento e timestamps com virgula
+        # SRT has segment numbers and timestamps with commas
         assert "1\n" in body
         assert "00:00:00,000 --> 00:00:01,200" in body
         assert "Ola," in body
@@ -199,7 +199,7 @@ class TestTranscribeVttFormat:
         assert response.status_code == 200
         body = response.text
         assert body.startswith("WEBVTT\n")
-        # VTT usa ponto no timestamp
+        # VTT uses period in timestamp
         assert "00:00:00.000 --> 00:00:01.200" in body
 
 
@@ -233,7 +233,7 @@ class TestTranslateE2E:
         assert response.json()["task"] == "translate"
 
 
-# --- Cenarios de erro ---
+# --- Error scenarios ---
 
 
 class TestErrorScenarios:
@@ -358,7 +358,7 @@ class TestHealthE2E:
         assert response.json()["status"] == "ok"
 
 
-# --- Validacao de request ---
+# --- Request validation ---
 
 
 class TestRequestValidation:

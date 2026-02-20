@@ -1,7 +1,7 @@
-"""Testes unitarios para StreamingPreprocessor.
+"""Unit tests for StreamingPreprocessor.
 
-Valida o adapter de preprocessing frame-by-frame para streaming.
-Usa stages reais (ResampleStage, DCRemoveStage, GainNormalizeStage).
+Validates the frame-by-frame preprocessing adapter for streaming.
+Uses real stages (ResampleStage, DCRemoveStage, GainNormalizeStage).
 """
 
 from __future__ import annotations
@@ -17,15 +17,15 @@ from macaw.preprocessing.streaming import StreamingPreprocessor
 
 
 def _make_pcm16_frame(freq_hz: float, duration_ms: float, sample_rate: int) -> bytes:
-    """Gera frame PCM 16-bit com sine wave.
+    """Generate PCM 16-bit frame with sine wave.
 
     Args:
-        freq_hz: Frequencia da onda senoidal em Hz.
-        duration_ms: Duracao do frame em milissegundos.
-        sample_rate: Sample rate em Hz.
+        freq_hz: Sine wave frequency in Hz.
+        duration_ms: Frame duration in milliseconds.
+        sample_rate: Sample rate in Hz.
 
     Returns:
-        Bytes PCM 16-bit little-endian (mono).
+        PCM 16-bit little-endian bytes (mono).
     """
     num_samples = int(sample_rate * duration_ms / 1000)
     t = np.arange(num_samples) / sample_rate
@@ -35,10 +35,10 @@ def _make_pcm16_frame(freq_hz: float, duration_ms: float, sample_rate: int) -> b
 
 
 class TestStreamingPreprocessor:
-    """Testes do StreamingPreprocessor."""
+    """Tests for StreamingPreprocessor."""
 
     def test_process_frame_pcm16_44khz_to_float32_16khz(self) -> None:
-        """Frame PCM 44.1kHz e convertido para float32 16kHz mono."""
+        """PCM 44.1kHz frame is converted to float32 16kHz mono."""
         stages = [
             ResampleStage(target_sample_rate=16000),
             DCRemoveStage(cutoff_hz=20),
@@ -53,13 +53,13 @@ class TestStreamingPreprocessor:
         assert result.dtype == np.float32
         # 40ms a 44100Hz = 1764 samples, resampleado para 16kHz ~= 640 samples
         expected_samples = int(16000 * 40 / 1000)
-        # Tolerancia de +-2 samples por arredondamento do resample
+        # Tolerance of +-2 samples for resample rounding
         assert abs(len(result) - expected_samples) <= 2
-        # Deve ter conteudo (nao silencio)
+        # Should have content (not silence)
         assert np.max(np.abs(result)) > 0.01
 
     def test_process_frame_pcm16_16khz_no_resample(self) -> None:
-        """Frame PCM 16kHz retorna sem resample, mantendo ~mesmo numero de samples."""
+        """PCM 16kHz frame returns without resample, keeping ~same number of samples."""
         stages = [
             ResampleStage(target_sample_rate=16000),
             DCRemoveStage(cutoff_hz=20),
@@ -77,11 +77,11 @@ class TestStreamingPreprocessor:
         assert len(result) == expected_samples
 
     def test_process_frame_removes_dc_offset(self) -> None:
-        """DC offset e removido pelo DCRemoveStage."""
+        """DC offset is removed by DCRemoveStage."""
         stages = [DCRemoveStage(cutoff_hz=20)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
 
-        # Gerar sinal com DC offset: sine 440Hz + offset de 0.3
+        # Generate signal with DC offset: sine 440Hz + offset of 0.3
         num_samples = 16000  # 1 segundo para o filtro ser efetivo
         t = np.arange(num_samples) / 16000
         audio_with_dc = np.sin(2 * np.pi * 440 * t) * 0.3 + 0.3
@@ -90,17 +90,17 @@ class TestStreamingPreprocessor:
 
         result = preprocessor.process_frame(frame)
 
-        # DC offset (media) deve ser significativamente menor apos filtragem
+        # DC offset (mean) should be significantly smaller after filtering
         assert abs(np.mean(result)) < 0.05
 
     def test_process_frame_normalizes_gain(self) -> None:
-        """Gain e normalizado para -3dBFS pelo GainNormalizeStage."""
+        """Gain is normalized to -3dBFS by GainNormalizeStage."""
         stages = [GainNormalizeStage(target_dbfs=-3.0)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
 
-        # Sinal com amplitude baixa (0.1 = ~-20dBFS)
+        # Signal with low amplitude (0.1 = ~-20dBFS)
         frame = _make_pcm16_frame(freq_hz=440.0, duration_ms=30.0, sample_rate=16000)
-        # Reduzir amplitude: recriar com amplitude menor
+        # Reduce amplitude: recreate with lower amplitude
         num_samples = int(16000 * 30 / 1000)
         t = np.arange(num_samples) / 16000
         audio_quiet = np.sin(2 * np.pi * 440 * t) * 0.1
@@ -109,13 +109,13 @@ class TestStreamingPreprocessor:
 
         result = preprocessor.process_frame(frame)
 
-        # Pico deve estar proximo de -3dBFS (~0.708)
+        # Peak should be close to -3dBFS (~0.708)
         peak = np.max(np.abs(result))
         target_linear = 10 ** (-3.0 / 20)  # ~0.708
         assert abs(peak - target_linear) < 0.05
 
     def test_process_frame_empty_bytes_returns_empty(self) -> None:
-        """Bytes vazios retornam array vazio."""
+        """Empty bytes return empty array."""
         stages = [
             ResampleStage(target_sample_rate=16000),
             DCRemoveStage(cutoff_hz=20),
@@ -129,7 +129,7 @@ class TestStreamingPreprocessor:
         assert len(result) == 0
 
     def test_process_frame_odd_bytes_raises_error(self) -> None:
-        """Bytes impares levantam AudioFormatError."""
+        """Odd bytes raise AudioFormatError."""
         stages = [ResampleStage(target_sample_rate=16000)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
 
@@ -137,7 +137,7 @@ class TestStreamingPreprocessor:
             preprocessor.process_frame(b"\x00\x01\x02")
 
     def test_set_input_sample_rate(self) -> None:
-        """set_input_sample_rate altera o sample rate de entrada."""
+        """set_input_sample_rate changes the input sample rate."""
         stages = [ResampleStage(target_sample_rate=16000)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
 
@@ -147,7 +147,7 @@ class TestStreamingPreprocessor:
 
         assert preprocessor.input_sample_rate == 8000
 
-        # Frame 8kHz deve ser resampleado para 16kHz
+        # 8kHz frame should be resampled to 16kHz
         frame = _make_pcm16_frame(freq_hz=440.0, duration_ms=40.0, sample_rate=8000)
         result = preprocessor.process_frame(frame)
 

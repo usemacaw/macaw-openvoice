@@ -1,4 +1,4 @@
-"""Pydantic models para o endpoint TTS POST /v1/audio/speech."""
+"""Pydantic models for the TTS endpoint POST /v1/audio/speech."""
 
 from __future__ import annotations
 
@@ -11,45 +11,45 @@ from macaw.server.models.effects import AudioEffectsParams
 
 
 class SpeechRequest(BaseModel):
-    """Request body para POST /v1/audio/speech.
+    """Request body for POST /v1/audio/speech.
 
-    Compativel com o contrato da OpenAI Audio API.
+    Compatible with the OpenAI Audio API contract.
     """
 
-    model: str = Field(description="Nome do modelo TTS no registry.")
+    model: str = Field(description="TTS model name in the registry.")
     input: str = Field(
-        min_length=1, max_length=TTS_MAX_TEXT_LENGTH, description="Texto a ser sintetizado."
+        min_length=1, max_length=TTS_MAX_TEXT_LENGTH, description="Text to be synthesized."
     )
     voice: str = Field(
         default="default",
-        description="Identificador da voz.",
+        description="Voice identifier.",
     )
     response_format: Literal["wav", "pcm", "opus"] = Field(
         default="wav",
-        description="Formato de audio de saida (wav, pcm ou opus).",
+        description="Output audio format (wav, pcm, or opus).",
     )
     speed: float = Field(
         default=1.0,
         ge=0.25,
         le=4.0,
-        description="Velocidade da sintese (0.25-4.0).",
+        description="Synthesis speed (0.25-4.0).",
     )
     # Extended options for LLM-based TTS engines (e.g., Qwen3-TTS)
     language: str | None = Field(
         default=None,
-        description="Idioma alvo (e.g., 'English', 'Chinese').",
+        description="Target language (e.g., 'English', 'Chinese').",
     )
     ref_audio: str | None = Field(
         default=None,
-        description="Audio de referencia em base64 para voice cloning.",
+        description="Base64-encoded reference audio for voice cloning.",
     )
     ref_text: str | None = Field(
         default=None,
-        description="Transcricao do audio de referencia.",
+        description="Transcription of the reference audio.",
     )
     instruction: str | None = Field(
         default=None,
-        description="Instrucao de estilo/voz para voice design.",
+        description="Style/voice instruction for voice design.",
     )
     # Post-synthesis audio effects (applied server-side before transport)
     effects: AudioEffectsParams | None = Field(

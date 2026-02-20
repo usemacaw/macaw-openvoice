@@ -1,4 +1,4 @@
-"""Modelos internos de request para transporte entre API e Scheduler."""
+"""Internal request models for transport between API and Scheduler."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from macaw._types import ResponseFormat
 
 @dataclass(frozen=True, slots=True)
 class TranscribeRequest:
-    """Request interna de transcricao.
+    """Internal transcription request.
 
-    Nao e um Pydantic model porque nao e usado para validacao HTTP.
-    A validacao e feita pelo FastAPI na rota via Form() e UploadFile.
-    Este dataclass transporta os dados validados da rota ao Scheduler.
+    Not a Pydantic model because it is not used for HTTP validation.
+    Validation is done by FastAPI in the route via Form() and UploadFile.
+    This dataclass transports validated data from the route to the Scheduler.
     """
 
     request_id: str

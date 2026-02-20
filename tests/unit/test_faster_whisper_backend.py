@@ -1,6 +1,6 @@
-"""Testes para FasterWhisperBackend.
+"""Tests for FasterWhisperBackend.
 
-Usa mocks para WhisperModel — nao requer faster-whisper instalado.
+Uses mocks for WhisperModel -- does not require faster-whisper installed.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def _make_fw_segment(
     compression_ratio: float = 1.1,
     words: list[object] | None = None,
 ) -> SimpleNamespace:
-    """Cria segmento fake no formato faster-whisper."""
+    """Create fake segment in faster-whisper format."""
     return SimpleNamespace(
         text=text,
         start=start,
@@ -44,12 +44,12 @@ def _make_fw_word(
     end: float = 0.5,
     probability: float = 0.9,
 ) -> SimpleNamespace:
-    """Cria word fake no formato faster-whisper."""
+    """Create fake word in faster-whisper format."""
     return SimpleNamespace(word=word, start=start, end=end, probability=probability)
 
 
 def _make_fw_info(language: str = "en", duration: float = 1.0) -> SimpleNamespace:
-    """Cria TranscriptionInfo fake."""
+    """Create fake TranscriptionInfo."""
     return SimpleNamespace(language=language, duration=duration)
 
 
@@ -107,7 +107,7 @@ class TestLoad:
 
 class TestTranscribeFile:
     async def _make_loaded_backend(self) -> FasterWhisperBackend:
-        """Cria backend com modelo mock carregado."""
+        """Create backend with loaded mock model."""
         backend = FasterWhisperBackend()
         mock_model = MagicMock()
         segments = [_make_fw_segment(text=" hello world ")]

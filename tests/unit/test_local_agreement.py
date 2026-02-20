@@ -1,12 +1,12 @@
-"""Testes do LocalAgreementPolicy -- confirmacao de tokens por agreement entre passes.
+"""Tests for LocalAgreementPolicy -- token confirmation by agreement between passes.
 
-Cobre:
-- Comportamento basico: primeira pass, segunda pass, agreement, retencao
-- Crescimento monotonico de tokens confirmados
-- Flush (speech_end) emitindo todos os tokens
-- Reset de estado
-- Edge cases: tokens vazios, divergencia completa, min_confirm_passes > 2
-- Imutabilidade de AgreementResult
+Covers:
+- Basic behavior: first pass, second pass, agreement, retention
+- Monotonic growth of confirmed tokens
+- Flush (speech_end) emitting all tokens
+- State reset
+- Edge cases: empty tokens, complete divergence, min_confirm_passes > 2
+- AgreementResult immutability
 """
 
 from __future__ import annotations
@@ -16,17 +16,17 @@ import pytest
 from macaw.session.local_agreement import AgreementResult, LocalAgreementPolicy
 
 # ---------------------------------------------------------------------------
-# Testes basicos de agreement
+# Basic agreement tests
 # ---------------------------------------------------------------------------
 
 
 class TestFirstPass:
-    """Primeira pass nunca confirma tokens (precisa de comparacao)."""
+    """First pass never confirms tokens (needs comparison)."""
 
     def test_first_pass_confirms_nothing(self) -> None:
-        """Arrange: policy com min_confirm_passes=2.
-        Act: processar primeira pass com tokens.
-        Assert: nenhum token confirmado, todos retidos.
+        """Arrange: policy with min_confirm_passes=2.
+        Act: process first pass with tokens.
+        Assert: no tokens confirmed, all retained.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -39,9 +39,9 @@ class TestFirstPass:
         assert result.is_new_confirmation is False
 
     def test_first_pass_sets_pass_count(self) -> None:
-        """Arrange: policy nova.
-        Act: processar uma pass.
-        Assert: pass_count e 1.
+        """Arrange: new policy.
+        Act: process one pass.
+        Assert: pass_count is 1.
         """
         policy = LocalAgreementPolicy()
 
@@ -51,12 +51,12 @@ class TestFirstPass:
 
 
 class TestSecondPass:
-    """Segunda pass confirma tokens que concordam com a primeira."""
+    """Second pass confirms tokens that agree with the first."""
 
     def test_second_pass_confirms_agreeing_tokens(self) -> None:
-        """Arrange: duas passes com tokens coincidentes.
-        Act: processar segunda pass.
-        Assert: tokens que concordam sao confirmados.
+        """Arrange: two passes with matching tokens.
+        Act: process second pass.
+        Assert: agreeing tokens are confirmed.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -70,9 +70,9 @@ class TestSecondPass:
         assert result.is_new_confirmation is True
 
     def test_diverging_tokens_are_retained(self) -> None:
-        """Arrange: segunda pass diverge no segundo token.
-        Act: processar segunda pass.
-        Assert: apenas primeiro token confirmado, restante retido.
+        """Arrange: second pass diverges at the second token.
+        Act: process second pass.
+        Assert: only first token confirmed, rest retained.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -87,12 +87,12 @@ class TestSecondPass:
 
 
 class TestMonotonicGrowth:
-    """Tokens confirmados crescem monotonicamente (nunca diminuem)."""
+    """Confirmed tokens grow monotonically (never decrease)."""
 
     def test_confirmed_tokens_grow_monotonically(self) -> None:
-        """Arrange: varias passes com crescimento progressivo.
-        Act: processar 4 passes.
-        Assert: confirmed nunca diminui entre passes.
+        """Arrange: several passes with progressive growth.
+        Act: process 4 passes.
+        Assert: confirmed never decreases between passes.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -106,15 +106,15 @@ class TestMonotonicGrowth:
         r3 = policy.process_pass(["a", "b", "c", "d", "e", "f"])
         assert len(r3.confirmed_tokens) == 5  # e agora confirmado tambem
 
-        # Confirma crescimento monotonico
+        # Confirm monotonic growth
         assert r1.confirmed_tokens == ["a", "b", "c"]
         assert r2.confirmed_tokens == ["a", "b", "c", "d"]
         assert r3.confirmed_tokens == ["a", "b", "c", "d", "e"]
 
     def test_confirmed_never_shrink_on_divergence(self) -> None:
-        """Arrange: tokens concordam em pass 2, divergem em pass 3.
-        Act: processar 3 passes.
-        Assert: tokens ja confirmados permanecem confirmados.
+        """Arrange: tokens agree in pass 2, diverge in pass 3.
+        Act: process 3 passes.
+        Assert: already confirmed tokens remain confirmed.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -122,19 +122,19 @@ class TestMonotonicGrowth:
         r1 = policy.process_pass(["hello", "world"])
         assert r1.confirmed_tokens == ["hello", "world"]
 
-        # Pass 3 diverge completamente apos os confirmados
+        # Pass 3 completely diverges after the confirmed ones
         r2 = policy.process_pass(["hello", "world", "foo"])
-        assert r2.confirmed_tokens == ["hello", "world"]  # nao diminuiu
+        assert r2.confirmed_tokens == ["hello", "world"]  # did not shrink
         assert r2.retained_tokens == ["foo"]
 
 
 class TestFlush:
-    """Flush (speech_end) emite todos os tokens."""
+    """Flush (speech_end) emits all tokens."""
 
     def test_flush_emits_all_tokens(self) -> None:
-        """Arrange: policy com tokens confirmados e retidos.
+        """Arrange: policy with confirmed and retained tokens.
         Act: flush.
-        Assert: confirmed + retained viram todos confirmados.
+        Assert: confirmed + retained all become confirmed.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -149,9 +149,9 @@ class TestFlush:
         assert result.retained_tokens == []
 
     def test_flush_resets_state(self) -> None:
-        """Arrange: policy com estado acumulado.
+        """Arrange: policy with accumulated state.
         Act: flush.
-        Assert: pass_count volta a 0, confirmed_text vazio.
+        Assert: pass_count returns to 0, confirmed_text empty.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -163,9 +163,9 @@ class TestFlush:
         assert policy.confirmed_text == ""
 
     def test_flush_empty_state(self) -> None:
-        """Arrange: policy sem nenhuma pass processada.
+        """Arrange: policy with no passes processed.
         Act: flush.
-        Assert: resultado vazio sem erros.
+        Assert: empty result without errors.
         """
         policy = LocalAgreementPolicy()
 
@@ -178,9 +178,9 @@ class TestFlush:
         assert result.is_new_confirmation is False
 
     def test_flush_after_single_pass(self) -> None:
-        """Arrange: flush apos apenas 1 pass (nada confirmado).
+        """Arrange: flush after only 1 pass (nothing confirmed).
         Act: flush.
-        Assert: todos os tokens da unica pass sao emitidos.
+        Assert: all tokens from the single pass are emitted.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -193,12 +193,12 @@ class TestFlush:
 
 
 class TestEdgeCases:
-    """Edge cases: tokens vazios, divergencia completa, etc."""
+    """Edge cases: empty tokens, complete divergence, etc."""
 
     def test_empty_pass(self) -> None:
-        """Arrange: pass com lista vazia de tokens.
-        Act: processar pass vazia.
-        Assert: resultado vazio sem erros.
+        """Arrange: pass with empty token list.
+        Act: process empty pass.
+        Assert: empty result without errors.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -211,9 +211,9 @@ class TestEdgeCases:
         assert result.is_new_confirmation is False
 
     def test_empty_second_pass(self) -> None:
-        """Arrange: primeira pass com tokens, segunda vazia.
-        Act: processar segunda pass vazia.
-        Assert: nada confirmado (vazio nao concorda com nada).
+        """Arrange: first pass with tokens, second empty.
+        Act: process empty second pass.
+        Assert: nothing confirmed (empty agrees with nothing).
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -226,9 +226,9 @@ class TestEdgeCases:
         assert result.is_new_confirmation is False
 
     def test_single_token_agreement(self) -> None:
-        """Arrange: passes com um unico token identico.
-        Act: processar 2 passes.
-        Assert: token unico confirmado.
+        """Arrange: passes with a single identical token.
+        Act: process 2 passes.
+        Assert: single token confirmed.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -241,9 +241,9 @@ class TestEdgeCases:
         assert result.is_new_confirmation is True
 
     def test_partial_agreement_prefix(self) -> None:
-        """Arrange: primeiros N tokens concordam, restante diverge.
-        Act: processar 2 passes.
-        Assert: apenas prefixo concordante e confirmado.
+        """Arrange: first N tokens agree, rest diverges.
+        Act: process 2 passes.
+        Assert: only agreeing prefix is confirmed.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -256,9 +256,9 @@ class TestEdgeCases:
         assert result.retained_tokens == ["stood", "up"]
 
     def test_tokens_change_completely_between_passes(self) -> None:
-        """Arrange: todos os tokens divergem entre passes.
-        Act: processar 2 passes.
-        Assert: nenhum token novo confirmado.
+        """Arrange: all tokens diverge between passes.
+        Act: process 2 passes.
+        Assert: no new tokens confirmed.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -271,9 +271,9 @@ class TestEdgeCases:
         assert result.is_new_confirmation is False
 
     def test_shorter_second_pass(self) -> None:
-        """Arrange: segunda pass mais curta que a primeira.
-        Act: processar 2 passes.
-        Assert: confirma apenas tokens que existem em ambas.
+        """Arrange: second pass shorter than the first.
+        Act: process 2 passes.
+        Assert: only confirms tokens that exist in both.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -286,12 +286,12 @@ class TestEdgeCases:
 
 
 class TestMinConfirmPasses:
-    """Testes com min_confirm_passes diferente de 2."""
+    """Tests with min_confirm_passes different from 2."""
 
     def test_min_confirm_passes_3(self) -> None:
-        """Arrange: policy com min_confirm_passes=3.
-        Act: processar 3 passes identicas.
-        Assert: tokens so sao confirmados na terceira pass.
+        """Arrange: policy with min_confirm_passes=3.
+        Act: process 3 identical passes.
+        Assert: tokens are only confirmed on the third pass.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=3)
 
@@ -310,47 +310,47 @@ class TestMinConfirmPasses:
         assert r3.is_new_confirmation is True
 
     def test_min_confirm_passes_1(self) -> None:
-        """Arrange: policy com min_confirm_passes=1.
-        Act: processar unica pass.
-        Assert: nada confirmado na primeira pass (nao ha pass anterior).
+        """Arrange: policy with min_confirm_passes=1.
+        Act: process single pass.
+        Assert: nothing confirmed on first pass (no previous pass).
         """
         policy = LocalAgreementPolicy(min_confirm_passes=1)
 
         r1 = policy.process_pass(["hello"])
-        # min_confirm_passes=1 significa que na primeira pass ja pode confirmar,
-        # mas nao ha pass anterior para comparar, entao nada e confirmado
+        # min_confirm_passes=1 means first pass can already confirm,
+        # but there is no previous pass to compare, so nothing is confirmed
         assert r1.confirmed_text == ""
         assert r1.is_new_confirmation is False
 
-        # Na segunda pass, compara com a anterior
+        # On the second pass, compares with the previous one
         r2 = policy.process_pass(["hello", "world"])
         assert r2.confirmed_text == "hello"
         assert r2.is_new_confirmation is True
 
     def test_min_confirm_passes_invalid(self) -> None:
         """Arrange: min_confirm_passes < 1.
-        Act: instanciar policy.
-        Assert: ValueError levantado.
+        Act: instantiate policy.
+        Assert: ValueError raised.
         """
         with pytest.raises(ValueError, match="min_confirm_passes must be >= 1"):
             LocalAgreementPolicy(min_confirm_passes=0)
 
     def test_min_confirm_passes_negative(self) -> None:
-        """Arrange: min_confirm_passes negativo.
-        Act: instanciar policy.
-        Assert: ValueError levantado.
+        """Arrange: negative min_confirm_passes.
+        Act: instantiate policy.
+        Assert: ValueError raised.
         """
         with pytest.raises(ValueError, match="min_confirm_passes must be >= 1"):
             LocalAgreementPolicy(min_confirm_passes=-1)
 
 
 class TestProperties:
-    """Testes de properties e imutabilidade."""
+    """Tests for properties and immutability."""
 
     def test_confirmed_text_property(self) -> None:
-        """Arrange: policy com tokens confirmados.
-        Act: acessar confirmed_text.
-        Assert: retorna string com tokens unidos por espaco.
+        """Arrange: policy with confirmed tokens.
+        Act: access confirmed_text.
+        Assert: returns string with tokens joined by space.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -360,18 +360,18 @@ class TestProperties:
         assert policy.confirmed_text == "hello world"
 
     def test_confirmed_text_empty_when_no_passes(self) -> None:
-        """Arrange: policy nova.
-        Act: acessar confirmed_text.
-        Assert: string vazia.
+        """Arrange: new policy.
+        Act: access confirmed_text.
+        Assert: empty string.
         """
         policy = LocalAgreementPolicy()
 
         assert policy.confirmed_text == ""
 
     def test_agreement_result_is_frozen(self) -> None:
-        """Arrange: criar AgreementResult.
-        Act: tentar modificar atributo.
-        Assert: FrozenInstanceError levantado.
+        """Arrange: create AgreementResult.
+        Act: try to modify attribute.
+        Assert: FrozenInstanceError raised.
         """
         result = AgreementResult(
             confirmed_text="hello",
@@ -386,12 +386,12 @@ class TestProperties:
 
 
 class TestReset:
-    """Testes do metodo reset."""
+    """Tests for the reset method."""
 
     def test_reset_clears_all_state(self) -> None:
-        """Arrange: policy com estado acumulado.
+        """Arrange: policy with accumulated state.
         Act: reset.
-        Assert: tudo zerado, pronto para proximo segmento.
+        Assert: everything zeroed, ready for next segment.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -407,20 +407,20 @@ class TestReset:
         assert policy.confirmed_text == ""
 
     def test_reset_allows_reuse(self) -> None:
-        """Arrange: policy resetada.
-        Act: processar novas passes.
-        Assert: funciona como se fosse policy nova.
+        """Arrange: reset policy.
+        Act: process new passes.
+        Assert: works as if it were a new policy.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
-        # Primeiro segmento
+        # First segment
         policy.process_pass(["a", "b"])
         policy.process_pass(["a", "b"])
         assert policy.confirmed_text == "a b"
 
         policy.reset()
 
-        # Segundo segmento -- nao deve interferir com o primeiro
+        # Second segment -- should not interfere with the first
         r1 = policy.process_pass(["x", "y"])
         assert r1.confirmed_text == ""
         assert r1.is_new_confirmation is False
@@ -431,12 +431,12 @@ class TestReset:
 
 
 class TestThreePassesProgressive:
-    """Testes de confirmacao progressiva em 3+ passes."""
+    """Tests for progressive confirmation in 3+ passes."""
 
     def test_three_passes_progressive_confirmation(self) -> None:
-        """Arrange: 3 passes com tokens crescentes e concordantes.
-        Act: processar 3 passes.
-        Assert: tokens confirmados crescem a cada pass.
+        """Arrange: 3 passes with growing and agreeing tokens.
+        Act: process 3 passes.
+        Assert: confirmed tokens grow with each pass.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
@@ -455,19 +455,19 @@ class TestThreePassesProgressive:
         assert r3.retained_tokens == ["fox"]
 
     def test_multiple_segments_via_flush(self) -> None:
-        """Arrange: dois segmentos separados por flush.
-        Act: processar, flush, processar novamente.
-        Assert: segundo segmento independente do primeiro.
+        """Arrange: two segments separated by flush.
+        Act: process, flush, process again.
+        Assert: second segment independent from the first.
         """
         policy = LocalAgreementPolicy(min_confirm_passes=2)
 
-        # Segmento 1
+        # Segment 1
         policy.process_pass(["hello", "world"])
         policy.process_pass(["hello", "world"])
         flush_result = policy.flush()
         assert flush_result.confirmed_text == "hello world"
 
-        # Segmento 2 -- estado limpo
+        # Segment 2 -- clean state
         r1 = policy.process_pass(["goodbye"])
         assert r1.confirmed_text == ""
         assert policy.pass_count == 1

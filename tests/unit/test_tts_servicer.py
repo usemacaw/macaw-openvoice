@@ -1,4 +1,4 @@
-"""Testes para o TTSWorkerServicer gRPC e componentes TTS worker."""
+"""Tests for the TTSWorkerServicer gRPC and TTS worker components."""
 
 from __future__ import annotations
 
@@ -28,10 +28,10 @@ if TYPE_CHECKING:
 
 
 class MockTTSBackend:
-    """Backend mock para testes do servicer TTS.
+    """Mock backend for TTS servicer tests.
 
-    Implementa a mesma interface que TTSBackend sem herdar da ABC,
-    para evitar importar dependencias pesadas em testes unitarios.
+    Implements the same interface as TTSBackend without inheriting from ABC,
+    to avoid importing heavy dependencies in unit tests.
     """
 
     def __init__(self, *, chunks: list[bytes] | None = None) -> None:
@@ -65,7 +65,7 @@ class MockTTSBackend:
 
 
 def _make_context() -> MagicMock:
-    """Cria mock de grpc.aio.ServicerContext."""
+    """Create mock of grpc.aio.ServicerContext."""
     ctx = MagicMock()
     ctx.abort = AsyncMock()
     ctx.cancelled = MagicMock(return_value=False)
@@ -73,12 +73,12 @@ def _make_context() -> MagicMock:
 
 
 # ===================================================================
-# Testes do TTSWorkerServicer
+# TTSWorkerServicer Tests
 # ===================================================================
 
 
 class TestSynthesizeHappyPath:
-    """Testa fluxo normal de sintese."""
+    """Tests normal synthesis flow."""
 
     @pytest.fixture()
     def servicer(self) -> TTSWorkerServicer:
@@ -89,7 +89,7 @@ class TestSynthesizeHappyPath:
         )
 
     async def test_returns_audio_chunks(self, servicer: TTSWorkerServicer) -> None:
-        """Synthesize retorna chunks de audio do backend."""
+        """Synthesize returns audio chunks from the backend."""
         request = SynthesizeRequest(
             request_id="req-1",
             text="Ola mundo",
@@ -111,7 +111,7 @@ class TestSynthesizeHappyPath:
         assert chunks[2].audio_data == b""
 
     async def test_accumulated_duration_increases(self, servicer: TTSWorkerServicer) -> None:
-        """Duracao acumulada aumenta a cada chunk."""
+        """Accumulated duration increases with each chunk."""
         request = SynthesizeRequest(
             request_id="req-2",
             text="Ola mundo",
@@ -125,13 +125,13 @@ class TestSynthesizeHappyPath:
         async for chunk in servicer.Synthesize(request, ctx):
             durations.append(chunk.duration)
 
-        # Cada chunk de audio deve ter duracao > 0
+        # Each audio chunk should have duration > 0
         assert durations[0] > 0.0
-        # Duracao deve ser monotonicamente crescente para chunks de audio
+        # Duration should be monotonically increasing for audio chunks
         assert durations[1] >= durations[0]
 
     async def test_last_chunk_has_is_last_flag(self, servicer: TTSWorkerServicer) -> None:
-        """Ultimo chunk tem is_last=True."""
+        """Last chunk has is_last=True."""
         request = SynthesizeRequest(
             request_id="req-3",
             text="Teste",
@@ -149,7 +149,7 @@ class TestSynthesizeHappyPath:
         assert last_chunk.is_last is True
 
     async def test_non_last_chunks_have_is_last_false(self, servicer: TTSWorkerServicer) -> None:
-        """Chunks intermediarios tem is_last=False."""
+        """Intermediate chunks have is_last=False."""
         request = SynthesizeRequest(
             request_id="req-4",
             text="Teste",
@@ -163,16 +163,16 @@ class TestSynthesizeHappyPath:
         async for chunk in servicer.Synthesize(request, ctx):
             chunks.append(chunk)
 
-        # Todos exceto o ultimo devem ter is_last=False
+        # All except the last should have is_last=False
         for ch in chunks[:-1]:
             assert ch.is_last is False
 
 
 class TestSynthesizeErrors:
-    """Testa cenarios de erro na sintese."""
+    """Tests error scenarios in synthesis."""
 
     async def test_empty_text_aborts(self) -> None:
-        """Texto vazio causa abort com INVALID_ARGUMENT."""
+        """Empty text causes abort with INVALID_ARGUMENT."""
         servicer = TTSWorkerServicer(
             backend=MockTTSBackend(),  # type: ignore[arg-type]
             model_name="kokoro-v1",
@@ -202,7 +202,7 @@ class TestSynthesizeErrors:
         )
 
     async def test_whitespace_only_text_aborts(self) -> None:
-        """Texto com apenas espacos causa abort com INVALID_ARGUMENT."""
+        """Whitespace-only text causes abort with INVALID_ARGUMENT."""
         servicer = TTSWorkerServicer(
             backend=MockTTSBackend(),  # type: ignore[arg-type]
             model_name="kokoro-v1",
@@ -227,7 +227,7 @@ class TestSynthesizeErrors:
                 pass  # pragma: no cover
 
     async def test_backend_error_aborts(self) -> None:
-        """Erro no backend causa abort com INTERNAL."""
+        """Backend error causes abort with INTERNAL."""
         backend = MockTTSBackend()
 
         async def _failing_synthesize(  # type: ignore[misc]
@@ -269,8 +269,8 @@ class TestSynthesizeErrors:
         ctx.abort.assert_called_once_with(grpc.StatusCode.INTERNAL, "GPU OOM")
 
     async def test_cancelled_context_stops_streaming(self) -> None:
-        """Se context cancelado, para de enviar chunks."""
-        # Backend que produz muitos chunks
+        """If context is cancelled, stops sending chunks."""
+        # Backend that produces many chunks
         many_chunks = [b"\x00\x01" * 50 for _ in range(100)]
         backend = MockTTSBackend(chunks=many_chunks)
 
@@ -287,7 +287,7 @@ class TestSynthesizeErrors:
             speed=1.0,
         )
         ctx = _make_context()
-        # Cancelar apos o segundo chunk
+        # Cancel after the second chunk
         call_count = 0
 
         def _cancelled_after_two() -> bool:
@@ -301,18 +301,18 @@ class TestSynthesizeErrors:
         async for chunk in servicer.Synthesize(request, ctx):
             chunks.append(chunk)
 
-        # Deve ter parado antes de todos os 100 chunks
+        # Should have stopped before all 100 chunks
         assert len(chunks) < 100
 
 
 # ===================================================================
-# Testes do Health
+# Health Tests
 # ===================================================================
 
 
 class TestHealth:
     async def test_returns_ok(self) -> None:
-        """Health retorna status ok quando backend carregado."""
+        """Health returns ok status when backend is loaded."""
         servicer = TTSWorkerServicer(
             backend=MockTTSBackend(),  # type: ignore[arg-type]
             model_name="kokoro-v1",
@@ -323,7 +323,7 @@ class TestHealth:
         assert response.status == "ok"
 
     async def test_returns_not_loaded(self) -> None:
-        """Health retorna not_loaded quando backend nao carregado."""
+        """Health returns not_loaded when backend is not loaded."""
         backend = MockTTSBackend()
         backend._health_status = "not_loaded"
         servicer = TTSWorkerServicer(
@@ -336,7 +336,7 @@ class TestHealth:
         assert response.status == "not_loaded"
 
     async def test_returns_model_name_and_engine(self) -> None:
-        """Health retorna nome do modelo e engine."""
+        """Health returns model name and engine."""
         servicer = TTSWorkerServicer(
             backend=MockTTSBackend(),  # type: ignore[arg-type]
             model_name="kokoro-v1",
@@ -349,13 +349,13 @@ class TestHealth:
 
 
 # ===================================================================
-# Testes dos Converters
+# Converter Tests
 # ===================================================================
 
 
 class TestProtoRequestToSynthesizeParams:
     def test_converts_all_fields(self) -> None:
-        """Converte todos os campos do SynthesizeRequest."""
+        """Converts all fields from SynthesizeRequest."""
         request = SynthesizeRequest(
             request_id="req-1",
             text="Ola mundo",
@@ -370,7 +370,7 @@ class TestProtoRequestToSynthesizeParams:
         assert params.speed == 1.5
 
     def test_defaults_for_empty_voice(self) -> None:
-        """Usa default quando voice e string vazia."""
+        """Uses default when voice is empty string."""
         request = SynthesizeRequest(
             request_id="req-2",
             text="Teste",
@@ -386,7 +386,7 @@ class TestProtoRequestToSynthesizeParams:
 
 class TestAudioChunkToProto:
     def test_creates_chunk(self) -> None:
-        """Cria SynthesizeChunk correto."""
+        """Creates correct SynthesizeChunk."""
         chunk = audio_chunk_to_proto(
             audio_data=b"\x00\x01" * 50,
             is_last=False,
@@ -398,7 +398,7 @@ class TestAudioChunkToProto:
         assert chunk.duration == pytest.approx(0.5)
 
     def test_creates_last_chunk(self) -> None:
-        """Cria chunk final com is_last=True."""
+        """Creates final chunk with is_last=True."""
         chunk = audio_chunk_to_proto(
             audio_data=b"",
             is_last=True,
@@ -411,7 +411,7 @@ class TestAudioChunkToProto:
 
 class TestHealthDictToProtoResponse:
     def test_converts_health(self) -> None:
-        """Converte dict de health para proto."""
+        """Converts health dict to proto."""
         response = health_dict_to_proto_response(
             {"status": "ok"},
             model_name="kokoro-v1",
@@ -423,7 +423,7 @@ class TestHealthDictToProtoResponse:
         assert response.engine == "kokoro"
 
     def test_unknown_status_default(self) -> None:
-        """Usa 'unknown' quando status nao esta no dict."""
+        """Uses 'unknown' when status is not in dict."""
         response = health_dict_to_proto_response(
             {},
             model_name="test",
@@ -433,13 +433,13 @@ class TestHealthDictToProtoResponse:
 
 
 # ===================================================================
-# Testes do Proto Serialization Roundtrip
+# Proto Serialization Roundtrip Tests
 # ===================================================================
 
 
 class TestProtoRoundtrip:
     def test_synthesize_request_roundtrip(self) -> None:
-        """SynthesizeRequest serializa e desserializa corretamente."""
+        """SynthesizeRequest serializes and deserializes correctly."""
         original = SynthesizeRequest(
             request_id="req-rt-1",
             text="Ola mundo",
@@ -458,7 +458,7 @@ class TestProtoRoundtrip:
         assert restored.speed == pytest.approx(1.5)
 
     def test_synthesize_chunk_roundtrip(self) -> None:
-        """SynthesizeChunk serializa e desserializa corretamente."""
+        """SynthesizeChunk serializes and deserializes correctly."""
         original = SynthesizeChunk(
             audio_data=b"\x00\x01\x02\x03",
             is_last=False,
@@ -473,7 +473,7 @@ class TestProtoRoundtrip:
         assert restored.duration == pytest.approx(1.234, abs=1e-3)
 
     def test_synthesize_chunk_last_roundtrip(self) -> None:
-        """SynthesizeChunk com is_last=True serializa corretamente."""
+        """SynthesizeChunk with is_last=True serializes correctly."""
         original = SynthesizeChunk(
             audio_data=b"",
             is_last=True,
@@ -487,7 +487,7 @@ class TestProtoRoundtrip:
         assert restored.audio_data == b""
 
     def test_health_response_roundtrip(self) -> None:
-        """HealthResponse serializa e desserializa corretamente."""
+        """HealthResponse serializes and deserializes correctly."""
         original = HealthResponse(
             status="ok",
             model_name="kokoro-v1",
@@ -503,20 +503,20 @@ class TestProtoRoundtrip:
 
 
 # ===================================================================
-# Testes do Factory _create_backend
+# Factory _create_backend Tests
 # ===================================================================
 
 
 class TestCreateBackend:
     def test_unknown_engine_raises_value_error(self) -> None:
-        """Engine desconhecida levanta ValueError."""
+        """Unknown engine raises ValueError."""
         from macaw.workers.tts.main import _create_backend
 
         with pytest.raises(ValueError, match="Unsupported TTS engine: nonexistent"):
             _create_backend("nonexistent")
 
     def test_kokoro_returns_backend_instance(self) -> None:
-        """Kokoro engine retorna instancia de KokoroBackend."""
+        """Kokoro engine returns KokoroBackend instance."""
         from macaw.workers.tts.kokoro import KokoroBackend
         from macaw.workers.tts.main import _create_backend
 
@@ -524,7 +524,7 @@ class TestCreateBackend:
         assert isinstance(backend, KokoroBackend)
 
     def test_qwen3_tts_returns_backend_instance(self) -> None:
-        """Qwen3-TTS engine retorna instancia de Qwen3TTSBackend."""
+        """Qwen3-TTS engine returns Qwen3TTSBackend instance."""
         from macaw.workers.tts.main import _create_backend
         from macaw.workers.tts.qwen3 import Qwen3TTSBackend
 
@@ -533,13 +533,13 @@ class TestCreateBackend:
 
 
 # ===================================================================
-# Testes do parse_args
+# parse_args Tests
 # ===================================================================
 
 
 class TestParseArgs:
     def test_default_values(self) -> None:
-        """Argumentos default sao corretos."""
+        """Default arguments are correct."""
         from macaw.workers.tts.main import parse_args
 
         args = parse_args(["--model-path", "/models/kokoro"])
@@ -549,7 +549,7 @@ class TestParseArgs:
         assert args.engine_config == "{}"
 
     def test_custom_values(self) -> None:
-        """Argumentos customizados sao parseados corretamente."""
+        """Custom arguments are parsed correctly."""
         import json
 
         from macaw.workers.tts.main import parse_args

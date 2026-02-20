@@ -1,11 +1,11 @@
-"""Testes do pipeline adaptativo StreamingSession por arquitetura.
+"""Tests for the adaptive StreamingSession pipeline by architecture.
 
-Valida que StreamingSession com architecture=CTC:
-- Nao usa cross-segment context (CTC nao suporta initial_prompt)
-- Emite partials nativos do worker diretamente
-- Emite transcript.final com ITN
-- Mantem VAD, state machine, ring buffer, WAL funcionais
-- Mantem comportamento encoder-decoder para backward compat
+Validates that StreamingSession with architecture=CTC:
+- Does not use cross-segment context (CTC does not support initial_prompt)
+- Emits native worker partials directly
+- Emits transcript.final with ITN
+- Keeps VAD, state machine, ring buffer, WAL functional
+- Maintains encoder-decoder behavior for backward compat
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from tests.helpers import AsyncIterFromList
 def _make_stream_handle(
     events: list | None = None,
 ) -> Mock:
-    """Cria mock de StreamHandle com async iterator correto."""
+    """Create mock StreamHandle with correct async iterator."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test-ctc"
@@ -47,7 +47,7 @@ def _make_session(
     ring_buffer: MagicMock | None = None,
     postprocessor: MagicMock | None = None,
 ) -> StreamingSession:
-    """Cria StreamingSession com mocks minimos."""
+    """Create StreamingSession with minimal mocks."""
     preprocessor = MagicMock()
     preprocessor.process_frame.return_value = np.zeros(320, dtype=np.float32)
 
@@ -75,7 +75,7 @@ def _make_session(
 
 
 class TestCTCArchitectureParam:
-    """StreamingSession aceita e armazena architecture."""
+    """StreamingSession accepts and stores architecture."""
 
     def test_default_architecture_is_encoder_decoder(self) -> None:
         session = _make_session()
@@ -91,10 +91,10 @@ class TestCTCArchitectureParam:
 
 
 class TestCTCCrossSegmentContext:
-    """CTC nao usa cross-segment context (nao suporta initial_prompt)."""
+    """CTC does not use cross-segment context (does not support initial_prompt)."""
 
     def test_ctc_build_prompt_skips_context(self) -> None:
-        """CTC: cross-segment context NAO incluido no prompt."""
+        """CTC: cross-segment context NOT included in prompt."""
         context = MagicMock()
         context.get_prompt.return_value = "contexto anterior"
 
@@ -107,7 +107,7 @@ class TestCTCCrossSegmentContext:
         assert prompt is None
 
     def test_encoder_decoder_build_prompt_uses_context(self) -> None:
-        """Encoder-decoder: cross-segment context incluido no prompt."""
+        """Encoder-decoder: cross-segment context included in prompt."""
         context = MagicMock()
         context.get_prompt.return_value = "contexto anterior"
 
@@ -120,7 +120,7 @@ class TestCTCCrossSegmentContext:
         assert "contexto anterior" in prompt
 
     def test_ctc_with_hot_words_no_native_still_in_prompt(self) -> None:
-        """CTC sem suporte nativo: hot words injetadas no prompt (workaround)."""
+        """CTC without native support: hot words injected into prompt (workaround)."""
         session = _make_session(
             architecture=STTArchitecture.CTC,
             engine_supports_hot_words=False,
@@ -132,7 +132,7 @@ class TestCTCCrossSegmentContext:
         assert "TED" in prompt
 
     def test_ctc_with_hot_words_native_no_prompt(self) -> None:
-        """CTC com suporte nativo: hot words NAO no prompt."""
+        """CTC with native support: hot words NOT in prompt."""
         session = _make_session(
             architecture=STTArchitecture.CTC,
             engine_supports_hot_words=True,
@@ -142,7 +142,7 @@ class TestCTCCrossSegmentContext:
         assert prompt is None
 
     def test_ctc_with_context_and_hot_words_no_native(self) -> None:
-        """CTC sem suporte nativo: hot words no prompt, context ignorado."""
+        """CTC without native support: hot words in prompt, context ignored."""
         context = MagicMock()
         context.get_prompt.return_value = "contexto anterior"
 
@@ -159,7 +159,7 @@ class TestCTCCrossSegmentContext:
         assert "contexto anterior" not in prompt
 
     def test_encoder_decoder_with_context_and_hot_words_no_native(self) -> None:
-        """Encoder-decoder: hot words E context no prompt."""
+        """Encoder-decoder: hot words AND context in prompt."""
         context = MagicMock()
         context.get_prompt.return_value = "contexto anterior"
 
@@ -176,7 +176,7 @@ class TestCTCCrossSegmentContext:
 
 
 class TestCTCReceiveWorkerEvents:
-    """CTC: partials nativos do worker emitidos diretamente."""
+    """CTC: native worker partials emitted directly."""
 
     async def test_ctc_partial_emitted_directly(self) -> None:
         """CTC: TranscriptSegment(is_final=False) -> transcript.partial."""
@@ -237,7 +237,7 @@ class TestCTCReceiveWorkerEvents:
         assert event.text == "2025"
 
     async def test_ctc_final_does_not_update_cross_segment_context(self) -> None:
-        """CTC: transcript.final NAO atualiza cross-segment context."""
+        """CTC: transcript.final does NOT update cross-segment context."""
         context = MagicMock()
         session = _make_session(
             architecture=STTArchitecture.CTC,
@@ -261,7 +261,7 @@ class TestCTCReceiveWorkerEvents:
         context.update.assert_not_called()
 
     async def test_encoder_decoder_final_updates_cross_segment_context(self) -> None:
-        """Encoder-decoder: transcript.final atualiza cross-segment context."""
+        """Encoder-decoder: transcript.final updates cross-segment context."""
         context = MagicMock()
         session = _make_session(
             architecture=STTArchitecture.ENCODER_DECODER,
@@ -284,7 +284,7 @@ class TestCTCReceiveWorkerEvents:
         context.update.assert_called_once_with("hello world")
 
     async def test_ctc_partial_and_final_sequence(self) -> None:
-        """CTC: sequencia partial -> final emitida corretamente."""
+        """CTC: partial -> final sequence emitted correctly."""
         session = _make_session(architecture=STTArchitecture.CTC)
         on_event = session._on_event
 
@@ -316,7 +316,7 @@ class TestCTCReceiveWorkerEvents:
 
 
 class TestCTCStateAndVAD:
-    """CTC: state machine e VAD funcionam normalmente."""
+    """CTC: state machine and VAD work normally."""
 
     async def test_ctc_session_starts_in_init(self) -> None:
         from macaw._types import SessionState
@@ -330,7 +330,7 @@ class TestCTCStateAndVAD:
         assert session.is_closed
 
     async def test_ctc_wal_checkpoint_on_final(self) -> None:
-        """CTC: WAL checkpoint registrado apos transcript.final."""
+        """CTC: WAL checkpoint recorded after transcript.final."""
         session = _make_session(architecture=STTArchitecture.CTC)
 
         final_segment = TranscriptSegment(
@@ -350,7 +350,7 @@ class TestCTCStateAndVAD:
         assert session.wal.last_committed_segment_id == 0
 
     async def test_ctc_ring_buffer_commit_on_final(self) -> None:
-        """CTC: ring buffer commit apos transcript.final."""
+        """CTC: ring buffer commit after transcript.final."""
         mock_rb = MagicMock()
         mock_rb.total_written = 16000
 
@@ -376,10 +376,10 @@ class TestCTCStateAndVAD:
 
 
 class TestBackwardCompat:
-    """Encoder-decoder: comportamento M6 mantido (regressao zero)."""
+    """Encoder-decoder: M6 behavior maintained (zero regression)."""
 
     def test_encoder_decoder_default_no_architecture_param(self) -> None:
-        """Sem parametro architecture = encoder-decoder (backward compat)."""
+        """Without architecture parameter = encoder-decoder (backward compat)."""
         preprocessor = MagicMock()
         vad = MagicMock()
         grpc_client = MagicMock()
@@ -396,7 +396,7 @@ class TestBackwardCompat:
         assert session._architecture == STTArchitecture.ENCODER_DECODER
 
     def test_encoder_decoder_builds_prompt_with_context(self) -> None:
-        """Encoder-decoder: prompt com context funciona."""
+        """Encoder-decoder: prompt with context works."""
         context = MagicMock()
         context.get_prompt.return_value = "previous text"
 
@@ -409,7 +409,7 @@ class TestBackwardCompat:
         assert "previous text" in prompt
 
     def test_encoder_decoder_hot_words_in_prompt_no_native(self) -> None:
-        """Encoder-decoder sem suporte nativo: hot words no prompt."""
+        """Encoder-decoder without native support: hot words in prompt."""
         session = _make_session(
             architecture=STTArchitecture.ENCODER_DECODER,
             engine_supports_hot_words=False,

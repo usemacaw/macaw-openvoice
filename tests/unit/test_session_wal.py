@@ -1,12 +1,12 @@
-"""Testes do WAL In-Memory (Write-Ahead Log) para recovery de sessao.
+"""Tests for In-Memory WAL (Write-Ahead Log) for session recovery.
 
-Cobre:
-- Inicializacao com valores zero
-- record_checkpoint atualiza todos os campos atomicamente
-- Properties de acesso individual (segment_id, buffer_offset, timestamp_ms)
-- Multiplos checkpoints: cada sobrescreve o anterior
-- WALCheckpoint e frozen (imutavel)
-- Integracao: StreamingSession registra checkpoint apos transcript.final
+Covers:
+- Initialization with zero values
+- record_checkpoint updates all fields atomically
+- Individual access properties (segment_id, buffer_offset, timestamp_ms)
+- Multiple checkpoints: each overwrites the previous one
+- WALCheckpoint is frozen (immutable)
+- Integration: StreamingSession records checkpoint after transcript.final
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from tests.helpers import AsyncIterFromList, make_preprocessor_mock, make_raw_by
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
@@ -45,7 +45,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
 
 
 def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
-    """Cria mock de StreamingGRPCClient."""
+    """Create StreamingGRPCClient mock."""
     client = AsyncMock()
     if stream_handle is None:
         stream_handle = _make_stream_handle_mock()
@@ -55,29 +55,29 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 
 def _make_postprocessor_mock() -> Mock:
-    """Cria mock de PostProcessingPipeline."""
+    """Create PostProcessingPipeline mock."""
     mock = Mock()
     mock.process.side_effect = lambda text, **kwargs: text
     return mock
 
 
 # ---------------------------------------------------------------------------
-# SessionWAL: inicializacao e propriedades
+# SessionWAL: initialization and properties
 # ---------------------------------------------------------------------------
 
 
 class TestSessionWALInit:
-    """Testes de inicializacao e estado inicial do WAL."""
+    """Tests for initialization and initial state of WAL."""
 
     def test_wal_initializes_with_zero_values(self) -> None:
-        """WAL inicia com segment_id=0, buffer_offset=0, timestamp_ms=0."""
+        """WAL starts with segment_id=0, buffer_offset=0, timestamp_ms=0."""
         wal = SessionWAL()
         assert wal.last_committed_segment_id == 0
         assert wal.last_committed_buffer_offset == 0
         assert wal.last_committed_timestamp_ms == 0
 
     def test_wal_checkpoint_initializes_correctly(self) -> None:
-        """Property checkpoint retorna WALCheckpoint com valores iniciais."""
+        """Checkpoint property returns WALCheckpoint with initial values."""
         wal = SessionWAL()
         cp = wal.checkpoint
         assert isinstance(cp, WALCheckpoint)
@@ -87,15 +87,15 @@ class TestSessionWALInit:
 
 
 # ---------------------------------------------------------------------------
-# SessionWAL: record_checkpoint e acesso
+# SessionWAL: record_checkpoint and access
 # ---------------------------------------------------------------------------
 
 
 class TestSessionWALRecordCheckpoint:
-    """Testes de record_checkpoint e leitura de valores."""
+    """Tests for record_checkpoint and value reading."""
 
     def test_record_checkpoint_updates_all_fields(self) -> None:
-        """record_checkpoint atualiza segment_id, buffer_offset e timestamp_ms."""
+        """record_checkpoint updates segment_id, buffer_offset and timestamp_ms."""
         wal = SessionWAL()
         wal.record_checkpoint(segment_id=3, buffer_offset=4096, timestamp_ms=12345)
 
@@ -104,25 +104,25 @@ class TestSessionWALRecordCheckpoint:
         assert wal.last_committed_timestamp_ms == 12345
 
     def test_last_committed_segment_id_after_checkpoint(self) -> None:
-        """last_committed_segment_id retorna valor correto apos checkpoint."""
+        """last_committed_segment_id returns correct value after checkpoint."""
         wal = SessionWAL()
         wal.record_checkpoint(segment_id=7, buffer_offset=0, timestamp_ms=0)
         assert wal.last_committed_segment_id == 7
 
     def test_last_committed_buffer_offset_after_checkpoint(self) -> None:
-        """last_committed_buffer_offset retorna valor correto apos checkpoint."""
+        """last_committed_buffer_offset returns correct value after checkpoint."""
         wal = SessionWAL()
         wal.record_checkpoint(segment_id=0, buffer_offset=99999, timestamp_ms=0)
         assert wal.last_committed_buffer_offset == 99999
 
     def test_last_committed_timestamp_ms_after_checkpoint(self) -> None:
-        """last_committed_timestamp_ms retorna valor correto apos checkpoint."""
+        """last_committed_timestamp_ms returns correct value after checkpoint."""
         wal = SessionWAL()
         wal.record_checkpoint(segment_id=0, buffer_offset=0, timestamp_ms=987654)
         assert wal.last_committed_timestamp_ms == 987654
 
     def test_multiple_checkpoints_overwrite_previous(self) -> None:
-        """Cada checkpoint sobrescreve o anterior (nao e append-only)."""
+        """Each checkpoint overwrites the previous one (not append-only)."""
         wal = SessionWAL()
 
         wal.record_checkpoint(segment_id=1, buffer_offset=1000, timestamp_ms=100)
@@ -133,14 +133,14 @@ class TestSessionWALRecordCheckpoint:
         assert wal.last_committed_buffer_offset == 2000
         assert wal.last_committed_timestamp_ms == 200
 
-        # Checkpoint anterior nao e acessivel
+        # Previous checkpoint is not accessible
         wal.record_checkpoint(segment_id=5, buffer_offset=8000, timestamp_ms=500)
         assert wal.last_committed_segment_id == 5
         assert wal.last_committed_buffer_offset == 8000
         assert wal.last_committed_timestamp_ms == 500
 
     def test_checkpoint_property_returns_current_checkpoint(self) -> None:
-        """Property checkpoint retorna o WALCheckpoint mais recente."""
+        """Checkpoint property returns the most recent WALCheckpoint."""
         wal = SessionWAL()
         wal.record_checkpoint(segment_id=4, buffer_offset=5000, timestamp_ms=300)
         cp = wal.checkpoint
@@ -150,51 +150,51 @@ class TestSessionWALRecordCheckpoint:
 
 
 # ---------------------------------------------------------------------------
-# WALCheckpoint: imutabilidade
+# WALCheckpoint: immutability
 # ---------------------------------------------------------------------------
 
 
 class TestWALCheckpointImmutability:
-    """Testes de imutabilidade do WALCheckpoint."""
+    """Tests for WALCheckpoint immutability."""
 
     def test_wal_checkpoint_is_frozen(self) -> None:
-        """WALCheckpoint e frozen (imutavel) — atribuicao levanta FrozenInstanceError."""
+        """WALCheckpoint is frozen (immutable) -- assignment raises FrozenInstanceError."""
         cp = WALCheckpoint(segment_id=1, buffer_offset=100, timestamp_ms=50)
         with pytest.raises(dataclasses.FrozenInstanceError):
             cp.segment_id = 99  # type: ignore[misc]
 
     def test_wal_checkpoint_uses_slots(self) -> None:
-        """WALCheckpoint usa __slots__ para economia de memoria."""
+        """WALCheckpoint uses __slots__ for memory savings."""
         cp = WALCheckpoint(segment_id=1, buffer_offset=100, timestamp_ms=50)
         assert hasattr(cp, "__slots__")
-        # frozen + slots: atribuicao de atributo inexistente levanta erro
-        # (FrozenInstanceError intercepta antes do AttributeError de slots)
+        # frozen + slots: assigning a nonexistent attribute raises error
+        # (FrozenInstanceError intercepts before slots AttributeError)
         with pytest.raises((dataclasses.FrozenInstanceError, AttributeError, TypeError)):
-            cp.extra_field = "nao deve funcionar"  # type: ignore[attr-defined]
+            cp.extra_field = "should not work"  # type: ignore[attr-defined]
 
     def test_wal_checkpoint_equality(self) -> None:
-        """Dois WALCheckpoints com mesmos valores sao iguais (dataclass)."""
+        """Two WALCheckpoints with same values are equal (dataclass)."""
         cp1 = WALCheckpoint(segment_id=1, buffer_offset=100, timestamp_ms=50)
         cp2 = WALCheckpoint(segment_id=1, buffer_offset=100, timestamp_ms=50)
         assert cp1 == cp2
 
     def test_wal_checkpoint_inequality(self) -> None:
-        """WALCheckpoints com valores diferentes nao sao iguais."""
+        """WALCheckpoints with different values are not equal."""
         cp1 = WALCheckpoint(segment_id=1, buffer_offset=100, timestamp_ms=50)
         cp2 = WALCheckpoint(segment_id=2, buffer_offset=100, timestamp_ms=50)
         assert cp1 != cp2
 
 
 # ---------------------------------------------------------------------------
-# Integracao: StreamingSession + WAL
+# Integration: StreamingSession + WAL
 # ---------------------------------------------------------------------------
 
 
 class TestStreamingSessionWAL:
-    """Testes de integracao StreamingSession com SessionWAL."""
+    """Integration tests for StreamingSession with SessionWAL."""
 
     async def test_session_creates_default_wal(self) -> None:
-        """StreamingSession cria WAL default se nenhum fornecido."""
+        """StreamingSession creates default WAL if none provided."""
         session = StreamingSession(
             session_id="test",
             preprocessor=make_preprocessor_mock(),
@@ -208,7 +208,7 @@ class TestStreamingSessionWAL:
         await session.close()
 
     async def test_session_uses_injected_wal(self) -> None:
-        """StreamingSession usa WAL injetado em vez de criar default."""
+        """StreamingSession uses injected WAL instead of creating default."""
         custom_wal = SessionWAL()
         custom_wal.record_checkpoint(segment_id=42, buffer_offset=0, timestamp_ms=0)
 
@@ -226,7 +226,7 @@ class TestStreamingSessionWAL:
         await session.close()
 
     async def test_session_records_wal_checkpoint_after_transcript_final(self) -> None:
-        """StreamingSession registra checkpoint no WAL apos transcript.final."""
+        """StreamingSession records WAL checkpoint after transcript.final."""
         # Arrange
         final_segment = TranscriptSegment(
             text="ola mundo",
@@ -265,19 +265,19 @@ class TestStreamingSessionWAL:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Enviar mais frames
+        # Send more frames
         vad.process_frame.return_value = None
         await session.process_frame(make_raw_bytes())
 
-        # Aguardar receiver task processar o transcript.final
+        # Wait for receiver task to process the transcript.final
         await asyncio.sleep(0.05)
 
-        # Assert: WAL checkpoint registrado
-        assert wal.last_committed_segment_id == 0  # segment_id no momento do final
+        # Assert: WAL checkpoint recorded
+        assert wal.last_committed_segment_id == 0  # segment_id at time of final
         assert wal.last_committed_buffer_offset == rb.total_written
         assert wal.last_committed_timestamp_ms > 0  # monotonic timestamp
 
-        # Verificar que transcript.final tambem foi emitido
+        # Verify that transcript.final was also emitted
         final_calls = [
             call
             for call in on_event.call_args_list
@@ -288,7 +288,7 @@ class TestStreamingSessionWAL:
         await session.close()
 
     async def test_session_records_wal_without_ring_buffer(self) -> None:
-        """StreamingSession registra WAL checkpoint mesmo sem ring buffer."""
+        """StreamingSession records WAL checkpoint even without ring buffer."""
         final_segment = TranscriptSegment(
             text="sem ring buffer",
             is_final=True,
@@ -324,10 +324,10 @@ class TestStreamingSessionWAL:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Aguardar receiver task
+        # Wait for receiver task
         await asyncio.sleep(0.05)
 
-        # WAL checkpoint com buffer_offset=0 (sem ring buffer)
+        # WAL checkpoint with buffer_offset=0 (no ring buffer)
         assert wal.last_committed_segment_id == 0
         assert wal.last_committed_buffer_offset == 0
         assert wal.last_committed_timestamp_ms > 0
@@ -335,7 +335,7 @@ class TestStreamingSessionWAL:
         await session.close()
 
     async def test_session_wal_multiple_finals_overwrite(self) -> None:
-        """Multiplos transcript.final sobrescrevem checkpoint anterior no WAL."""
+        """Multiple transcript.final overwrite previous WAL checkpoint."""
         final1 = TranscriptSegment(
             text="primeiro",
             is_final=True,
@@ -369,7 +369,7 @@ class TestStreamingSessionWAL:
             wal=wal,
         )
 
-        # Trigger speech_start e enviar frames
+        # Trigger speech_start and send frames
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
@@ -379,13 +379,13 @@ class TestStreamingSessionWAL:
         vad.process_frame.return_value = None
         await session.process_frame(make_raw_bytes())
 
-        # Aguardar ambos finals serem processados
+        # Wait for both finals to be processed
         await asyncio.sleep(0.05)
 
-        # WAL deve ter o checkpoint do ultimo final
-        assert wal.last_committed_segment_id == 0  # mesmo segmento, 2 finals
+        # WAL should have the checkpoint from the last final
+        assert wal.last_committed_segment_id == 0  # same segment, 2 finals
         assert wal.last_committed_buffer_offset == rb.total_written
-        # Segundo checkpoint tem timestamp >= primeiro (monotonic)
+        # Second checkpoint has timestamp >= first (monotonic)
         assert wal.last_committed_timestamp_ms > 0
 
         await session.close()

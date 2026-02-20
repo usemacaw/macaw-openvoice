@@ -1,4 +1,4 @@
-"""Testes da rota POST /v1/audio/transcriptions."""
+"""Tests for the POST /v1/audio/transcriptions route."""
 
 from __future__ import annotations
 

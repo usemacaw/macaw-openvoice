@@ -1,7 +1,7 @@
-"""Testes para Qwen3TTSBackend.
+"""Tests for Qwen3TTSBackend.
 
-Usa mocks para o modulo qwen_tts -- nao requer qwen-tts instalado.
-Segue o mesmo padrao de test_kokoro_backend.py.
+Uses mocks for the qwen_tts module -- does not require qwen-tts installed.
+Follows the same pattern as test_kokoro_backend.py.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ def _make_mock_qwen3_model(
     audio: np.ndarray | None = None,
     sample_rate: int = 24000,
 ) -> MagicMock:
-    """Cria mock de Qwen3TTSModel."""
+    """Create mock of Qwen3TTSModel."""
     mock_model = MagicMock()
 
     if audio is None:
@@ -43,7 +43,7 @@ def _make_mock_qwen3_model(
 def _make_mock_qwen3_lib(
     audio: np.ndarray | None = None,
 ) -> MagicMock:
-    """Cria mock da biblioteca qwen_tts com Qwen3TTSModel."""
+    """Create mock of the qwen_tts library with Qwen3TTSModel."""
     mock_model = _make_mock_qwen3_model(audio)
     mock_lib = MagicMock()
     mock_lib.from_pretrained.return_value = mock_model
@@ -205,7 +205,7 @@ class TestSynthesize:
         audio_output: np.ndarray | None = None,
         variant: str = "custom_voice",
     ) -> Qwen3TTSBackend:
-        """Cria backend com modelo mock carregado."""
+        """Create backend with loaded mock model."""
         backend = Qwen3TTSBackend()
         mock_model = _make_mock_qwen3_model(audio_output)
         backend._model = mock_model
