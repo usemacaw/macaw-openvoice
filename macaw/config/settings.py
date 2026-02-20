@@ -57,6 +57,10 @@ class ServerSettings(BaseSettings):
         default="",
         validation_alias="MACAW_CORS_ORIGINS",
     )
+    voice_dir: str | None = Field(
+        default=None,
+        validation_alias="MACAW_VOICE_DIR",
+    )
 
     @property
     def cors_origins_list(self) -> list[str]:

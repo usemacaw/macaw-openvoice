@@ -46,6 +46,11 @@ DEFAULT_WORKER_BASE_PORT = _s.worker.worker_base_port
     help="CORS origins (comma-separated). Overrides MACAW_CORS_ORIGINS env var.",
 )
 @click.option(
+    "--voice-dir",
+    default=None,
+    help="Directory for saved voices (enables Voice CRUD). Overrides MACAW_VOICE_DIR.",
+)
+@click.option(
     "--log-format",
     type=click.Choice(["console", "json"]),
     default="console",
@@ -64,6 +69,7 @@ def serve(
     port: int,
     models_dir: str,
     cors_origins: str | None,
+    voice_dir: str | None,
     log_format: str,
     log_level: str,
 ) -> None:
@@ -74,7 +80,14 @@ def serve(
         origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
     else:
         origins = get_settings().server.cors_origins_list
-    asyncio.run(_serve(host, port, models_dir, cors_origins=origins, log_level=log_level))
+    # CLI flag overrides env var; if neither set, no VoiceStore.
+    if voice_dir is None:
+        voice_dir = get_settings().server.voice_dir
+    asyncio.run(
+        _serve(
+            host, port, models_dir, cors_origins=origins, voice_dir=voice_dir, log_level=log_level
+        )
+    )
 
 
 async def _spawn_all_workers(
@@ -205,6 +218,7 @@ async def _serve(
     models_dir: str,
     *,
     cors_origins: list[str] | None = None,
+    voice_dir: str | None = None,
     log_level: str = "WARNING",
 ) -> None:
     """Main async flow for serve."""
@@ -251,12 +265,22 @@ async def _serve(
 
     # 4. Create app
     scheduler = Scheduler(worker_manager, registry)
+
+    # VoiceStore: enable when voice_dir is provided via CLI or env var
+    voice_store = None
+    if voice_dir is not None:
+        from macaw.server.voice_store import FileSystemVoiceStore
+
+        voice_store = FileSystemVoiceStore(voice_dir)
+        logger.info("voice_store_enabled", voice_dir=voice_dir)
+
     app = create_app(
         registry=registry,
         scheduler=scheduler,
         preprocessing_pipeline=preprocessing_pipeline,
         postprocessing_pipeline=postprocessing_pipeline,
         worker_manager=worker_manager,
+        voice_store=voice_store,
         cors_origins=cors_origins,
     )
 

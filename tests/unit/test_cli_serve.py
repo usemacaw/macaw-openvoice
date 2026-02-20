@@ -20,6 +20,7 @@ class TestServeCommand:
         assert "--host" in result.output
         assert "--port" in result.output
         assert "--models-dir" in result.output
+        assert "--voice-dir" in result.output
         assert "--log-format" in result.output
         assert "--log-level" in result.output
 

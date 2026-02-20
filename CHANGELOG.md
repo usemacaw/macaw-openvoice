@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--voice-dir` CLI option and `MACAW_VOICE_DIR` env var to enable voice persistence in `macaw serve` — operators can now configure a directory for Voice CRUD without code changes (#voice-store-wiring)
+
 ### Changed
 - Rewritten `docs/ADDING_ENGINE.md` with complete TTS/STT backend examples, import guard pattern, executor pattern, error handling guidance, shared utilities reference, and verification checklist (#engine-extensibility)
 - Rewritten `docs/docs/guides/adding-engine.mdx` (Docusaurus public guide) to match actual codebase — fixes 21 issues including wrong file paths, wrong imports, wrong method signatures, missing required patterns, and stale manifest schema (#engine-extensibility)

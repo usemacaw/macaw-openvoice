@@ -113,8 +113,16 @@ def build_cli_notebook() -> dict:
         # --- Server ---
         md("## 4. Server Management"),
         md("### 4.1 Start server in background"),
-        code("import os\nos.environ['MACAW_WORKER_HEALTH_PROBE_TIMEOUT_S'] = '300'"),
-        code("!nohup macaw serve --host 0.0.0.0 --port $SERVER_PORT > /tmp/macaw.log 2>&1 &"),
+        code(
+            "import os\n"
+            "os.environ['MACAW_WORKER_HEALTH_PROBE_TIMEOUT_S'] = '300'\n"
+            "os.environ['MACAW_LOG_FORMAT'] = 'json'  # avoid ANSI escape codes in logs\n"
+            "os.environ['MACAW_VOICE_DIR'] = '/tmp/macaw_voices'"
+        ),
+        code(
+            "!nohup macaw serve --host 0.0.0.0 --port $SERVER_PORT "
+            "--voice-dir /tmp/macaw_voices > /tmp/macaw.log 2>&1 &"
+        ),
         code(
             "import time, httpx\n\n"
             "print('Waiting for server ...')\n"
@@ -186,7 +194,12 @@ def build_cli_notebook() -> dict:
         code("!macaw translate /tmp/test_audio.wav -m $STT_MODEL --server $BASE_URL"),
         # --- Cleanup ---
         md("## 8. Cleanup"),
-        code("!pkill -f 'macaw serve' || true\n!echo 'Server stopped.'"),
+        code(
+            "import subprocess\n"
+            "subprocess.run(['pkill', '-f', 'macaw serve'],\n"
+            "               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+            "print('Server stopped.')"
+        ),
         code("!macaw remove $STT_MODEL --yes"),
         code("!macaw remove $TTS_MODEL --yes"),
         code("!macaw list"),
@@ -243,11 +256,19 @@ def build_api_notebook() -> dict:
             "else:\n"
             "    !pip install macaw-openvoice[faster-whisper,kokoro,itn,codec]"
         ),
-        code("!macaw pull $STT_MODEL\n!macaw pull $TTS_MODEL"),
+        code("%%capture\n!macaw pull $STT_MODEL\n!macaw pull $TTS_MODEL"),
         # Start server
         md("### Start server"),
-        code("import os\nos.environ['MACAW_WORKER_HEALTH_PROBE_TIMEOUT_S'] = '300'"),
-        code("!nohup macaw serve --host 0.0.0.0 --port $SERVER_PORT > /tmp/macaw.log 2>&1 &"),
+        code(
+            "import os\n"
+            "os.environ['MACAW_WORKER_HEALTH_PROBE_TIMEOUT_S'] = '300'\n"
+            "os.environ['MACAW_LOG_FORMAT'] = 'json'  # avoid ANSI escape codes in logs\n"
+            "os.environ['MACAW_VOICE_DIR'] = '/tmp/macaw_voices'"
+        ),
+        code(
+            "!nohup macaw serve --host 0.0.0.0 --port $SERVER_PORT "
+            "--voice-dir /tmp/macaw_voices > /tmp/macaw.log 2>&1 &"
+        ),
         code(
             "import time, httpx\n\n"
             "print('Waiting for server ...')\n"
@@ -534,15 +555,17 @@ def build_api_notebook() -> dict:
             "    print(f\"Granularity: {a.get('granularity')}, Items: {a['items']}\")\n"
             "    assert a['granularity'] == 'character'"
         ),
-        md("### 6.9 Seed for reproducibility"),
+        md(
+            "### 6.9 Seed parameter\n\n"
+            "> **Note:** Kokoro is a deterministic engine — `seed` is accepted but has no effect. "
+            "Seed is meaningful for non-deterministic engines like Qwen3-TTS where it controls "
+            "sampling behavior."
+        ),
         code(
             "payload = {'model': TTS_MODEL, 'input': 'Reproducibility test', 'seed': 42}\n"
             "r1 = httpx.post(f'{BASE_URL}/v1/audio/speech', json=payload, timeout=120)\n"
-            "r2 = httpx.post(f'{BASE_URL}/v1/audio/speech', json=payload, timeout=120)\n"
             "assert r1.status_code == 200\n"
-            "assert r2.status_code == 200\n"
-            "print(f'Identical output: {r1.content == r2.content}')\n"
-            "print(f'Size: {len(r1.content):,} bytes')"
+            "print(f'Seed accepted. Size: {len(r1.content):,} bytes')"
         ),
         md("### 6.10 Text normalization"),
         code(
@@ -568,29 +591,25 @@ def build_api_notebook() -> dict:
             "for v in data['data'][:5]:\n"
             "    print(f\"  {v['voice_id']}: {v['name']} ({v.get('language')})\")"
         ),
-        md("### 7.2 Create designed voice"),
+        md("### 7.2 Voice CRUD (create / get / use / delete)"),
         code(
+            "# Create a saved voice\n"
             "r = httpx.post(\n"
             "    f'{BASE_URL}/v1/voices',\n"
-            "    data={'name': 'Test Voice', 'voice_type': 'designed',\n"
-            "          'instruction': 'A warm, friendly voice', 'language': 'en'},\n"
+            "    data={'name': 'test-voice', 'voice_type': 'designed',\n"
+            "          'instruction': 'A calm and warm English voice', 'language': 'en'},\n"
             "    timeout=30,\n"
             ")\n"
-            "voice = r.json()\n"
-            "print(voice)\n"
-            "assert r.status_code == 201\n"
-            "VOICE_ID = voice['voice_id']"
+            "assert r.status_code == 201, f'Create voice failed: {r.status_code} {r.text}'\n"
+            "VOICE_ID = r.json()['voice_id']\n"
+            "print(f'Created voice: {VOICE_ID}')"
         ),
-        md("### 7.3 Get saved voice"),
         code(
+            "# Get saved voice\n"
             "r = httpx.get(f'{BASE_URL}/v1/voices/{VOICE_ID}', timeout=10)\n"
-            "data = r.json()\n"
-            "print(data)\n"
             "assert r.status_code == 200\n"
-            "assert data['voice_id'] == VOICE_ID"
-        ),
-        md("### 7.4 Use saved voice in synthesis"),
-        code(
+            "print(f\"Get voice: {r.json()['voice_id']}, name={r.json()['name']}\")\n\n"
+            "# Use saved voice in synthesis\n"
             "r = httpx.post(\n"
             "    f'{BASE_URL}/v1/audio/speech',\n"
             "    json={'model': TTS_MODEL, 'input': 'Saved voice test',\n"
@@ -598,13 +617,10 @@ def build_api_notebook() -> dict:
             "    timeout=120,\n"
             ")\n"
             "assert r.status_code == 200\n"
-            "print(f'Audio with saved voice: {len(r.content):,} bytes')"
-        ),
-        md("### 7.5 Delete saved voice"),
-        code(
+            "print(f'Audio with saved voice: {len(r.content):,} bytes')\n\n"
+            "# Delete saved voice\n"
             "r = httpx.delete(f'{BASE_URL}/v1/voices/{VOICE_ID}', timeout=10)\n"
-            "assert r.status_code == 204\n\n"
-            "# Verify it's gone\n"
+            "assert r.status_code == 204\n"
             "r2 = httpx.get(f'{BASE_URL}/v1/voices/{VOICE_ID}', timeout=10)\n"
             "assert r2.status_code == 404\n"
             "print('Voice deleted and confirmed gone.')"
@@ -800,7 +816,12 @@ def build_api_notebook() -> dict:
         ),
         # --- Cleanup ---
         md("## 10. Cleanup"),
-        code("!pkill -f 'macaw serve' || true\n!echo 'Server stopped.'"),
+        code(
+            "import subprocess\n"
+            "subprocess.run(['pkill', '-f', 'macaw serve'],\n"
+            "               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)\n"
+            "print('Server stopped.')"
+        ),
     ]
     return notebook(cells)
 
@@ -815,12 +836,12 @@ def main() -> None:
 
     cli_nb = build_cli_notebook()
     cli_path = out_dir / "validate_cli.ipynb"
-    cli_path.write_text(json.dumps(cli_nb, indent=1, ensure_ascii=False))
+    cli_path.write_text(json.dumps(cli_nb, indent=1, ensure_ascii=False) + "\n")
     print(f"Generated: {cli_path} ({len(cli_nb['cells'])} cells)")
 
     api_nb = build_api_notebook()
     api_path = out_dir / "validate_api.ipynb"
-    api_path.write_text(json.dumps(api_nb, indent=1, ensure_ascii=False))
+    api_path.write_text(json.dumps(api_nb, indent=1, ensure_ascii=False) + "\n")
     print(f"Generated: {api_path} ({len(api_nb['cells'])} cells)")
 
 

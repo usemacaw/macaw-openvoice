@@ -14,6 +14,8 @@
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square" alt="Python 3.11+"></a>
   <a href="https://github.com/useMacaw/macaw-openvoice/actions"><img src="https://img.shields.io/badge/tests-1707_passed-brightgreen?style=flat-square" alt="Tests"></a>
   <a href="https://pypi.org/project/macaw-openvoice/"><img src="https://img.shields.io/badge/pypi-macaw--openvoice-orange?style=flat-square" alt="PyPI"></a>
+  <a href="https://x.com/usemacaw"><img src="https://img.shields.io/badge/X-@usemacaw-000000?style=flat-square&logo=x" alt="X (Twitter)"></a>
+  <a href="https://huggingface.co/usemacaw"><img src="https://img.shields.io/badge/%F0%9F%A4%97-Hugging_Face-yellow?style=flat-square" alt="Hugging Face"></a>
 </p>
 
 <p align="center">
@@ -381,6 +383,8 @@ We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) 
 - **Website:** [usemacaw.io](https://usemacaw.io)
 - **Email:** [hello@usemacaw.io](mailto:hello@usemacaw.io)
 - **GitHub:** [github.com/usemacaw/macaw-openvoice](https://github.com/usemacaw/macaw-openvoice)
+- **X (Twitter):** [@usemacaw](https://x.com/usemacaw)
+- **Hugging Face:** [huggingface.co/usemacaw](https://huggingface.co/usemacaw)
 
 ## License
 
