@@ -21,7 +21,7 @@ build/
 venv/
 *.egg
 *.whl
-
+.audit-requirements.txt
 # Tooling caches
 .mypy_cache/
 .pytest_cache/
