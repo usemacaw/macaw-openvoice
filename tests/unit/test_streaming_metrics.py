@@ -874,9 +874,9 @@ async def test_recovery_success_increments_counter():
     )
 
     vad = make_vad_mock()
-    # Primeiro stream handle: crash no receive_events
+    # First stream handle: crash on receive_events
     crash_handle = _make_stream_handle_mock(events=[WorkerCrashError("w1")])
-    # Segundo stream handle: recovery normal (vazio)
+    # Second stream handle: normal recovery (empty)
     recovery_handle = _make_stream_handle_mock(events=[])
 
     grpc_client = AsyncMock()
@@ -905,10 +905,10 @@ async def test_recovery_success_increments_counter():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para receiver task crashar e recovery executar
+    # Give time for receiver task to crash and recovery to execute
     await asyncio.sleep(0.15)
 
-    # Assert: recovery success counter incrementou
+    # Assert: recovery success counter incremented
     current_success = _get_counter_value(
         "macaw_stt_worker_recoveries",
         {"result": "success"},
