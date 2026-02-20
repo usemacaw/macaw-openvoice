@@ -51,10 +51,10 @@ Thumbs.db
 .env.*
 !.env.example
 
-# gRPC generated
-src/macaw/proto/*_pb2.py
-src/macaw/proto/*_pb2_grpc.py
-src/macaw/proto/*_pb2.pyi
+# gRPC generated (kept in git for reproducible installs; regenerate via make proto)
+# macaw/proto/*_pb2.py
+# macaw/proto/*_pb2_grpc.py
+# macaw/proto/*_pb2.pyi
 
 # Models (downloaded via macaw pull)
 !src/macaw/server/models/

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "grpcio-tools>=1.78,<2.0"]
+requires = ["hatchling", "grpcio-tools==1.78.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -53,6 +53,8 @@ dependencies = [
     "uvicorn[standard]>=0.34,<1.0",
     "python-multipart>=0.0.18",
     "huggingface_hub>=0.20,<1.0",
+    "opuslib>=3.0.0",
+    "nemo_text_processing>=1.1,<2.0"
 ]
 
 [project.scripts]
@@ -130,7 +132,7 @@ packages = ["macaw"]
 target-version = "py311"
 line-length = 99
 src = ["."]
-extend-exclude = ["macaw/proto/stt_worker_pb2*", "macaw/proto/tts_worker_pb2*", "inspiracao/"]
+extend-exclude = ["macaw/proto/stt_worker_pb2*", "macaw/proto/tts_worker_pb2*", "inspiracao/", "notebooks/"]
 
 [tool.ruff.lint]
 select = [

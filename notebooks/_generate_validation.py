@@ -85,13 +85,17 @@ def build_cli_notebook() -> dict:
         # --- Installation ---
         md(
             "## 2. Installation\n\n"
-            "Installs from **PyPI** or **git develop branch** based on `INSTALL_FROM` above."
+            "Installs from **PyPI** or **git develop branch** based on `INSTALL_FROM` above.\n\n"
+            "> **Note (Colab):** You may see a pip resolver warning about `protobuf` conflicts "
+            "with pre-installed `tensorflow`/`grpcio-status`. This is harmless — Macaw requires "
+            "`protobuf>=6.31` and does not use TensorFlow. The warning can be safely ignored."
         ),
         code(
+            "%%capture\n"
             "if INSTALL_FROM == 'develop':\n"
-            "    !pip install -q 'macaw-openvoice[faster-whisper,kokoro,itn,codec] @ git+https://github.com/usemacaw/macaw-openvoice.git@develop'\n"
+            "    !pip install 'macaw-openvoice[faster-whisper,kokoro,itn,codec] @ git+https://github.com/usemacaw/macaw-openvoice.git@develop'\n"
             "else:\n"
-            "    !pip install -q macaw-openvoice[faster-whisper,kokoro,itn,codec]"
+            "    !pip install macaw-openvoice[faster-whisper,kokoro,itn,codec]"
         ),
         code("!macaw --version"),
         # --- Model Management ---
@@ -227,13 +231,17 @@ def build_api_notebook() -> dict:
         ),
         md(
             "### Installation\n\n"
-            "Installs from **PyPI** or **git develop branch** based on `INSTALL_FROM` above."
+            "Installs from **PyPI** or **git develop branch** based on `INSTALL_FROM` above.\n\n"
+            "> **Note (Colab):** You may see a pip resolver warning about `protobuf` conflicts "
+            "with pre-installed `tensorflow`/`grpcio-status`. This is harmless — Macaw requires "
+            "`protobuf>=6.31` and does not use TensorFlow. The warning can be safely ignored."
         ),
         code(
+            "%%capture\n"
             "if INSTALL_FROM == 'develop':\n"
-            "    !pip install -q 'macaw-openvoice[faster-whisper,kokoro,itn,codec] @ git+https://github.com/usemacaw/macaw-openvoice.git@develop'\n"
+            "    !pip install 'macaw-openvoice[faster-whisper,kokoro,itn,codec] @ git+https://github.com/usemacaw/macaw-openvoice.git@develop'\n"
             "else:\n"
-            "    !pip install -q macaw-openvoice[faster-whisper,kokoro,itn,codec]"
+            "    !pip install macaw-openvoice[faster-whisper,kokoro,itn,codec]"
         ),
         code("!macaw pull $STT_MODEL\n!macaw pull $TTS_MODEL"),
         # Start server
@@ -606,7 +614,7 @@ def build_api_notebook() -> dict:
             "## 8. WebSocket Realtime (`/v1/realtime`)\n\n"
             "Tests bidirectional WebSocket protocol for STT streaming and TTS full-duplex."
         ),
-        code("!pip install -q websockets"),
+        code("%%capture\n!pip install websockets"),
         md("### 8.1 STT streaming"),
         code(
             "import asyncio, json, websockets\n\n"
