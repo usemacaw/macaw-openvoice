@@ -92,7 +92,16 @@ async def create_speech(
             "Use response_format='wav' or 'pcm' with alignment."
         )
 
-    # response_format validated by Pydantic Literal["wav", "pcm", "opus"]
+    # response_format validated by Pydantic Literal["wav", "pcm", "opus", "mp3", "mulaw", "alaw"]
+
+    # Pre-flight: check codec availability before opening gRPC stream
+    if body.response_format not in ("wav", "pcm"):
+        from macaw.codec import is_codec_available
+
+        if not is_codec_available(body.response_format):
+            raise InvalidRequestError(
+                f"Codec '{body.response_format}' is not available. Install the required library."
+            )
 
     # Resolve TTS model + worker
     _manifest, worker, worker_address = resolve_tts_resources(registry, worker_manager, body.model)
@@ -205,19 +214,23 @@ async def create_speech(
     # Standard mode: binary audio stream
     first_audio_chunk = first_chunk.audio_data if first_chunk else b""
     fmt = body.response_format
-    if fmt == "wav":
-        media_type = "audio/wav"
-    elif fmt == "opus":
-        media_type = "audio/opus"
-    else:
-        media_type = "audio/pcm"
+    media_types: dict[str, str] = {
+        "wav": "audio/wav",
+        "pcm": "audio/pcm",
+        "opus": "audio/opus",
+        "mp3": "audio/mpeg",
+        "mulaw": "audio/basic",
+        "alaw": "audio/basic",
+    }
+    media_type = media_types.get(fmt, "audio/pcm")
+    codec_name = fmt if fmt not in ("wav", "pcm") else None
 
     return StreamingResponse(
         _stream_tts_audio(
             response_stream=response_stream,
             first_audio_chunk=first_audio_chunk,
             is_wav=(fmt == "wav"),
-            is_opus=(fmt == "opus"),
+            codec_name=codec_name,
             sample_rate=TTS_DEFAULT_SAMPLE_RATE,
             request_id=request_id,
             effect_chain=effect_chain,
@@ -276,7 +289,7 @@ async def _stream_tts_audio(
     response_stream: grpc.aio.UnaryStreamCall[Any, Any],
     first_audio_chunk: bytes,
     is_wav: bool,
-    is_opus: bool = False,
+    codec_name: str | None = None,
     sample_rate: int,
     request_id: str,
     effect_chain: AudioEffectChain | None = None,
@@ -284,8 +297,8 @@ async def _stream_tts_audio(
     """Async generator that yields TTS audio chunks for StreamingResponse.
 
     For WAV format: yields a WAV header (with max data size placeholder)
-    followed by raw PCM chunks. For Opus format: encodes PCM chunks via
-    CodecEncoder. For PCM format: yields raw PCM directly.
+    followed by raw PCM chunks. For encoded formats (opus, mp3, mulaw, alaw):
+    encodes PCM chunks via CodecEncoder. For PCM format: yields raw PCM directly.
 
     The gRPC channel is pooled and NOT closed here — it is reused across
     requests and closed on server shutdown via close_tts_channels().
@@ -294,9 +307,9 @@ async def _stream_tts_audio(
     from macaw.config.settings import get_settings
 
     encoder = None
-    if is_opus:
+    if codec_name is not None:
         bitrate = get_settings().codec.opus_bitrate
-        encoder = create_encoder("opus", sample_rate=sample_rate, bitrate=bitrate)
+        encoder = create_encoder(codec_name, sample_rate=sample_rate, bitrate=bitrate)
 
     total_audio_bytes = 0
     try:

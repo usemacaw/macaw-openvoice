@@ -300,7 +300,7 @@ class TTSSpeakCommand(BaseModel):
     ref_text: str | None = None
     instruction: str | None = None
     # Audio codec for TTS output; None = raw PCM
-    codec: Literal["opus"] | None = None
+    codec: Literal["opus", "mp3", "mulaw", "alaw"] | None = None
     # Post-synthesis audio effects (applied server-side before transport)
     effects: AudioEffectsParams | None = None
     # Alignment options (opt-in per-word/character timing)

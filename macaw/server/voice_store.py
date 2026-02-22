@@ -8,6 +8,7 @@ enabling reuse of cloned voices without re-uploading reference audio.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import os
 import re
@@ -87,6 +88,22 @@ class VoiceStore(ABC):
         """Delete a saved voice.
 
         Returns True if the voice was deleted, False if not found.
+        """
+        ...
+
+    @abstractmethod
+    async def update(
+        self,
+        voice_id: str,
+        *,
+        name: str | None = None,
+        language: str | None = None,
+        ref_text: str | None = None,
+        instruction: str | None = None,
+    ) -> SavedVoice | None:
+        """Update a saved voice's metadata fields.
+
+        Only non-None fields are updated. Returns None if voice not found.
         """
         ...
 
@@ -243,3 +260,62 @@ class FileSystemVoiceStore(VoiceStore):
     async def delete(self, voice_id: str) -> bool:
         self._validate_voice_id(voice_id)
         return await asyncio.to_thread(self._delete_sync, voice_id)
+
+    def _update_sync(
+        self,
+        voice_id: str,
+        *,
+        name: str | None,
+        language: str | None,
+        ref_text: str | None,
+        instruction: str | None,
+    ) -> SavedVoice | None:
+        existing = self._get_sync(voice_id)
+        if existing is None:
+            return None
+
+        updated = dataclasses.replace(
+            existing,
+            name=name if name is not None else existing.name,
+            language=language if language is not None else existing.language,
+            ref_text=ref_text if ref_text is not None else existing.ref_text,
+            instruction=instruction if instruction is not None else existing.instruction,
+        )
+        if updated == existing:
+            return existing
+
+        # Write updated metadata JSON to disk
+        metadata = {
+            "voice_id": updated.voice_id,
+            "name": updated.name,
+            "voice_type": updated.voice_type,
+            "language": updated.language,
+            "ref_text": updated.ref_text,
+            "instruction": updated.instruction,
+            "has_ref_audio": updated.ref_audio_path is not None,
+            "created_at": updated.created_at,
+        }
+        metadata_path = os.path.join(self._voices_dir, voice_id, "metadata.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        return updated
+
+    async def update(
+        self,
+        voice_id: str,
+        *,
+        name: str | None = None,
+        language: str | None = None,
+        ref_text: str | None = None,
+        instruction: str | None = None,
+    ) -> SavedVoice | None:
+        self._validate_voice_id(voice_id)
+        return await asyncio.to_thread(
+            self._update_sync,
+            voice_id,
+            name=name,
+            language=language,
+            ref_text=ref_text,
+            instruction=instruction,
+        )

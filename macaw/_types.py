@@ -39,6 +39,7 @@ class SessionState(Enum):
         INIT -> ACTIVE (first audio with speech)
         INIT -> CLOSED (30s timeout without audio)
         ACTIVE -> SILENCE (VAD detects silence)
+        ACTIVE -> CLOSING (graceful close requested)
         SILENCE -> ACTIVE (VAD detects speech)
         SILENCE -> HOLD (30s timeout without speech)
         HOLD -> ACTIVE (VAD detects speech)

@@ -11,7 +11,11 @@ import pytest
 
 from macaw._types import SessionState
 from macaw.exceptions import InvalidTransitionError
-from macaw.session.state_machine import SessionStateMachine, SessionTimeouts
+from macaw.session.state_machine import (
+    _VALID_TRANSITIONS,
+    SessionStateMachine,
+    SessionTimeouts,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -620,3 +624,20 @@ class TestFullLifecycle:
 
         clock.advance(5.0)  # 30s in SILENCE -> expired
         assert sm.check_timeout() == SessionState.HOLD
+
+
+# ---------------------------------------------------------------------------
+# Transition map immutability
+# ---------------------------------------------------------------------------
+
+
+class TestTransitionMapImmutability:
+    def test_valid_transitions_frozenset_prevents_mutation(self) -> None:
+        """frozenset values in _VALID_TRANSITIONS prevent target set mutation."""
+        with pytest.raises(AttributeError):
+            _VALID_TRANSITIONS[SessionState.INIT].add(SessionState.HOLD)  # type: ignore[attr-defined]
+
+    def test_all_transition_values_are_frozenset(self) -> None:
+        """Every entry in _VALID_TRANSITIONS must be a frozenset."""
+        for state, targets in _VALID_TRANSITIONS.items():
+            assert isinstance(targets, frozenset), f"{state} targets not frozenset"

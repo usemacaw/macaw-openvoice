@@ -25,6 +25,8 @@ Hierarchy:
     +-- TTSError
     |   +-- TTSSynthesisError (client input errors -> INVALID_ARGUMENT)
     |   +-- TTSEngineError   (server engine errors -> INTERNAL)
+    +-- CodecError
+    |   +-- CodecUnavailableError
     +-- InvalidRequestError
 """
 
@@ -246,3 +248,23 @@ class TTSEngineError(TTSError):
         self.model_name = model_name
         self.reason = reason
         super().__init__(f"TTS engine error for model '{model_name}': {reason}")
+
+
+# --- Codec ---
+
+
+class CodecError(MacawError):
+    """Audio codec error."""
+
+
+class CodecUnavailableError(CodecError):
+    """Requested codec is not available (missing library or unknown codec).
+
+    Raised during codec initialization when the required library is not
+    installed, or when an unrecognized codec name is requested.
+    """
+
+    def __init__(self, codec_name: str, reason: str) -> None:
+        self.codec_name = codec_name
+        self.reason = reason
+        super().__init__(f"Codec '{codec_name}' unavailable: {reason}")

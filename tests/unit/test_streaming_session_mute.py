@@ -1,13 +1,15 @@
-"""Testes de mute-on-speak na StreamingSession.
+"""Tests for mute-on-speak in StreamingSession.
 
-Valida:
-- mute()/unmute() na StreamingSession
-- process_frame() descarta frames quando muted
-- Frames nao-muted sao processados normalmente
+Validates:
+- mute()/unmute() on StreamingSession
+- process_frame() discards frames when muted
+- Unmuted frames are processed normally
 - is_muted property
-- Mute durante fala ativa: frames descartados
-- Unmute apos erro (garante que o fluxo TTS usa try/finally)
-- Metrica stt_muted_frames_total incrementada
+- Mute during active speech: frames discarded
+- Unmute after error (ensures TTS flow uses try/finally)
+- stt_muted_frames_total metric incremented
+- Reference counting: double mute still muted, underflow safe
+- Concurrent TTS contexts with ref counting
 """
 
 from __future__ import annotations
@@ -60,13 +62,15 @@ class TestStreamingSessionMuteProperty:
         session.unmute()
         assert session.is_muted is False
 
-    def test_mute_idempotent(self) -> None:
+    def test_double_mute_still_muted(self) -> None:
+        """Two mute() calls keep session muted (ref count = 2)."""
         session = _make_session()
         session.mute()
         session.mute()
         assert session.is_muted is True
 
-    def test_unmute_idempotent(self) -> None:
+    def test_unmute_underflow_safe(self) -> None:
+        """Unmuting when already unmuted stays at 0 (no negative depth)."""
         session = _make_session()
         session.unmute()
         assert session.is_muted is False
@@ -201,3 +205,50 @@ class TestMuteTryFinally:
         # Verify frames are processed after unmute
         await session.process_frame(b"\x00\x01" * 160)
         session._preprocessor.process_frame.assert_called_once()
+
+
+class TestConcurrentTTSContextsMute:
+    """Tests for multi-context TTS with ref counting on StreamingSession."""
+
+    async def test_concurrent_tts_contexts_mute(self) -> None:
+        """Two TTS contexts: both mute, one unmutes -> still muted."""
+        session = _make_session()
+
+        # Context A starts TTS
+        session.mute()
+        assert session.is_muted is True
+
+        # Context B starts TTS
+        session.mute()
+        assert session.is_muted is True
+
+        # Context A finishes
+        session.unmute()
+        assert session.is_muted is True  # B still active
+
+        # Context B finishes
+        session.unmute()
+        assert session.is_muted is False
+
+    async def test_try_finally_with_concurrent_contexts(self) -> None:
+        """Two TTS contexts with try/finally: crash in A doesn't unmute B."""
+        session = _make_session()
+
+        # Context A
+        session.mute()
+        try:
+            # Context B
+            session.mute()
+            try:
+                raise RuntimeError("TTS B crashed")
+            except RuntimeError:
+                pass
+            finally:
+                session.unmute()  # B's finally
+
+            # After B's crash+unmute, A still holds mute
+            assert session.is_muted is True
+        finally:
+            session.unmute()  # A's finally
+
+        assert session.is_muted is False

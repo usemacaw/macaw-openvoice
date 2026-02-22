@@ -420,18 +420,18 @@ class TTSWorkerServicer(_BaseServicer):
                 )
 
         except Exception as exc:
-            from macaw.exceptions import TTSSynthesisError
+            from macaw.exceptions import CodecUnavailableError, TTSSynthesisError
 
             logger.error(
                 "synthesize_error",
                 request_id=request_id,
                 error=str(exc),
             )
-            # Client errors (bad input, missing ref_audio, etc.) → INVALID_ARGUMENT
+            # Client errors (bad input, missing ref_audio, unavailable codec) → INVALID_ARGUMENT
             # Server errors (OOM, unexpected) → INTERNAL
             status = (
                 grpc.StatusCode.INVALID_ARGUMENT
-                if isinstance(exc, TTSSynthesisError)
+                if isinstance(exc, TTSSynthesisError | CodecUnavailableError)
                 else grpc.StatusCode.INTERNAL
             )
             await context.abort(status, str(exc))

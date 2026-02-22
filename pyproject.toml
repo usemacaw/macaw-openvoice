@@ -82,6 +82,9 @@ chatterbox = [
 codec = [
     "opuslib>=3.0.0",
 ]
+mp3 = [
+    "lameenc>=1.7",
+]
 alignment = [
     "torchaudio>=2.1",
 ]
@@ -218,6 +221,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "opuslib.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "lameenc.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

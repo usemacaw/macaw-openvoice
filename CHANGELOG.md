@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `CodecError` and `CodecUnavailableError` exceptions for fail-fast codec validation (#gap-analysis-ws2)
+- `is_codec_available()` pre-flight check function in codec factory (#gap-analysis-ws2)
+- `hot_words` Form parameter in `POST /v1/audio/transcriptions` and `POST /v1/audio/translations` REST routes — hot words are parsed and forwarded to scheduler (#gap-analysis-ws4)
+- `timestamp_granularities` Form parameter in `POST /v1/audio/translations` route — previously missing, now matches transcriptions route (#gap-analysis-ws4)
+- `PUT /v1/voices/{voice_id}` endpoint for editing saved voice metadata (name, language, ref_text, instruction) (#gap-analysis-ws4)
+- `VoiceStore.update()` abstract method and `FileSystemVoiceStore` implementation for partial voice metadata updates (#gap-analysis-ws4)
+- `MuteController.mute_depth` property for reference count debugging (#gap-analysis-ws5)
+- `Mp3Encoder` codec via lameenc for MP3 output format (#gap-analysis-ws3)
+- `MuLawEncoder` and `ALawEncoder` (pure numpy) for G.711 telephony codecs (#gap-analysis-ws3)
+- `resample_output()` DSP primitive for sample rate conversion (#gap-analysis-ws3)
+- `response_format` options: `mp3`, `mulaw`, `alaw` in REST and WebSocket TTS endpoints (#gap-analysis-ws3)
+
+### Changed
+- `OpusEncoder.encode()` and `flush()` raise `CodecUnavailableError` instead of silently returning raw PCM when opuslib is not installed (fail-open to fail-fast) (#gap-analysis-ws2)
+- `create_encoder()` raises `CodecUnavailableError` for unknown codecs instead of returning `None` (#gap-analysis-ws2)
+- `MuteController` uses reference counting (`_mute_count: int`) instead of boolean flag — supports concurrent TTS contexts without mute/unmute interference (#gap-analysis-ws5)
+- `POST /v1/audio/speech` validates codec availability before opening gRPC stream — returns 400 for unavailable codecs (#gap-analysis-ws2)
+- WebSocket `tts.speak` validates codec availability before spawning TTS task — sends error event for unavailable codecs (#gap-analysis-ws2)
+
+### Fixed
+- Factual errors in gap analysis review meeting minutes — corrected Voice Changer priority change, ulaw/alaw promotion, line reference, evidence count (#gap-analysis-ws0)
+- False positive test `test_hot_words_in_batch_result_both_engines` marked as xfail — Form fields silently ignored by FastAPI, not actually wired (#gap-analysis-ws0)
+- Missing `ACTIVE -> CLOSING` transition in `SessionState` docstring — existed in state_machine.py but was undocumented in the enum (#gap-analysis-ws0)
+- Stale alignment assertions in ADR-008 — updated to reflect completed implementation status (word/character/normalized alignment) (#gap-analysis-ws1)
+
 - `--voice-dir` CLI option and `MACAW_VOICE_DIR` env var to enable voice persistence in `macaw serve` — operators can now configure a directory for Voice CRUD without code changes (#voice-store-wiring)
 - API Examples documentation page (`docs/docs/guides/api-examples.mdx`) — complete request/response reference for all REST endpoints, WebSocket protocol, voice CRUD, audio effects, alignment, and error handling with real captured outputs (#docs)
 

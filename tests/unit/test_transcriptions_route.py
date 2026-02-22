@@ -245,3 +245,82 @@ async def test_transcribe_timestamp_granularities_defaults_to_segment() -> None:
 
     call_args = scheduler.transcribe.call_args[0][0]
     assert call_args.timestamp_granularities == ("segment",)
+
+
+# --- hot_words ---
+
+
+async def test_transcribe_passes_hot_words_to_scheduler() -> None:
+    """hot_words Form param is parsed and forwarded to TranscribeRequest."""
+    scheduler = _make_mock_scheduler()
+    app = create_app(registry=_make_mock_registry(), scheduler=scheduler)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        await client.post(
+            "/v1/audio/transcriptions",
+            files={"file": ("audio.wav", b"fake-audio-data", "audio/wav")},
+            data={"model": "faster-whisper-tiny", "hot_words": "PIX,TED,Selic"},
+        )
+
+    call_args = scheduler.transcribe.call_args[0][0]
+    assert call_args.hot_words == ("PIX", "TED", "Selic")
+
+
+async def test_transcribe_hot_words_strips_whitespace() -> None:
+    """Whitespace around individual hot words is stripped."""
+    scheduler = _make_mock_scheduler()
+    app = create_app(registry=_make_mock_registry(), scheduler=scheduler)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        await client.post(
+            "/v1/audio/transcriptions",
+            files={"file": ("audio.wav", b"fake-audio-data", "audio/wav")},
+            data={"model": "faster-whisper-tiny", "hot_words": " PIX , TED , Selic "},
+        )
+
+    call_args = scheduler.transcribe.call_args[0][0]
+    assert call_args.hot_words == ("PIX", "TED", "Selic")
+
+
+async def test_transcribe_hot_words_empty_string_becomes_none() -> None:
+    """Empty string hot_words becomes None (FastAPI converts '' to None for Optional[str])."""
+    scheduler = _make_mock_scheduler()
+    app = create_app(registry=_make_mock_registry(), scheduler=scheduler)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        await client.post(
+            "/v1/audio/transcriptions",
+            files={"file": ("audio.wav", b"fake-audio-data", "audio/wav")},
+            data={"model": "faster-whisper-tiny", "hot_words": ""},
+        )
+
+    call_args = scheduler.transcribe.call_args[0][0]
+    assert call_args.hot_words is None
+
+
+async def test_transcribe_without_hot_words_defaults_to_none() -> None:
+    """Backward compat: omitting hot_words keeps None."""
+    scheduler = _make_mock_scheduler()
+    app = create_app(registry=_make_mock_registry(), scheduler=scheduler)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        await client.post(
+            "/v1/audio/transcriptions",
+            files={"file": ("audio.wav", b"fake-audio-data", "audio/wav")},
+            data={"model": "faster-whisper-tiny"},
+        )
+
+    call_args = scheduler.transcribe.call_args[0][0]
+    assert call_args.hot_words is None

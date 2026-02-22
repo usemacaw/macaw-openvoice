@@ -253,7 +253,7 @@ class TestSpeechRoute:
                 json={
                     "model": "kokoro-v1",
                     "input": "Hello",
-                    "response_format": "mp3",
+                    "response_format": "aac",
                 },
             )
 

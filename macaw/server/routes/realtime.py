@@ -823,6 +823,21 @@ async def _handle_tts_speak_command(
         voice=cmd.voice,
         text_len=len(cmd.text),
     )
+
+    # Pre-flight: validate codec availability before starting TTS task
+    if cmd.codec:
+        from macaw.codec import is_codec_available
+
+        if not is_codec_available(cmd.codec):
+            await ctx.send_event(
+                StreamingErrorEvent(
+                    code="codec_unavailable",
+                    message=f"Codec '{cmd.codec}' is not available. Install the required library.",
+                    recoverable=True,
+                )
+            )
+            return False
+
     await _cancel_active_tts(ctx)
 
     # Build effect chain from command params (None = no effects)
