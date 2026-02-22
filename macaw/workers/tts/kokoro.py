@@ -15,12 +15,12 @@ from __future__ import annotations
 import asyncio
 import os
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
 from macaw._audio_constants import TTS_DEFAULT_SAMPLE_RATE
-from macaw._types import TTSEngineCapabilities, VoiceInfo
+from macaw._types import TTSAlignmentItem, TTSChunkResult, TTSEngineCapabilities, VoiceInfo
 from macaw.exceptions import ModelLoadError, TTSEngineError, TTSSynthesisError
 from macaw.logging import get_logger
 from macaw.workers.torch_utils import release_gpu_memory, resolve_device
@@ -66,7 +66,11 @@ class KokoroBackend(TTSBackend):
         self._default_voice: str = "af_heart"
 
     async def capabilities(self) -> TTSEngineCapabilities:
-        return TTSEngineCapabilities(supports_streaming=True)
+        return TTSEngineCapabilities(
+            supports_streaming=True,
+            supports_alignment=True,
+            supports_character_alignment=True,
+        )
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if kokoro_lib is None:
@@ -123,6 +127,48 @@ class KokoroBackend(TTSBackend):
 
     # AsyncGenerator is a subtype of AsyncIterator but mypy doesn't recognize
     # yield-based overrides. See docs/ADDING_ENGINE.md.
+    def _validate_and_resolve(
+        self,
+        text: str,
+        voice: str,
+        sample_rate: int,
+        options: dict[str, object] | None,
+    ) -> str:
+        """Validate inputs and resolve voice path (shared by synthesize methods).
+
+        Raises:
+            ModelLoadError: If the model is not loaded.
+            TTSSynthesisError: If text is empty.
+
+        Returns:
+            Resolved voice path.
+        """
+        if self._pipeline is None:
+            msg = "Model not loaded. Call load() first."
+            raise ModelLoadError("unknown", msg)
+
+        if not text.strip():
+            raise TTSSynthesisError(self._model_path, "Empty text")
+
+        if sample_rate != TTS_DEFAULT_SAMPLE_RATE:
+            logger.warning(
+                "sample_rate=%d ignored; engine outputs at %dHz",
+                sample_rate,
+                TTS_DEFAULT_SAMPLE_RATE,
+            )
+
+        # Seed is a no-op for Kokoro (deterministic forward pass, no sampling)
+        if options and options.get("seed"):
+            logger.info("seed_ignored_deterministic_engine", seed=options["seed"])
+        if options and options.get("text_normalization") == "off":
+            logger.info("text_normalization_off_best_effort", engine="kokoro")
+
+        return _resolve_voice_path(
+            voice,
+            self._voices_dir,
+            self._default_voice,
+        )
+
     async def synthesize(  # type: ignore[override, misc]
         self,
         text: str,
@@ -151,25 +197,7 @@ class KokoroBackend(TTSBackend):
             ModelLoadError: If the model is not loaded.
             TTSSynthesisError: If synthesis fails.
         """
-        if self._pipeline is None:
-            msg = "Model not loaded. Call load() first."
-            raise ModelLoadError("unknown", msg)
-
-        if not text.strip():
-            raise TTSSynthesisError(self._model_path, "Empty text")
-
-        if sample_rate != TTS_DEFAULT_SAMPLE_RATE:
-            logger.warning(
-                "sample_rate=%d ignored; engine outputs at %dHz",
-                sample_rate,
-                TTS_DEFAULT_SAMPLE_RATE,
-            )
-
-        voice_path = _resolve_voice_path(
-            voice,
-            self._voices_dir,
-            self._default_voice,
-        )
+        voice_path = self._validate_and_resolve(text, voice, sample_rate, options)
 
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[bytes | None] = asyncio.Queue()
@@ -199,6 +227,74 @@ class KokoroBackend(TTSBackend):
             has_audio = True
             for i in range(0, len(pcm_bytes), CHUNK_SIZE_BYTES):
                 yield pcm_bytes[i : i + CHUNK_SIZE_BYTES]
+
+        await future
+
+        if error_holder[0] is not None:
+            exc = error_holder[0]
+            if isinstance(exc, TTSSynthesisError | TTSEngineError):
+                raise exc
+            raise TTSEngineError(self._model_path, str(exc)) from exc
+
+        if not has_audio:
+            msg = "Synthesis returned empty audio"
+            raise TTSEngineError(self._model_path, msg)
+
+    async def synthesize_with_alignment(
+        self,
+        text: str,
+        voice: str = "default",
+        *,
+        sample_rate: int = TTS_DEFAULT_SAMPLE_RATE,
+        speed: float = 1.0,
+        alignment_granularity: Literal["word", "character"] = "word",
+        options: dict[str, object] | None = None,
+    ) -> AsyncIterator[TTSChunkResult]:
+        """Synthesize text with per-chunk word-level alignment from Kokoro.
+
+        Kokoro natively computes per-token duration predictions during
+        synthesis. This method extracts timing from MToken.start_ts/end_ts
+        and returns it alongside audio chunks at zero extra latency cost.
+        """
+        voice_path = self._validate_and_resolve(text, voice, sample_rate, options)
+
+        loop = asyncio.get_running_loop()
+        _AlignTuple = tuple[TTSAlignmentItem, ...] | None  # noqa: N806
+        queue: asyncio.Queue[tuple[bytes, _AlignTuple, _AlignTuple] | None] = asyncio.Queue()
+        error_holder: list[Exception | None] = [None]
+
+        future = loop.run_in_executor(
+            None,
+            lambda: _stream_pipeline_with_alignment(
+                self._pipeline,
+                text,
+                voice_path,
+                speed,
+                queue,
+                loop,
+                error_holder,
+                granularity=alignment_granularity,
+            ),
+        )
+
+        has_audio = False
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            pcm_bytes, alignment, norm_alignment = item
+            has_audio = True
+            # Attach alignment to the first chunk of each segment only.
+            # Subsequent sub-chunks from the same segment carry no alignment.
+            for i in range(0, len(pcm_bytes), CHUNK_SIZE_BYTES):
+                chunk = pcm_bytes[i : i + CHUNK_SIZE_BYTES]
+                is_first = i == 0
+                yield TTSChunkResult(
+                    audio=chunk,
+                    alignment=alignment if is_first else None,
+                    normalized_alignment=norm_alignment if is_first else None,
+                    alignment_granularity=alignment_granularity,
+                )
 
         await future
 
@@ -376,6 +472,157 @@ def _stream_pipeline_segments(
         error_holder[0] = exc
     finally:
         loop.call_soon_threadsafe(queue.put_nowait, None)
+
+
+def _stream_pipeline_with_alignment(
+    pipeline: object,
+    text: str,
+    voice_path: str,
+    speed: float,
+    queue: asyncio.Queue[
+        tuple[bytes, tuple[TTSAlignmentItem, ...] | None, tuple[TTSAlignmentItem, ...] | None]
+        | None
+    ],
+    loop: asyncio.AbstractEventLoop,
+    error_holder: list[Exception | None],
+    granularity: str = "word",
+) -> None:
+    """Stream KPipeline segments with alignment data (blocking, runs in executor).
+
+    Unlike _stream_pipeline_segments, this iterates over Result objects
+    directly (not unpacking) to access .tokens with MToken timing data.
+    Each queue item is a (pcm_bytes, alignment, normalized_alignment) tuple.
+    """
+    from macaw.workers.torch_utils import get_inference_context
+
+    try:
+        with get_inference_context():
+            for result in pipeline(text, voice=voice_path, speed=speed):  # type: ignore[operator]
+                audio = result[2] if not hasattr(result, "audio") else result.audio
+                if audio is not None and len(audio) > 0:
+                    arr = audio.numpy() if hasattr(audio, "numpy") else np.asarray(audio)
+                    pcm_bytes = float32_to_pcm16_bytes(arr)
+                    alignment = _extract_alignment(result, granularity)
+                    norm_alignment = _extract_normalized_alignment(result, granularity)
+                    loop.call_soon_threadsafe(
+                        queue.put_nowait, (pcm_bytes, alignment, norm_alignment)
+                    )
+    except Exception as exc:
+        error_holder[0] = exc
+    finally:
+        loop.call_soon_threadsafe(queue.put_nowait, None)
+
+
+def _extract_token_timing(
+    result: object,
+    text_attr: str,
+    granularity: str = "word",
+) -> tuple[TTSAlignmentItem, ...] | None:
+    """Extract timing from a Kokoro Result's tokens using a configurable text attribute.
+
+    Iterates over ``result.tokens``, reading ``text_attr`` (e.g. ``"text"`` or
+    ``"phonemes"``) and ``start_ts``/``end_ts`` from each MToken.  Tokens
+    without timing, with zero duration, or with empty text are skipped.
+
+    When *granularity* is ``"character"``, word-level timing is distributed
+    uniformly across the word's characters via ``_distribute_timing_to_chars``.
+
+    Returns:
+        Tuple of TTSAlignmentItem or None if no timing data available.
+    """
+    tokens = getattr(result, "tokens", None)
+    if tokens is None:
+        return None
+
+    items: list[TTSAlignmentItem] = []
+    for token in tokens:
+        raw_text = getattr(token, text_attr, None)
+        start_ts = getattr(token, "start_ts", None)
+        end_ts = getattr(token, "end_ts", None)
+        if raw_text and start_ts is not None and end_ts is not None:
+            start_ms = int(start_ts * 1000)
+            duration_ms = int((end_ts - start_ts) * 1000)
+            if duration_ms > 0:
+                cleaned = raw_text.strip()
+                if not cleaned:
+                    continue
+                if granularity == "character":
+                    items.extend(_distribute_timing_to_chars(cleaned, start_ms, duration_ms))
+                else:
+                    items.append(
+                        TTSAlignmentItem(
+                            text=cleaned,
+                            start_ms=start_ms,
+                            duration_ms=duration_ms,
+                        )
+                    )
+
+    return tuple(items) if items else None
+
+
+def _extract_alignment(
+    result: object,
+    granularity: str = "word",
+) -> tuple[TTSAlignmentItem, ...] | None:
+    """Extract word/character alignment from a Kokoro Result's tokens.
+
+    Reads ``MToken.text`` for grapheme-level alignment.
+
+    Returns:
+        Tuple of TTSAlignmentItem or None if no timing data available.
+    """
+    return _extract_token_timing(result, "text", granularity)
+
+
+def _distribute_timing_to_chars(
+    word: str,
+    start_ms: int,
+    duration_ms: int,
+) -> list[TTSAlignmentItem]:
+    """Distribute a word's timing uniformly across its characters.
+
+    Each character gets an equal share of the total duration. Rounding
+    residuals are added to the last character to preserve total duration.
+
+    Returns:
+        List of per-character TTSAlignmentItem.
+    """
+    n = len(word)
+    per_char_ms = duration_ms // n
+    remainder_ms = duration_ms - per_char_ms * n
+
+    result: list[TTSAlignmentItem] = []
+    offset = start_ms
+    # Use max(per_char_ms, 1) for advancement to avoid overlapping characters
+    # when duration < n_chars (degenerate case: all chars would start at same offset).
+    advance = max(per_char_ms, 1)
+    for i, char in enumerate(word):
+        char_dur = per_char_ms + (remainder_ms if i == n - 1 else 0)
+        result.append(
+            TTSAlignmentItem(
+                text=char,
+                start_ms=offset,
+                duration_ms=max(char_dur, 1),
+            )
+        )
+        offset += advance
+
+    return result
+
+
+def _extract_normalized_alignment(
+    result: object,
+    granularity: str = "word",
+) -> tuple[TTSAlignmentItem, ...] | None:
+    """Extract phoneme-based (normalized) alignment from a Kokoro Result's tokens.
+
+    Reads ``MToken.phonemes`` for phonemized alignment, matching the ElevenLabs
+    ``normalizedAlignment`` concept.
+
+    Returns:
+        Tuple of TTSAlignmentItem or None if no phoneme data available.
+    """
+    return _extract_token_timing(result, "phonemes", granularity)
 
 
 def _scan_voices_dir(voices_dir: str) -> list[VoiceInfo]:

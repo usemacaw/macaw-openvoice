@@ -35,6 +35,7 @@ async def handle_audio_request(
     preprocessing_pipeline: AudioPreprocessingPipeline | None = None,
     postprocessing_pipeline: PostProcessingPipeline | None = None,
     itn: bool = True,
+    hot_words: str | None = None,
     timestamp_granularities: tuple[str, ...] = ("segment",),
 ) -> Any:
     """Process audio request (transcription or translation).
@@ -54,6 +55,7 @@ async def handle_audio_request(
         preprocessing_pipeline: Audio preprocessing pipeline (optional).
         postprocessing_pipeline: Text post-processing pipeline (optional).
         itn: If True (default), apply post-processing to the result.
+        hot_words: Comma-separated list of hot words to boost recognition.
 
     Returns:
         Response formatted according to response_format.
@@ -99,6 +101,10 @@ async def handle_audio_request(
     if preprocessing_pipeline is not None:
         audio_data = preprocessing_pipeline.process(audio_data)
 
+    parsed_hot_words: tuple[str, ...] | None = None
+    if hot_words is not None:
+        parsed_hot_words = tuple(w.strip() for w in hot_words.split(",") if w.strip())
+
     request = TranscribeRequest(
         request_id=request_id,
         model_name=model,
@@ -108,6 +114,7 @@ async def handle_audio_request(
         temperature=temperature,
         timestamp_granularities=timestamp_granularities,
         initial_prompt=prompt,
+        hot_words=parsed_hot_words,
         task=task,
     )
 

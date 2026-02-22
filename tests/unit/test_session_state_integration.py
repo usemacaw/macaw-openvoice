@@ -1,15 +1,15 @@
-"""Testes de integracao: SessionStateMachine + StreamingSession.
+"""Integration tests: SessionStateMachine + StreamingSession.
 
-Valida que a maquina de estados (M6) esta corretamente integrada ao
-orquestrador de streaming. Foco em:
-- Transicoes de estado disparadas por eventos VAD
-- Timeouts por estado com clock controlavel
-- Comportamento dependente de estado (frames em HOLD nao enviados)
-- Emissao de SessionHoldEvent
-- session.configure propagando timeouts
-- Estado inicial (INIT, nao ACTIVE)
+Validates that the state machine (M6) is correctly integrated with the
+streaming orchestrator. Focus on:
+- State transitions triggered by VAD events
+- Per-state timeouts with controllable clock
+- State-dependent behavior (frames in HOLD not sent)
+- SessionHoldEvent emission
+- session.configure propagating timeouts
+- Initial state (INIT, not ACTIVE)
 
-Todos os testes sao deterministicos — usam clock injetavel.
+All tests are deterministic -- they use an injectable clock.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from tests.helpers import AsyncIterFromList, make_preprocessor_mock, make_raw_by
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create a StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
@@ -40,7 +40,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
 
 
 def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
-    """Cria mock de StreamingGRPCClient."""
+    """Create a StreamingGRPCClient mock."""
     client = AsyncMock()
     if stream_handle is None:
         stream_handle = _make_stream_handle_mock()
@@ -50,18 +50,18 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 
 def _make_postprocessor_mock() -> Mock:
-    """Cria mock de PostProcessingPipeline."""
+    """Create a PostProcessingPipeline mock."""
     mock = Mock()
     mock.process.side_effect = lambda text, **kwargs: f"ITN({text})"
     return mock
 
 
 def _controllable_clock() -> tuple[list[float], object]:
-    """Cria clock controlavel para state machine.
+    """Create a controllable clock for the state machine.
 
     Returns:
-        (time_ref, clock_fn) onde time_ref[0] controla o tempo
-        e clock_fn pode ser passado como clock para SessionStateMachine.
+        (time_ref, clock_fn) where time_ref[0] controls the time
+        and clock_fn can be passed as clock to SessionStateMachine.
     """
     time_ref = [0.0]
 
@@ -82,7 +82,7 @@ def _make_session_with_sm(
     hot_words: list[str] | None = None,
     enable_itn: bool = True,
 ) -> tuple[StreamingSession, SessionStateMachine, Mock, AsyncMock, AsyncMock]:
-    """Cria StreamingSession com SessionStateMachine e clock controlavel.
+    """Create a StreamingSession with SessionStateMachine and controllable clock.
 
     Returns:
         (session, state_machine, vad, grpc_client, on_event)
@@ -119,12 +119,12 @@ def _make_session_with_sm(
 
 
 # ---------------------------------------------------------------------------
-# Tests: Estado Inicial
+# Tests: Initial State
 # ---------------------------------------------------------------------------
 
 
 async def test_initial_state_is_init():
-    """Estado inicial da sessao deve ser INIT, nao ACTIVE."""
+    """Initial session state must be INIT, not ACTIVE."""
     time_ref, _clock = _controllable_clock()
     session, sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 
@@ -133,31 +133,31 @@ async def test_initial_state_is_init():
 
 
 async def test_session_state_property_reflects_state_machine():
-    """session_state deve refletir o estado da state machine."""
+    """session_state must reflect the state machine's state."""
     time_ref, _clock = _controllable_clock()
     session, sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 
     assert session.session_state == SessionState.INIT
 
-    # Transitar manualmente
+    # Transition manually
     sm.transition(SessionState.ACTIVE)
     assert session.session_state == SessionState.ACTIVE
 
 
 # ---------------------------------------------------------------------------
-# Tests: Transicoes VAD
+# Tests: VAD Transitions
 # ---------------------------------------------------------------------------
 
 
 async def test_speech_start_transitions_init_to_active():
-    """Primeiro frame com fala transita INIT -> ACTIVE."""
+    """First frame with speech transitions INIT -> ACTIVE."""
     time_ref, _clock = _controllable_clock()
     vad = make_vad_mock()
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref, vad=vad)
 
     assert session.session_state == SessionState.INIT
 
-    # Emitir speech_start
+    # Emit speech_start
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -173,12 +173,12 @@ async def test_speech_start_transitions_init_to_active():
 
 
 async def test_speech_end_transitions_active_to_silence():
-    """VAD speech_end transita ACTIVE -> SILENCE."""
+    """VAD speech_end transitions ACTIVE -> SILENCE."""
     time_ref, _clock = _controllable_clock()
     vad = make_vad_mock()
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref, vad=vad)
 
-    # Primeiro: INIT -> ACTIVE via speech_start
+    # First: INIT -> ACTIVE via speech_start
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -188,7 +188,7 @@ async def test_speech_end_transitions_active_to_silence():
     await asyncio.sleep(0.01)
     assert session.session_state == SessionState.ACTIVE
 
-    # Agora: ACTIVE -> SILENCE via speech_end
+    # Now: ACTIVE -> SILENCE via speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_END,
         timestamp_ms=2000,
@@ -200,7 +200,7 @@ async def test_speech_end_transitions_active_to_silence():
 
 
 async def test_speech_start_during_silence_transitions_to_active():
-    """Nova fala durante SILENCE transita SILENCE -> ACTIVE."""
+    """New speech during SILENCE transitions SILENCE -> ACTIVE."""
     time_ref, _clock = _controllable_clock()
     vad = make_vad_mock()
     grpc_client = _make_grpc_client_mock()
@@ -228,11 +228,11 @@ async def test_speech_start_during_silence_transitions_to_active():
     await session.process_frame(make_raw_bytes())
     assert session.session_state == SessionState.SILENCE
 
-    # Novo stream handle para proximo open_stream
+    # New stream handle for next open_stream
     stream_handle2 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle2)
 
-    # SILENCE -> ACTIVE (nova fala)
+    # SILENCE -> ACTIVE (new speech)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=3000,
@@ -248,7 +248,7 @@ async def test_speech_start_during_silence_transitions_to_active():
 
 
 async def test_speech_start_during_hold_transitions_to_active():
-    """Fala durante HOLD transita HOLD -> ACTIVE."""
+    """Speech during HOLD transitions HOLD -> ACTIVE."""
     time_ref = [0.0]
     vad = make_vad_mock()
     grpc_client = _make_grpc_client_mock()
@@ -280,11 +280,11 @@ async def test_speech_start_during_hold_transitions_to_active():
     sm.transition(SessionState.HOLD)
     assert session.session_state == SessionState.HOLD
 
-    # Novo stream handle
+    # New stream handle
     stream_handle2 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle2)
 
-    # HOLD -> ACTIVE (fala detectada)
+    # HOLD -> ACTIVE (speech detected)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=35000,
@@ -305,13 +305,13 @@ async def test_speech_start_during_hold_transitions_to_active():
 
 
 async def test_init_timeout_transitions_to_closed():
-    """Timeout de INIT (30s default) transita para CLOSED."""
+    """INIT timeout (30s default) transitions to CLOSED."""
     time_ref = [0.0]
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 
     assert session.session_state == SessionState.INIT
 
-    # Simular 31s passados
+    # Simulate 31s elapsed
     time_ref[0] = 31.0
 
     result = session.check_inactivity()
@@ -320,7 +320,7 @@ async def test_init_timeout_transitions_to_closed():
 
 
 async def test_silence_timeout_transitions_to_hold():
-    """Timeout de SILENCE (30s default) transita para HOLD via check_timeout."""
+    """SILENCE timeout (30s default) transitions to HOLD via check_timeout."""
     time_ref = [0.0]
     vad = make_vad_mock()
     on_event = AsyncMock()
@@ -349,7 +349,7 @@ async def test_silence_timeout_transitions_to_hold():
     await session.process_frame(make_raw_bytes())
     assert session.session_state == SessionState.SILENCE
 
-    # Simular 31s no estado SILENCE
+    # Simulate 31s in SILENCE state
     time_ref[0] = 33.0  # 2.0 + 31.0
 
     result = await session.check_timeout()
@@ -358,7 +358,7 @@ async def test_silence_timeout_transitions_to_hold():
 
 
 async def test_hold_timeout_transitions_to_closing():
-    """Timeout de HOLD (5min default) transita para CLOSING via check_timeout."""
+    """HOLD timeout (5min default) transitions to CLOSING via check_timeout."""
     time_ref = [0.0]
     vad = make_vad_mock()
     session, sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref, vad=vad)
@@ -381,12 +381,12 @@ async def test_hold_timeout_transitions_to_closing():
     time_ref[0] = 2.0
     await session.process_frame(make_raw_bytes())
 
-    # Transitar manualmente para HOLD
+    # Transition manually to HOLD
     time_ref[0] = 3.0
     sm.transition(SessionState.HOLD)
     assert session.session_state == SessionState.HOLD
 
-    # Simular 301s no estado HOLD (>300s default)
+    # Simulate 301s in HOLD state (>300s default)
     time_ref[0] = 304.0  # 3.0 + 301.0
 
     result = await session.check_timeout()
@@ -394,7 +394,7 @@ async def test_hold_timeout_transitions_to_closing():
 
 
 async def test_closing_timeout_transitions_to_closed():
-    """Timeout de CLOSING (2s default) transita para CLOSED via check_timeout."""
+    """CLOSING timeout (2s default) transitions to CLOSED via check_timeout."""
     time_ref = [0.0]
     session, sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 
@@ -405,7 +405,7 @@ async def test_closing_timeout_transitions_to_closed():
     sm.transition(SessionState.CLOSING)
     assert session.session_state == SessionState.CLOSING
 
-    # Simular 3s no estado CLOSING (>2s default)
+    # Simulate 3s in CLOSING state (>2s default)
     time_ref[0] = 5.0
 
     result = await session.check_timeout()
@@ -419,7 +419,7 @@ async def test_closing_timeout_transitions_to_closed():
 
 
 async def test_silence_to_hold_emits_session_hold_event():
-    """Transicao SILENCE -> HOLD via check_timeout emite SessionHoldEvent."""
+    """SILENCE -> HOLD transition via check_timeout emits SessionHoldEvent."""
     time_ref = [0.0]
     vad = make_vad_mock()
     on_event = AsyncMock()
@@ -448,15 +448,15 @@ async def test_silence_to_hold_emits_session_hold_event():
     await session.process_frame(make_raw_bytes())
     assert session.session_state == SessionState.SILENCE
 
-    # Limpar chamadas anteriores do on_event para isolar a verificacao
+    # Clear previous on_event calls to isolate verification
     on_event.reset_mock()
 
-    # Simular timeout de SILENCE (31s > 30s default)
+    # Simulate SILENCE timeout (31s > 30s default)
     time_ref[0] = 33.0
 
     await session.check_timeout()
 
-    # Verificar que SessionHoldEvent foi emitido
+    # Verify that SessionHoldEvent was emitted
     hold_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], SessionHoldEvent)
     ]
@@ -468,14 +468,14 @@ async def test_silence_to_hold_emits_session_hold_event():
 
 
 async def test_session_hold_event_has_correct_hold_timeout_ms():
-    """SessionHoldEvent contem hold_timeout_ms correto apos session.configure."""
+    """SessionHoldEvent contains correct hold_timeout_ms after session.configure."""
     time_ref = [0.0]
     vad = make_vad_mock()
     on_event = AsyncMock()
     custom_timeouts = SessionTimeouts(
         init_timeout_s=30.0,
-        silence_timeout_s=5.0,  # Curto para teste
-        hold_timeout_s=120.0,  # 2min em vez de 5min
+        silence_timeout_s=5.0,  # Short for testing
+        hold_timeout_s=120.0,  # 2min instead of 5min
         closing_timeout_s=2.0,
     )
     session, _sm, _, _, _ = _make_session_with_sm(
@@ -505,7 +505,7 @@ async def test_session_hold_event_has_correct_hold_timeout_ms():
 
     on_event.reset_mock()
 
-    # Timeout de SILENCE (6s > 5s custom)
+    # SILENCE timeout (6s > 5s custom)
     time_ref[0] = 8.0
 
     await session.check_timeout()
@@ -518,12 +518,12 @@ async def test_session_hold_event_has_correct_hold_timeout_ms():
 
 
 # ---------------------------------------------------------------------------
-# Tests: Comportamento por Estado
+# Tests: State-Based Behavior
 # ---------------------------------------------------------------------------
 
 
 async def test_frames_in_hold_not_sent_to_worker():
-    """Frames em HOLD nao sao enviados ao worker (economia de GPU)."""
+    """Frames in HOLD are not sent to worker (GPU savings)."""
     time_ref = [0.0]
     vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock()
@@ -534,7 +534,7 @@ async def test_frames_in_hold_not_sent_to_worker():
         grpc_client=grpc_client,
     )
 
-    # INIT -> ACTIVE (abre stream)
+    # INIT -> ACTIVE (opens stream)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -557,26 +557,26 @@ async def test_frames_in_hold_not_sent_to_worker():
     sm.transition(SessionState.HOLD)
     assert session.session_state == SessionState.HOLD
 
-    # Resetar contador de frames enviados
+    # Reset sent frame counter
     stream_handle.send_frame.reset_mock()
 
-    # Novo stream para simular que "esta falando" mas em HOLD
+    # New stream to simulate "speaking" but in HOLD
     stream_handle2 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle2)
 
-    # Enviar frames em HOLD (vad.is_speaking=True simulado,
-    # mas sem speech_start event - estado permanece HOLD)
+    # Send frames in HOLD (vad.is_speaking=True simulated,
+    # but without speech_start event - state remains HOLD)
     vad.process_frame.return_value = None
-    vad.is_speaking = True  # VAD acha que esta falando
+    vad.is_speaking = True  # VAD thinks it is speaking
     await session.process_frame(make_raw_bytes())
     await session.process_frame(make_raw_bytes())
 
-    # Assert: nenhum frame enviado ao worker (estado e HOLD, nao ACTIVE)
+    # Assert: no frames sent to worker (state is HOLD, not ACTIVE)
     stream_handle2.send_frame.assert_not_called()
 
 
 async def test_frames_in_init_not_sent_to_worker():
-    """Frames em INIT (antes de speech_start) nao sao enviados ao worker."""
+    """Frames in INIT (before speech_start) are not sent to worker."""
     time_ref = [0.0]
     vad = make_vad_mock(is_speaking=False)
     stream_handle = _make_stream_handle_mock()
@@ -589,17 +589,17 @@ async def test_frames_in_init_not_sent_to_worker():
 
     assert session.session_state == SessionState.INIT
 
-    # Enviar frames sem speech_start
+    # Send frames without speech_start
     vad.process_frame.return_value = None
     await session.process_frame(make_raw_bytes())
     await session.process_frame(make_raw_bytes())
 
-    # Assert: nenhum frame enviado
+    # Assert: no frames sent
     stream_handle.send_frame.assert_not_called()
 
 
 async def test_frames_in_closing_rejected():
-    """Frames em CLOSING sao ignorados (nao aceita novos frames)."""
+    """Frames in CLOSING are ignored (does not accept new frames)."""
     time_ref = [0.0]
     vad = make_vad_mock()
     preprocessor = make_preprocessor_mock()
@@ -607,10 +607,10 @@ async def test_frames_in_closing_rejected():
         clock_ref=time_ref,
         vad=vad,
     )
-    # Substituir preprocessor para verificar que nao e chamado
+    # Replace preprocessor to verify it is not called
     session._preprocessor = preprocessor
 
-    # Transitar para CLOSING
+    # Transition to CLOSING
     time_ref[0] = 1.0
     sm.transition(SessionState.ACTIVE)
     time_ref[0] = 2.0
@@ -619,10 +619,10 @@ async def test_frames_in_closing_rejected():
 
     preprocessor.process_frame.reset_mock()
 
-    # Tentar processar frame
+    # Try to process frame
     await session.process_frame(make_raw_bytes())
 
-    # Assert: preprocessor nao chamado (frame rejeitado no inicio)
+    # Assert: preprocessor not called (frame rejected early)
     preprocessor.process_frame.assert_not_called()
 
 
@@ -632,14 +632,14 @@ async def test_frames_in_closing_rejected():
 
 
 async def test_update_session_timeouts():
-    """update_session_timeouts() atualiza timeouts da state machine."""
+    """update_session_timeouts() updates state machine timeouts."""
     time_ref = [0.0]
     session, sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 
-    # Timeouts default: INIT=30s
+    # Default timeouts: INIT=30s
     assert sm.timeouts.init_timeout_s == 30.0
 
-    # Atualizar timeouts
+    # Update timeouts
     new_timeouts = SessionTimeouts(
         init_timeout_s=10.0,
         silence_timeout_s=15.0,
@@ -655,15 +655,15 @@ async def test_update_session_timeouts():
 
 
 async def test_updated_timeout_affects_check_timeout():
-    """Timeouts atualizados sao usados imediatamente em check_timeout."""
+    """Updated timeouts are used immediately in check_timeout."""
     time_ref = [0.0]
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 
     # Default INIT timeout: 30s
     time_ref[0] = 15.0  # 15s < 30s
-    assert not session.check_inactivity()  # Nao expirou
+    assert not session.check_inactivity()  # Not expired
 
-    # Atualizar para 10s
+    # Update to 10s
     new_timeouts = SessionTimeouts(
         init_timeout_s=10.0,
         silence_timeout_s=30.0,
@@ -672,7 +672,7 @@ async def test_updated_timeout_affects_check_timeout():
     )
     session.update_session_timeouts(new_timeouts)
 
-    # Agora 15s > 10s, deve expirar
+    # Now 15s > 10s, should expire
     assert session.check_inactivity()
     assert session.session_state == SessionState.CLOSED
 
@@ -683,7 +683,7 @@ async def test_updated_timeout_affects_check_timeout():
 
 
 async def test_close_transitions_to_closing_then_closed():
-    """close() transita para CLOSING -> CLOSED via state machine."""
+    """close() transitions to CLOSING -> CLOSED via state machine."""
     time_ref = [0.0]
     vad = make_vad_mock()
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref, vad=vad)
@@ -708,7 +708,7 @@ async def test_close_transitions_to_closing_then_closed():
 
 
 async def test_close_from_init_transitions_to_closed():
-    """close() de INIT transita diretamente via CLOSING -> CLOSED."""
+    """close() from INIT transitions directly via CLOSING -> CLOSED."""
     time_ref = [0.0]
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 
@@ -716,18 +716,18 @@ async def test_close_from_init_transitions_to_closed():
 
     await session.close()
 
-    # INIT nao tem transicao direta para CLOSING na state machine,
-    # mas close() tenta CLOSING e se falhar, vai direto para CLOSED
+    # INIT has no direct transition to CLOSING in the state machine,
+    # but close() tries CLOSING and if it fails, goes directly to CLOSED
     assert session.is_closed
 
 
 # ---------------------------------------------------------------------------
-# Tests: check_timeout retorna None quando nao ha timeout
+# Tests: check_timeout returns None when there is no timeout
 # ---------------------------------------------------------------------------
 
 
 async def test_check_timeout_returns_none_when_active():
-    """ACTIVE nao tem timeout, check_timeout retorna None."""
+    """ACTIVE has no timeout, check_timeout returns None."""
     time_ref = [0.0]
     vad = make_vad_mock()
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref, vad=vad)
@@ -743,7 +743,7 @@ async def test_check_timeout_returns_none_when_active():
     await asyncio.sleep(0.01)
     assert session.session_state == SessionState.ACTIVE
 
-    # Mesmo apos muito tempo, ACTIVE nao expira
+    # Even after a long time, ACTIVE does not expire
     time_ref[0] = 999.0
     result = await session.check_timeout()
     assert result is None
@@ -754,7 +754,7 @@ async def test_check_timeout_returns_none_when_active():
 
 
 async def test_check_timeout_returns_none_when_closed():
-    """CLOSED retorna None de check_timeout."""
+    """CLOSED returns None from check_timeout."""
     time_ref = [0.0]
     session, _sm, _, _, _ = _make_session_with_sm(clock_ref=time_ref)
 

@@ -1,4 +1,4 @@
-"""Testes dos modelos de request e response da API."""
+"""Tests for API request and response models."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from macaw.server.models.responses import (
 
 
 class TestTranscribeRequest:
-    """Testes do dataclass TranscribeRequest."""
+    """Tests for TranscribeRequest dataclass."""
 
     def test_create_with_required_fields(self) -> None:
         req = TranscribeRequest(
@@ -61,7 +61,7 @@ class TestTranscribeRequest:
 
 
 class TestTranscriptionResponse:
-    """Testes do modelo de resposta JSON."""
+    """Tests for JSON response model."""
 
     def test_json_format(self) -> None:
         resp = TranscriptionResponse(text="Ola mundo")
@@ -73,7 +73,7 @@ class TestTranscriptionResponse:
 
 
 class TestVerboseTranscriptionResponse:
-    """Testes do modelo de resposta verbose_json."""
+    """Tests for verbose_json response model."""
 
     def test_verbose_format(self) -> None:
         resp = VerboseTranscriptionResponse(

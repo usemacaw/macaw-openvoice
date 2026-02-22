@@ -77,6 +77,7 @@ def create_demo_app(config: DemoConfig | None = None) -> FastAPI:
                 model_path=model_path,
                 engine_config=manifest.engine_config.model_dump(),
                 worker_type="stt",
+                python_package=manifest.python_package,
             )
             logger.info(
                 "demo_worker_spawned",
@@ -98,6 +99,7 @@ def create_demo_app(config: DemoConfig | None = None) -> FastAPI:
                 model_path=model_path,
                 engine_config=tts_engine_config,
                 worker_type="tts",
+                python_package=manifest.python_package,
             )
             logger.info(
                 "demo_worker_spawned",

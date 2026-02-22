@@ -39,6 +39,7 @@ class SessionState(Enum):
         INIT -> ACTIVE (first audio with speech)
         INIT -> CLOSED (30s timeout without audio)
         ACTIVE -> SILENCE (VAD detects silence)
+        ACTIVE -> CLOSING (graceful close requested)
         SILENCE -> ACTIVE (VAD detects speech)
         SILENCE -> HOLD (30s timeout without speech)
         HOLD -> ACTIVE (VAD detects speech)
@@ -149,6 +150,33 @@ VoiceTypeLiteral = Literal["cloned", "designed"]
 
 
 @dataclass(frozen=True, slots=True)
+class TTSAlignmentItem:
+    """Timing alignment for a single text element (word or character).
+
+    Produced by TTS engines that support native alignment (e.g., Kokoro
+    via duration prediction) or by runtime-level forced alignment.
+    """
+
+    text: str
+    start_ms: int
+    duration_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class TTSChunkResult:
+    """Audio chunk with optional alignment data from a TTS engine.
+
+    Returned by TTSBackend.synthesize_with_alignment() to carry both
+    PCM audio and timing metadata in a single object.
+    """
+
+    audio: bytes
+    alignment: tuple[TTSAlignmentItem, ...] | None = None
+    normalized_alignment: tuple[TTSAlignmentItem, ...] | None = None
+    alignment_granularity: Literal["word", "character"] = "word"
+
+
+@dataclass(frozen=True, slots=True)
 class TTSEngineCapabilities:
     """Capabilities reported by the TTS engine at runtime.
 
@@ -160,6 +188,8 @@ class TTSEngineCapabilities:
     supports_voice_cloning: bool = False
     supports_instruct: bool = False
     max_text_length: int | None = None
+    supports_alignment: bool = False
+    supports_character_alignment: bool = False
 
 
 @dataclass(frozen=True, slots=True)

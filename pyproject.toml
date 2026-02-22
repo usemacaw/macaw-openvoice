@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "grpcio-tools>=1.78,<2.0"]
+requires = ["hatchling", "grpcio-tools==1.78.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -53,6 +53,8 @@ dependencies = [
     "uvicorn[standard]>=0.34,<1.0",
     "python-multipart>=0.0.18",
     "huggingface_hub>=0.20,<1.0",
+    "opuslib>=3.0.0",
+    "nemo_text_processing>=1.1,<2.0"
 ]
 
 [project.scripts]
@@ -71,8 +73,20 @@ kokoro = [
 qwen3-tts = [
     "qwen-tts>=0.1,<2.0",
 ]
+qwen3-asr = [
+    "qwen-asr>=0.1,<2.0",
+]
+chatterbox = [
+    "chatterbox-tts>=0.1,<1.0",
+]
 codec = [
     "opuslib>=3.0.0",
+]
+mp3 = [
+    "lameenc>=1.7",
+]
+alignment = [
+    "torchaudio>=2.1",
 ]
 stream = [
     "sounddevice>=0.4,<1.0",
@@ -121,7 +135,7 @@ packages = ["macaw"]
 target-version = "py311"
 line-length = 99
 src = ["."]
-extend-exclude = ["macaw/proto/stt_worker_pb2*", "macaw/proto/tts_worker_pb2*", "inspiracao/"]
+extend-exclude = ["macaw/proto/stt_worker_pb2*", "macaw/proto/tts_worker_pb2*", "inspiracao/", "notebooks/", "docs/"]
 
 [tool.ruff.lint]
 select = [
@@ -139,6 +153,9 @@ select = [
 ignore = [
     "E501",   # Managed by formatter
 ]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["macaw"]
@@ -187,6 +204,14 @@ module = "qwen_tts.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "qwen_asr.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "chatterbox.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "huggingface_hub.*"
 ignore_missing_imports = true
 
@@ -196,6 +221,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "opuslib.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "lameenc.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

@@ -84,7 +84,7 @@ class TestTTSSpeakCommand:
 
     def test_codec_rejects_invalid_value(self) -> None:
         with pytest.raises(ValidationError):
-            TTSSpeakCommand(text="Hello", codec="mp3")
+            TTSSpeakCommand(text="Hello", codec="flac")
 
 
 # ─── TTSCancelCommand ───

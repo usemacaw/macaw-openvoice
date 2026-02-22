@@ -469,11 +469,11 @@ class StreamingSession:
         return self._mute_controller.is_muted
 
     def mute(self) -> None:
-        """Mute STT (mute-on-speak). Idempotent."""
+        """Mute STT (mute-on-speak). Increments ref count."""
         self._mute_controller.mute()
 
     def unmute(self) -> None:
-        """Resume STT after mute-on-speak. Idempotent."""
+        """Resume STT after mute-on-speak. Decrements ref count (floored at 0)."""
         self._mute_controller.unmute()
 
     @property

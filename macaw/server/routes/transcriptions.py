@@ -49,6 +49,7 @@ async def create_transcription(
     timestamp_granularities: list[str] = Form(  # noqa: B008
         default=["segment"], alias="timestamp_granularities[]"
     ),
+    hot_words: str | None = Form(default=None),
     itn: bool = Form(default=True),
     scheduler: Scheduler = Depends(get_scheduler),  # noqa: B008
     preprocessing_pipeline: AudioPreprocessingPipeline | None = Depends(  # noqa: B008
@@ -73,4 +74,5 @@ async def create_transcription(
         preprocessing_pipeline=preprocessing_pipeline,
         postprocessing_pipeline=postprocessing_pipeline,
         itn=itn,
+        hot_words=hot_words,
     )

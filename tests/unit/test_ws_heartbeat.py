@@ -1,4 +1,4 @@
-"""Testes de heartbeat e inactivity timeout do WebSocket /v1/realtime."""
+"""Tests for heartbeat and inactivity timeout of WebSocket /v1/realtime."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from macaw.server.app import create_app
 
 
 def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:
-    """Cria mock do ModelRegistry que conhece os modelos em known_models."""
+    """Create mock ModelRegistry that knows the models in known_models."""
     if known_models is None:
         known_models = ["faster-whisper-tiny"]
 
@@ -35,7 +35,7 @@ def _make_app_with_short_timeouts(
     heartbeat_s: float = 10.0,
     check_s: float = 0.1,
 ) -> TestClient:
-    """Cria app FastAPI com timeouts curtos para testes rapidos."""
+    """Create FastAPI app with short timeouts for fast tests."""
     app = create_app(registry=_make_mock_registry())
     app.state.ws_inactivity_timeout_s = inactivity_s
     app.state.ws_heartbeat_interval_s = heartbeat_s
@@ -44,15 +44,15 @@ def _make_app_with_short_timeouts(
 
 
 def test_inactivity_timeout_closes_session() -> None:
-    """Sessao sem audio frames recebidos e fechada apos inactivity timeout."""
+    """Session with no audio frames received is closed after inactivity timeout."""
     client = _make_app_with_short_timeouts(inactivity_s=0.3, check_s=0.1)
 
     with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Nao enviar nenhum audio -- aguardar timeout
-        # O monitor vai detectar inatividade e emitir session.closed
+        # Do not send any audio -- wait for timeout
+        # The monitor will detect inactivity and emit session.closed
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "inactivity_timeout"
@@ -61,31 +61,31 @@ def test_inactivity_timeout_closes_session() -> None:
 
 
 def test_audio_frame_resets_inactivity_timer() -> None:
-    """Envio de audio frame reseta o timer de inatividade."""
+    """Sending an audio frame resets the inactivity timer."""
     client = _make_app_with_short_timeouts(inactivity_s=0.4, check_s=0.1)
 
     with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar audio frames por um periodo maior que inactivity_timeout
-        # para provar que o timer e resetado
+        # Send audio frames for a period longer than inactivity_timeout
+        # to prove the timer is reset
         start = time.monotonic()
         for _ in range(3):
             ws.send_bytes(b"\x00\x01\x02\x03" * 100)
             time.sleep(0.15)
 
         elapsed = time.monotonic() - start
-        assert elapsed > 0.4, "Deveria ter passado mais que inactivity_timeout"
+        assert elapsed > 0.4, "Should have elapsed more than inactivity_timeout"
 
-        # Agora parar de enviar e aguardar timeout
+        # Now stop sending and wait for timeout
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "inactivity_timeout"
 
 
 def test_session_closed_event_has_correct_duration() -> None:
-    """Evento session.closed por timeout tem total_duration_ms > 0."""
+    """session.closed event from timeout has total_duration_ms > 0."""
     client = _make_app_with_short_timeouts(inactivity_s=0.2, check_s=0.1)
 
     with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
@@ -95,12 +95,12 @@ def test_session_closed_event_has_correct_duration() -> None:
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "inactivity_timeout"
-        # A duracao deve ser pelo menos o tempo do timeout
+        # The duration should be at least the timeout time
         assert closed["total_duration_ms"] >= 200
 
 
 def test_normal_close_does_not_emit_duplicate_session_closed() -> None:
-    """Fechamento normal (session.close) nao emite session.closed duplicado."""
+    """Normal close (session.close) does not emit duplicate session.closed."""
     client = _make_app_with_short_timeouts(inactivity_s=5.0, check_s=0.1)
 
     with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
@@ -109,14 +109,14 @@ def test_normal_close_does_not_emit_duplicate_session_closed() -> None:
 
         ws.send_json({"type": "session.close"})
 
-        # Deve receber exatamente um session.closed com reason=client_request
+        # Should receive exactly one session.closed with reason=client_request
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "client_request"
 
 
 def test_cancel_does_not_emit_duplicate_session_closed() -> None:
-    """Cancelamento (session.cancel) nao emite session.closed duplicado."""
+    """Cancellation (session.cancel) does not emit duplicate session.closed."""
     client = _make_app_with_short_timeouts(inactivity_s=5.0, check_s=0.1)
 
     with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
@@ -144,19 +144,19 @@ def test_default_timeouts_used_when_not_configured() -> None:
 
 
 def test_text_command_does_not_reset_inactivity_timer() -> None:
-    """Comandos JSON nao resetam o timer de inatividade (apenas audio)."""
+    """JSON commands do not reset the inactivity timer (only audio does)."""
     client = _make_app_with_short_timeouts(inactivity_s=0.3, check_s=0.1)
 
     with client.websocket_connect("/v1/realtime?model=faster-whisper-tiny") as ws:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar comandos de configuracao (nao audio)
+        # Send configuration commands (not audio)
         ws.send_json({"type": "session.configure", "language": "pt"})
         time.sleep(0.15)
         ws.send_json({"type": "session.configure", "language": "en"})
 
-        # Mesmo com comandos, o timeout de inatividade deve disparar
+        # Even with commands, the inactivity timeout should fire
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "inactivity_timeout"

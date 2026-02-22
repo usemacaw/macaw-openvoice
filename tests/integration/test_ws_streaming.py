@@ -1,19 +1,19 @@
-"""Testes de integracao do WebSocket /v1/realtime.
+"""Integration tests for the WebSocket /v1/realtime endpoint.
 
-Testa o fluxo completo do endpoint WebSocket com FastAPI app real
-e dependencias mockadas (registry, scheduler, gRPC). Valida que:
-- Handshake funciona com modelo valido
-- Eventos sao emitidos corretamente
-- Comandos client->server sao processados
-- StreamingSession coordena preprocessing -> VAD -> gRPC -> post-processing
-- Backpressure funciona com audio enviado mais rapido que real-time
-- Heartbeat e inactivity timeout funcionam
+Tests the complete flow of the WebSocket endpoint with a real FastAPI app
+and mocked dependencies (registry, scheduler, gRPC). Validates that:
+- Handshake works with a valid model
+- Events are emitted correctly
+- Client->server commands are processed
+- StreamingSession coordinates preprocessing -> VAD -> gRPC -> post-processing
+- Backpressure works with audio sent faster than real-time
+- Heartbeat and inactivity timeout work
 
-Nivel de integracao:
-- FastAPI app real (create_app)
-- WebSocket transport real (Starlette TestClient)
-- Registry, VAD, gRPC client: mocks controlados
-- StreamingSession: instancia real com mocks de componentes
+Integration level:
+- Real FastAPI app (create_app)
+- Real WebSocket transport (Starlette TestClient)
+- Registry, VAD, gRPC client: controlled mocks
+- StreamingSession: real instance with mocked components
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ _FRAME_SIZE = 1024  # 64ms frame
 
 
 def _make_pcm_silence(n_samples: int = _FRAME_SIZE) -> bytes:
-    """Gera bytes PCM int16 de silencio (zeros)."""
+    """Generate PCM int16 silence bytes (zeros)."""
     return np.zeros(n_samples, dtype=np.int16).tobytes()
 
 
@@ -66,7 +66,7 @@ def _make_pcm_tone(
     duration_s: float = 0.064,
     sample_rate: int = _SAMPLE_RATE,
 ) -> bytes:
-    """Gera bytes PCM int16 de tom senoidal."""
+    """Generate PCM int16 sine tone bytes."""
     n_samples = int(sample_rate * duration_s)
     t = np.arange(n_samples, dtype=np.float64) / sample_rate
     samples = (32767 * 0.5 * np.sin(2 * np.pi * frequency * t)).astype(np.int16)
@@ -74,7 +74,7 @@ def _make_pcm_tone(
 
 
 def _make_pcm_20ms_frame(sample_rate: int = _SAMPLE_RATE) -> bytes:
-    """Gera bytes PCM int16 de 20ms de silencio."""
+    """Generate PCM int16 bytes of 20ms silence."""
     n_samples = sample_rate // 50  # 20ms
     return np.zeros(n_samples, dtype=np.int16).tobytes()
 
@@ -85,7 +85,7 @@ def _make_pcm_20ms_frame(sample_rate: int = _SAMPLE_RATE) -> bytes:
 
 
 def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:
-    """Cria mock do ModelRegistry que conhece modelos em known_models."""
+    """Create a ModelRegistry mock that knows the models in known_models."""
     if known_models is None:
         known_models = ["faster-whisper-tiny"]
 
@@ -106,19 +106,19 @@ def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:
 
 
 def _make_float32_frame(n_samples: int = _FRAME_SIZE) -> np.ndarray:
-    """Gera frame float32 (zeros) para mock de preprocessor."""
+    """Generate float32 frame (zeros) for preprocessor mock."""
     return np.zeros(n_samples, dtype=np.float32)
 
 
 def _make_preprocessor_mock() -> Mock:
-    """Cria mock de StreamingPreprocessor."""
+    """Create a StreamingPreprocessor mock."""
     mock = Mock()
     mock.process_frame.return_value = _make_float32_frame()
     return mock
 
 
 def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
-    """Cria mock de VADDetector."""
+    """Create a VADDetector mock."""
     mock = Mock()
     mock.process_frame.return_value = None
     mock.is_speaking = is_speaking
@@ -127,7 +127,7 @@ def _make_vad_mock(*, is_speaking: bool = False) -> Mock:
 
 
 class _AsyncIterFromList:
-    """Async iterator que yield items de uma lista."""
+    """Async iterator that yields items from a list."""
 
     def __init__(self, items: list[object]) -> None:
         self._items = list(items)
@@ -149,7 +149,7 @@ class _AsyncIterFromList:
 def _make_stream_handle_mock(
     events: list[object] | None = None,
 ) -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create a StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
@@ -165,7 +165,7 @@ def _make_stream_handle_mock(
 
 
 def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
-    """Cria mock de StreamingGRPCClient."""
+    """Create a StreamingGRPCClient mock."""
     client = AsyncMock()
     if stream_handle is None:
         stream_handle = _make_stream_handle_mock()
@@ -175,14 +175,14 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 
 def _make_postprocessor_mock() -> Mock:
-    """Cria mock de PostProcessingPipeline."""
+    """Create a PostProcessingPipeline mock."""
     mock = Mock()
     mock.process.side_effect = lambda text, **kwargs: f"ITN({text})"
     return mock
 
 
 def _make_on_event() -> AsyncMock:
-    """Cria callback on_event mock."""
+    """Create an on_event mock callback."""
     return AsyncMock()
 
 
@@ -193,7 +193,7 @@ def _make_app_with_short_timeouts(
     heartbeat_s: float = 10.0,
     check_s: float = 0.1,
 ) -> tuple[MagicMock, TestClient]:
-    """Cria app FastAPI com timeouts curtos e retorna (registry, TestClient)."""
+    """Create FastAPI app with short timeouts and return (registry, TestClient)."""
     from starlette.testclient import TestClient
 
     registry = _make_mock_registry(known_models=known_models)
@@ -211,7 +211,7 @@ def _make_app_with_short_timeouts(
 
 @pytest.mark.integration
 def test_ws_connect_and_session_created() -> None:
-    """Conectar via WS com modelo valido recebe session.created com session_id e model."""
+    """Connecting via WS with a valid model receives session.created with session_id and model."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -225,12 +225,12 @@ def test_ws_connect_and_session_created() -> None:
     assert event["model"] == "faster-whisper-tiny"
     assert "config" in event
 
-    # Verificar formato do session_id: sess_ + 12 chars hex
+    # Verify session_id format: sess_ + 12 hex chars
     hex_part = event["session_id"][5:]
     assert len(hex_part) == 12
-    int(hex_part, 16)  # Verifica hexadecimal valido
+    int(hex_part, 16)  # Verify valid hexadecimal
 
-    # Verificar defaults na config
+    # Verify defaults in config
     config = event["config"]
     assert config["vad_sensitivity"] == "normal"
     assert config["silence_timeout_ms"] == 30_000
@@ -240,7 +240,7 @@ def test_ws_connect_and_session_created() -> None:
 
 @pytest.mark.integration
 def test_ws_session_configure() -> None:
-    """session.configure e aceito e nao fecha a conexao."""
+    """session.configure is accepted and does not close the connection."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -250,7 +250,7 @@ def test_ws_session_configure() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar configuracao
+        # Send configuration
         ws.send_json(
             {
                 "type": "session.configure",
@@ -261,7 +261,7 @@ def test_ws_session_configure() -> None:
             }
         )
 
-        # Conexao deve permanecer ativa -- verificar enviando session.close
+        # Connection should remain active -- verify by sending session.close
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -312,7 +312,7 @@ def test_ws_session_close() -> None:
 
 @pytest.mark.integration
 def test_ws_invalid_model_closes_connection() -> None:
-    """Conexao com modelo inexistente recebe error e fecha com codigo 1008."""
+    """Connection with nonexistent model receives error and closes with code 1008."""
     from starlette.testclient import TestClient
 
     app = create_app(
@@ -331,7 +331,7 @@ def test_ws_invalid_model_closes_connection() -> None:
 
 @pytest.mark.integration
 def test_ws_missing_model_closes_connection() -> None:
-    """Conexao sem query param 'model' recebe error e fecha."""
+    """Connection without 'model' query param receives error and closes."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -348,7 +348,7 @@ def test_ws_missing_model_closes_connection() -> None:
 
 @pytest.mark.integration
 def test_ws_audio_frames_accepted() -> None:
-    """Frames binarios de audio sao aceitos pelo endpoint."""
+    """Binary audio frames are accepted by the endpoint."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -358,11 +358,11 @@ def test_ws_audio_frames_accepted() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar multiplos frames de audio PCM
+        # Send multiple PCM audio frames
         for _ in range(5):
             ws.send_bytes(_make_pcm_silence())
 
-        # Fechar normalmente
+        # Close normally
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -370,7 +370,7 @@ def test_ws_audio_frames_accepted() -> None:
 
 @pytest.mark.integration
 def test_ws_malformed_json_recoverable() -> None:
-    """JSON malformado retorna erro recuperavel sem fechar conexao."""
+    """Malformed JSON returns recoverable error without closing connection."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -380,16 +380,16 @@ def test_ws_malformed_json_recoverable() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar JSON invalido
+        # Send invalid JSON
         ws.send_text("this is not valid json {{{")
 
-        # Deve receber erro recuperavel
+        # Should receive recoverable error
         error = ws.receive_json()
         assert error["type"] == "error"
         assert error["code"] == "malformed_json"
         assert error["recoverable"] is True
 
-        # Conexao ainda funciona -- enviar close
+        # Connection still works -- send close
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -397,7 +397,7 @@ def test_ws_malformed_json_recoverable() -> None:
 
 @pytest.mark.integration
 def test_ws_unknown_command_recoverable() -> None:
-    """Comando desconhecido retorna erro recuperavel sem fechar conexao."""
+    """Unknown command returns recoverable error without closing connection."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -414,7 +414,7 @@ def test_ws_unknown_command_recoverable() -> None:
         assert error["code"] == "unknown_command"
         assert error["recoverable"] is True
 
-        # Conexao ainda funciona
+        # Connection still works
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -422,7 +422,7 @@ def test_ws_unknown_command_recoverable() -> None:
 
 @pytest.mark.integration
 def test_ws_heartbeat_inactivity_timeout() -> None:
-    """Sessao sem audio recebido e fechada apos inactivity timeout."""
+    """Session without received audio is closed after inactivity timeout."""
     _, client = _make_app_with_short_timeouts(
         inactivity_s=0.3,
         check_s=0.1,
@@ -432,16 +432,16 @@ def test_ws_heartbeat_inactivity_timeout() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Nao enviar audio -- aguardar timeout
+        # Do not send audio -- wait for timeout
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "inactivity_timeout"
-        assert closed["total_duration_ms"] >= 200  # Pelo menos 200ms
+        assert closed["total_duration_ms"] >= 200  # At least 200ms
 
 
 @pytest.mark.integration
 def test_ws_audio_resets_inactivity_timer() -> None:
-    """Envio de audio resets o timer de inatividade."""
+    """Sending audio resets the inactivity timer."""
     _, client = _make_app_with_short_timeouts(
         inactivity_s=0.4,
         check_s=0.1,
@@ -451,16 +451,16 @@ def test_ws_audio_resets_inactivity_timer() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar audio frames espaçados, mantendo sessao viva
+        # Send spaced audio frames, keeping the session alive
         start = time.monotonic()
         for _ in range(3):
             ws.send_bytes(_make_pcm_silence())
             time.sleep(0.15)
 
         elapsed = time.monotonic() - start
-        assert elapsed > 0.4, "Deveria ter passado mais que inactivity_timeout"
+        assert elapsed > 0.4, "Should have elapsed more than inactivity_timeout"
 
-        # Agora parar de enviar e aguardar timeout
+        # Now stop sending and wait for timeout
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "inactivity_timeout"
@@ -468,7 +468,7 @@ def test_ws_audio_resets_inactivity_timer() -> None:
 
 @pytest.mark.integration
 def test_ws_input_audio_buffer_commit_accepted() -> None:
-    """input_audio_buffer.commit e aceito sem fechar a conexao."""
+    """input_audio_buffer.commit is accepted without closing the connection."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -478,13 +478,13 @@ def test_ws_input_audio_buffer_commit_accepted() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar audio
+        # Send audio
         ws.send_bytes(_make_pcm_silence())
 
-        # Enviar commit
+        # Send commit
         ws.send_json({"type": "input_audio_buffer.commit"})
 
-        # Conexao deve permanecer ativa
+        # Connection should remain active
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -492,7 +492,7 @@ def test_ws_input_audio_buffer_commit_accepted() -> None:
 
 @pytest.mark.integration
 def test_ws_multiple_sessions_unique_ids() -> None:
-    """Cada conexao WebSocket recebe session_id unico."""
+    """Each WebSocket connection receives a unique session_id."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -504,21 +504,21 @@ def test_ws_multiple_sessions_unique_ids() -> None:
             event = ws.receive_json()
             session_ids.append(event["session_id"])
 
-    assert len(set(session_ids)) == 5, f"IDs nao unicos: {session_ids}"
+    assert len(set(session_ids)) == 5, f"IDs not unique: {session_ids}"
 
 
 # ---------------------------------------------------------------------------
 # Tests: StreamingSession Full Flow (with mock gRPC)
-# Estes testes exercitam o StreamingSession com todas as camadas reais
-# exceto o gRPC client (mockado). Validam o pipeline completo:
-# preprocessing -> VAD -> gRPC -> post-processing -> eventos.
+# These tests exercise StreamingSession with all real layers
+# except the gRPC client (mocked). They validate the complete pipeline:
+# preprocessing -> VAD -> gRPC -> post-processing -> events.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
 async def test_ws_full_transcription_flow() -> None:
-    """Fluxo completo: speech_start -> partial -> final -> speech_end em ordem."""
-    # Arrange: criar StreamingSession com mocks controlados
+    """Full flow: speech_start -> partial -> final -> speech_end in order."""
+    # Arrange: create StreamingSession with controlled mocks
     partial_seg = TranscriptSegment(
         text="ola como",
         is_final=False,
@@ -551,7 +551,7 @@ async def test_ws_full_transcription_flow() -> None:
         enable_itn=True,
     )
 
-    # Act: simular speech_start
+    # Act: simulate speech_start
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -559,10 +559,10 @@ async def test_ws_full_transcription_flow() -> None:
     vad.is_speaking = False
     await session.process_frame(_make_pcm_silence())
 
-    # Aguardar receiver task processar eventos
+    # Wait for receiver task to process events
     await asyncio.sleep(0.05)
 
-    # Simular speech_end
+    # Simulate speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_END,
         timestamp_ms=3000,
@@ -570,7 +570,7 @@ async def test_ws_full_transcription_flow() -> None:
     vad.is_speaking = False
     await session.process_frame(_make_pcm_silence())
 
-    # Assert: verificar todos os eventos na ordem correta
+    # Assert: verify all events in correct order
     event_types = [type(call.args[0]).__name__ for call in on_event.call_args_list]
 
     assert "VADSpeechStartEvent" in event_types
@@ -578,7 +578,7 @@ async def test_ws_full_transcription_flow() -> None:
     assert "TranscriptFinalEvent" in event_types
     assert "VADSpeechEndEvent" in event_types
 
-    # Verificar ordem: speech_start < partial < final < speech_end
+    # Verify order: speech_start < partial < final < speech_end
     idx_start = event_types.index("VADSpeechStartEvent")
     idx_partial = event_types.index("TranscriptPartialEvent")
     idx_final = event_types.index("TranscriptFinalEvent")
@@ -586,13 +586,13 @@ async def test_ws_full_transcription_flow() -> None:
 
     assert idx_start < idx_partial < idx_final < idx_end
 
-    # Verificar conteudo do partial (sem ITN)
+    # Verify partial content (without ITN)
     partial_calls = [
         c for c in on_event.call_args_list if isinstance(c.args[0], TranscriptPartialEvent)
     ]
     assert partial_calls[0].args[0].text == "ola como"
 
-    # Verificar conteudo do final (com ITN)
+    # Verify final content (with ITN)
     final_calls = [
         c for c in on_event.call_args_list if isinstance(c.args[0], TranscriptFinalEvent)
     ]
@@ -604,7 +604,7 @@ async def test_ws_full_transcription_flow() -> None:
 
 @pytest.mark.integration
 async def test_ws_itn_applied_only_on_final() -> None:
-    """Post-processing (ITN) e aplicado APENAS em transcript.final, NUNCA em partial."""
+    """Post-processing (ITN) is applied ONLY on transcript.final, NEVER on partial."""
     # Arrange: partial e final segments
     partial_seg = TranscriptSegment(
         text="dois mil",
@@ -638,7 +638,7 @@ async def test_ws_itn_applied_only_on_final() -> None:
         enable_itn=True,
     )
 
-    # Trigger speech_start -> receiver processa partial + final
+    # Trigger speech_start -> receiver processes partial + final
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=500,
@@ -655,18 +655,18 @@ async def test_ws_itn_applied_only_on_final() -> None:
     vad.is_speaking = False
     await session.process_frame(_make_pcm_silence())
 
-    # Assert: ITN chamado APENAS uma vez (para o final)
+    # Assert: ITN called ONLY once (for the final)
     postprocessor.process.assert_called_once()
     assert postprocessor.process.call_args.args[0] == "dois mil e vinte e cinco"
 
-    # Verificar partial sem ITN
+    # Verify partial without ITN
     partial_calls = [
         c for c in on_event.call_args_list if isinstance(c.args[0], TranscriptPartialEvent)
     ]
     assert len(partial_calls) == 1
-    assert partial_calls[0].args[0].text == "dois mil"  # Texto original, sem ITN
+    assert partial_calls[0].args[0].text == "dois mil"  # Original text, without ITN
 
-    # Verificar final com ITN
+    # Verify final with ITN
     final_calls = [
         c for c in on_event.call_args_list if isinstance(c.args[0], TranscriptFinalEvent)
     ]
@@ -679,7 +679,7 @@ async def test_ws_itn_applied_only_on_final() -> None:
 
 @pytest.mark.integration
 async def test_ws_commit_produces_final() -> None:
-    """input_audio_buffer.commit forca o worker a emitir transcript.final."""
+    """input_audio_buffer.commit forces the worker to emit transcript.final."""
     # Arrange
     final_seg = TranscriptSegment(
         text="resultado do commit",
@@ -708,7 +708,7 @@ async def test_ws_commit_produces_final() -> None:
 
     assert session.segment_id == 0
 
-    # Trigger speech_start -> abre stream
+    # Trigger speech_start -> open stream
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -727,10 +727,10 @@ async def test_ws_commit_produces_final() -> None:
     assert len(final_calls) == 1
     assert final_calls[0].args[0].text == "ITN(resultado do commit)"
 
-    # segment_id incrementado apos commit
+    # segment_id incremented after commit
     assert session.segment_id == 1
 
-    # Stream foi fechado
+    # Stream was closed
     stream_handle.close.assert_called_once()
 
     # Cleanup
@@ -739,7 +739,7 @@ async def test_ws_commit_produces_final() -> None:
 
 @pytest.mark.integration
 async def test_ws_final_with_word_timestamps() -> None:
-    """transcript.final inclui word timestamps quando disponivel."""
+    """transcript.final includes word timestamps when available."""
     # Arrange
     final_seg = TranscriptSegment(
         text="ola mundo",
@@ -786,7 +786,7 @@ async def test_ws_final_with_word_timestamps() -> None:
     vad.is_speaking = False
     await session.process_frame(_make_pcm_silence())
 
-    # Assert: word timestamps presentes
+    # Assert: word timestamps present
     final_calls = [
         c for c in on_event.call_args_list if isinstance(c.args[0], TranscriptFinalEvent)
     ]
@@ -802,7 +802,7 @@ async def test_ws_final_with_word_timestamps() -> None:
 
 @pytest.mark.integration
 async def test_ws_worker_crash_emits_recoverable_error() -> None:
-    """Crash do worker durante streaming emite erro recuperavel via callback."""
+    """Worker crash during streaming emits recoverable error via callback."""
     from macaw.exceptions import WorkerCrashError
 
     stream_handle = _make_stream_handle_mock(
@@ -821,7 +821,7 @@ async def test_ws_worker_crash_emits_recoverable_error() -> None:
         on_event=on_event,
     )
 
-    # Trigger speech_start (inicia receiver que vai receber crash)
+    # Trigger speech_start (starts receiver that will receive crash)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -830,7 +830,7 @@ async def test_ws_worker_crash_emits_recoverable_error() -> None:
     await session.process_frame(_make_pcm_silence())
     await asyncio.sleep(0.05)
 
-    # Assert: erro recuperavel emitido
+    # Assert: recoverable error emitted
     error_calls = [
         c for c in on_event.call_args_list if isinstance(c.args[0], StreamingErrorEvent)
     ]
@@ -846,7 +846,7 @@ async def test_ws_worker_crash_emits_recoverable_error() -> None:
 
 @pytest.mark.integration
 async def test_ws_hot_words_sent_on_first_frame_only() -> None:
-    """Hot words sao enviados ao worker apenas no primeiro frame do segmento."""
+    """Hot words are sent to the worker only on the first frame of the segment."""
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
     vad = _make_vad_mock()
@@ -869,7 +869,7 @@ async def test_ws_hot_words_sent_on_first_frame_only() -> None:
     vad.is_speaking = True
     await session.process_frame(_make_pcm_silence())
 
-    # Enviar mais frames
+    # Send more frames
     vad.process_frame.return_value = None
     await session.process_frame(_make_pcm_silence())
     await session.process_frame(_make_pcm_silence())
@@ -887,7 +887,7 @@ async def test_ws_hot_words_sent_on_first_frame_only() -> None:
 
 @pytest.mark.integration
 async def test_ws_itn_disabled_skips_postprocessing() -> None:
-    """Com enable_itn=False, transcript.final e emitido sem ITN."""
+    """With enable_itn=False, transcript.final is emitted without ITN."""
     final_seg = TranscriptSegment(
         text="dois mil reais",
         is_final=True,
@@ -929,26 +929,26 @@ async def test_ws_itn_disabled_skips_postprocessing() -> None:
     vad.is_speaking = False
     await session.process_frame(_make_pcm_silence())
 
-    # Assert: postprocessor NAO chamado
+    # Assert: postprocessor NOT called
     postprocessor.process.assert_not_called()
 
     final_calls = [
         c for c in on_event.call_args_list if isinstance(c.args[0], TranscriptFinalEvent)
     ]
     assert len(final_calls) == 1
-    assert final_calls[0].args[0].text == "dois mil reais"  # Texto original
+    assert final_calls[0].args[0].text == "dois mil reais"  # Original text
 
 
 # ---------------------------------------------------------------------------
 # Tests: Backpressure Integration
-# Estes testes validam que o BackpressureController detecta corretamente
-# envio de audio acima do real-time. Testam o componente em isolamento
-# mas com dados realistas (PCM frames, timing simulado).
+# These tests validate that the BackpressureController correctly detects
+# audio sent above real-time. They test the component in isolation
+# but with realistic data (PCM frames, simulated timing).
 # ---------------------------------------------------------------------------
 
 
 class _FakeClock:
-    """Relogio deterministico para testes de backpressure."""
+    """Deterministic clock for backpressure tests."""
 
     def __init__(self, start: float = 0.0) -> None:
         self._now = start
@@ -965,16 +965,16 @@ _BYTES_PER_20MS = (_SAMPLE_RATE * _BYTES_PER_SAMPLE) // 50  # 640 bytes
 
 @pytest.mark.integration
 def test_ws_backpressure_rate_limit_at_3x() -> None:
-    """Envio de audio a 3x real-time dispara RateLimitAction."""
+    """Sending audio at 3x real-time triggers RateLimitAction."""
     clock = _FakeClock()
     ctrl = BackpressureController(
         sample_rate=_SAMPLE_RATE,
         rate_limit_threshold=1.2,
-        max_backlog_s=100.0,  # Alto para nao dropar
+        max_backlog_s=100.0,  # High to avoid dropping
         clock=clock,
     )
 
-    # Enviar 200 frames de 20ms a 3x real-time (~6.67ms wall por frame de 20ms)
+    # Send 200 frames of 20ms at 3x real-time (~6.67ms wall per 20ms frame)
     actions: list[RateLimitAction] = []
     for _ in range(200):
         result = ctrl.record_frame(_BYTES_PER_20MS)
@@ -982,14 +982,14 @@ def test_ws_backpressure_rate_limit_at_3x() -> None:
             actions.append(result)
         clock.advance(0.00667)  # 6.67ms = 3x real-time
 
-    assert len(actions) >= 1, "Deveria emitir pelo menos 1 RateLimitAction a 3x"
+    assert len(actions) >= 1, "Should emit at least 1 RateLimitAction at 3x"
     for action in actions:
         assert action.delay_ms >= 1
 
 
 @pytest.mark.integration
 def test_ws_backpressure_frames_dropped_on_excess() -> None:
-    """Backlog excessivo (>max_backlog_s) causa FramesDroppedAction."""
+    """Excessive backlog (>max_backlog_s) causes FramesDroppedAction."""
     clock = _FakeClock()
     ctrl = BackpressureController(
         sample_rate=_SAMPLE_RATE,
@@ -998,7 +998,7 @@ def test_ws_backpressure_frames_dropped_on_excess() -> None:
         clock=clock,
     )
 
-    # Enviar muitos frames instantaneamente (sem avancar relogio)
+    # Send many frames instantly (without advancing the clock)
     drop_action = None
     for _ in range(100):
         result = ctrl.record_frame(_BYTES_PER_20MS)
@@ -1006,14 +1006,14 @@ def test_ws_backpressure_frames_dropped_on_excess() -> None:
             drop_action = result
             break
 
-    assert drop_action is not None, "Deveria dropar frames apos backlog > 1s"
+    assert drop_action is not None, "Should drop frames after backlog > 1s"
     assert drop_action.dropped_ms > 0
     assert ctrl.frames_dropped > 0
 
 
 @pytest.mark.integration
 def test_ws_backpressure_normal_speed_no_events() -> None:
-    """Audio a 1x real-time nao emite nenhum evento de backpressure."""
+    """Audio at 1x real-time does not emit any backpressure events."""
     clock = _FakeClock()
     ctrl = BackpressureController(
         sample_rate=_SAMPLE_RATE,
@@ -1022,10 +1022,10 @@ def test_ws_backpressure_normal_speed_no_events() -> None:
         clock=clock,
     )
 
-    # Enviar 100 frames a velocidade normal
+    # Send 100 frames at normal speed
     for _ in range(100):
         result = ctrl.record_frame(_BYTES_PER_20MS)
-        assert result is None, "Nao deveria emitir eventos a 1x speed"
+        assert result is None, "Should not emit events at 1x speed"
         clock.advance(0.020)  # 20ms = real-time
 
     assert ctrl.frames_dropped == 0
@@ -1038,8 +1038,8 @@ def test_ws_backpressure_normal_speed_no_events() -> None:
 
 @pytest.mark.integration
 def test_ws_heartbeat_ping_sent_periodically() -> None:
-    """Server envia WebSocket ping periodicamente para detectar conexoes zombies."""
-    # Configurar heartbeat curto para teste rapido
+    """Server sends WebSocket ping periodically to detect zombie connections."""
+    # Configure short heartbeat for fast testing
     _, client = _make_app_with_short_timeouts(
         inactivity_s=5.0,
         heartbeat_s=0.2,
@@ -1050,13 +1050,13 @@ def test_ws_heartbeat_ping_sent_periodically() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar audio para manter sessao ativa (nao disparar inactivity timeout)
+        # Send audio to keep session alive (do not trigger inactivity timeout)
         for _ in range(10):
             ws.send_bytes(_make_pcm_silence())
             time.sleep(0.05)
 
-        # A sessao deve continuar ativa (ping/pong manteve a conexao)
-        # Fechar normalmente
+        # The session should remain active (ping/pong kept the connection)
+        # Close normally
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -1065,7 +1065,7 @@ def test_ws_heartbeat_ping_sent_periodically() -> None:
 
 @pytest.mark.integration
 def test_ws_text_commands_do_not_reset_inactivity() -> None:
-    """Comandos JSON nao resetam o timer de inatividade (apenas audio)."""
+    """JSON commands do not reset the inactivity timer (only audio does)."""
     _, client = _make_app_with_short_timeouts(
         inactivity_s=0.3,
         check_s=0.1,
@@ -1075,12 +1075,12 @@ def test_ws_text_commands_do_not_reset_inactivity() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar comandos de texto (nao audio)
+        # Send text commands (not audio)
         ws.send_json({"type": "session.configure", "language": "pt"})
         time.sleep(0.15)
         ws.send_json({"type": "session.configure", "language": "en"})
 
-        # Inactivity timeout deve disparar mesmo com comandos
+        # Inactivity timeout should trigger even with commands
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "inactivity_timeout"
@@ -1093,7 +1093,7 @@ def test_ws_text_commands_do_not_reset_inactivity() -> None:
 
 @pytest.mark.integration
 async def test_ws_multiple_speech_segments() -> None:
-    """Multiplos segmentos de fala incrementam segment_id corretamente."""
+    """Multiple speech segments increment segment_id correctly."""
     # Arrange
     stream_handle1 = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle1)
@@ -1111,7 +1111,7 @@ async def test_ws_multiple_speech_segments() -> None:
 
     assert session.segment_id == 0
 
-    # Primeiro segmento: speech_start -> speech_end
+    # First segment: speech_start -> speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -1132,7 +1132,7 @@ async def test_ws_multiple_speech_segments() -> None:
 
     assert session.segment_id == 1
 
-    # Segundo segmento: speech_start -> speech_end
+    # Second segment: speech_start -> speech_end
     stream_handle3 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle3)
 
@@ -1153,7 +1153,7 @@ async def test_ws_multiple_speech_segments() -> None:
 
     assert session.segment_id == 2
 
-    # Verificar que ambos speech_start + speech_end foram emitidos
+    # Verify that both speech_start + speech_end were emitted
     start_events = [
         c for c in on_event.call_args_list if isinstance(c.args[0], VADSpeechStartEvent)
     ]
@@ -1164,7 +1164,7 @@ async def test_ws_multiple_speech_segments() -> None:
 
 @pytest.mark.integration
 async def test_ws_close_during_speech_cleans_up() -> None:
-    """Fechar sessao durante fala ativa limpa recursos corretamente."""
+    """Closing session during active speech cleans up resources correctly."""
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
     vad = _make_vad_mock()
@@ -1189,15 +1189,15 @@ async def test_ws_close_during_speech_cleans_up() -> None:
 
     assert not session.is_closed
 
-    # Close durante fala
+    # Close during speech
     await session.close()
 
     assert session.is_closed
     stream_handle.cancel.assert_called_once()
 
-    # Processar frame apos close e no-op
+    # Processing frame after close is a no-op
     await session.process_frame(_make_pcm_silence())
-    # Nao deve crashar
+    # Should not crash
 
 
 # ---------------------------------------------------------------------------
@@ -1207,7 +1207,7 @@ async def test_ws_close_during_speech_cleans_up() -> None:
 
 @pytest.mark.integration
 def test_ws_language_in_session_created() -> None:
-    """Language fornecido na query string aparece no session.created config."""
+    """Language provided in query string appears in session.created config."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())
@@ -1224,7 +1224,7 @@ def test_ws_language_in_session_created() -> None:
 
 @pytest.mark.integration
 def test_ws_no_language_default_none() -> None:
-    """Sem language na query string, config.language e null."""
+    """Without language in query string, config.language is null."""
     from starlette.testclient import TestClient
 
     app = create_app(registry=_make_mock_registry())

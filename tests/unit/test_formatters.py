@@ -1,4 +1,4 @@
-"""Testes dos response formatters."""
+"""Tests for response formatters."""
 
 from __future__ import annotations
 
@@ -101,12 +101,12 @@ class TestSrtFormat:
         response = format_response(result, ResponseFormat.SRT)
         body = response.body.decode()
         lines = body.split("\n")
-        # Primeiro segmento
+        # First segment
         assert lines[0] == "1"
         assert lines[1] == "00:00:00,000 --> 00:00:01,200"
         assert lines[2] == "Ola,"
         assert lines[3] == ""
-        # Segundo segmento
+        # Second segment
         assert lines[4] == "2"
         assert lines[5] == "00:00:01,300 --> 00:00:02,500"
         assert lines[6] == "como posso ajudar?"
@@ -125,7 +125,7 @@ class TestSrtFormat:
 
 class TestSrtTimestampBoundary:
     def test_millis_boundary_does_not_overflow(self) -> None:
-        """Garante que 59.9999s nao gera millis=1000 (carry correto para minutos)."""
+        """Ensures that 59.9999s does not produce millis=1000 (correct carry to minutes)."""
         result = BatchResult(
             text="Teste",
             language="pt",
@@ -134,9 +134,9 @@ class TestSrtTimestampBoundary:
         )
         response = format_response(result, ResponseFormat.SRT)
         body = response.body.decode()
-        # 59.9999s arredondado = 60000ms = 00:01:00,000 (carry correto)
+        # 59.9999s rounded = 60000ms = 00:01:00,000 (correct carry)
         assert "00:01:00,000" in body
-        # Nao deve conter millis com 4 digitos
+        # Must not contain millis with 4 digits
         assert ",1000" not in body
 
     def test_exact_second_boundary(self) -> None:
@@ -180,12 +180,12 @@ class TestVttFormat:
         result = _make_result()
         response = format_response(result, ResponseFormat.VTT)
         body = response.body.decode()
-        # VTT usa ponto, nao virgula
+        # VTT uses dot, not comma
         assert "." in body.split("\n")[2]
         assert "," not in body.split("\n")[2]
 
     def test_vtt_millis_boundary_does_not_overflow(self) -> None:
-        """Garante que 59.9999s nao gera millis=1000 (carry correto para minutos)."""
+        """Ensures that 59.9999s does not produce millis=1000 (correct carry to minutes)."""
         result = BatchResult(
             text="Teste",
             language="pt",

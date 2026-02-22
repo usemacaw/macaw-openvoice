@@ -1,11 +1,11 @@
-"""Testes end-to-end do pipeline completo com preprocessing e post-processing.
+"""End-to-end tests for the complete pipeline with preprocessing and post-processing.
 
-Valida o fluxo: audio em qualquer sample rate -> preprocessing -> worker (mock)
--> post-processing -> resposta formatada.
+Validates the flow: audio at any sample rate -> preprocessing -> worker (mock)
+-> post-processing -> formatted response.
 
-Usa stages REAIS de preprocessing (ResampleStage, DCRemoveStage, GainNormalizeStage)
-e mock do Scheduler (sem worker gRPC real) e mock do ITN (nemo_text_processing
-nao necessario).
+Uses REAL preprocessing stages (ResampleStage, DCRemoveStage, GainNormalizeStage)
+and mocked Scheduler (no real gRPC worker) and mocked ITN (nemo_text_processing
+not required).
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 
 def _generate_wav(sample_rate: int, duration: float = 1.0, frequency: float = 440.0) -> bytes:
-    """Gera arquivo WAV em memoria com tom senoidal."""
+    """Generate in-memory WAV file with a sine tone."""
     n_samples = int(sample_rate * duration)
     samples = []
     for i in range(n_samples):
@@ -56,7 +56,7 @@ def _generate_wav(sample_rate: int, duration: float = 1.0, frequency: float = 44
 
 
 class MockITNStage(TextStage):
-    """Mock ITN que aplica transformacoes conhecidas para testes."""
+    """Mock ITN that applies known transformations for testing."""
 
     @property
     def name(self) -> str:
@@ -73,7 +73,7 @@ class MockITNStage(TextStage):
 
 
 class MockScheduler:
-    """Scheduler mock que captura o request e retorna BatchResult configuravel."""
+    """Mock scheduler that captures the request and returns a configurable BatchResult."""
 
     def __init__(self, result: BatchResult) -> None:
         self._result = result
@@ -93,7 +93,7 @@ def _make_registry() -> MagicMock:
 
 
 def _make_itn_batch_result() -> BatchResult:
-    """BatchResult com texto que contem numeros por extenso para ITN."""
+    """BatchResult with text containing numbers spelled out for ITN."""
     return BatchResult(
         text="O valor e dois mil e quinhentos reais com dez por cento de juros",
         language="pt",
@@ -126,7 +126,7 @@ def _make_itn_batch_result() -> BatchResult:
 
 
 def _make_raw_batch_result() -> BatchResult:
-    """BatchResult com texto simples sem numeros."""
+    """BatchResult with simple text without numbers."""
     return BatchResult(
         text="Ola, como posso ajudar?",
         language="pt",
@@ -152,7 +152,7 @@ def _create_test_app(
     with_postprocessing: bool = True,
     itn_stage: TextStage | None = None,
 ) -> object:
-    """Cria app FastAPI com pipelines reais de preprocessing e mock de ITN."""
+    """Create FastAPI app with real preprocessing pipelines and mocked ITN."""
     pre_pipeline = None
     if with_preprocessing:
         config = PreprocessingConfig()
@@ -176,11 +176,11 @@ def _create_test_app(
     )
 
 
-# --- Testes E2E: Preprocessing + Postprocessing ---
+# --- E2E Tests: Preprocessing + Postprocessing ---
 
 
 class TestFullPipeline44kHz:
-    """Audio 44.1kHz -> preprocessing converte para 16kHz -> ITN transforma texto."""
+    """Audio 44.1kHz -> preprocessing converts to 16kHz -> ITN transforms text."""
 
     async def test_full_pipeline_44khz_with_itn(self) -> None:
         wav_bytes = _generate_wav(sample_rate=44100, duration=0.5)
@@ -199,16 +199,16 @@ class TestFullPipeline44kHz:
 
         assert response.status_code == 200
         body = response.json()
-        # ITN deve ter transformado o texto
+        # ITN should have transformed the text
         assert "R$2.500" in body["text"]
         assert "10%" in body["text"]
-        # Audio recebido pelo scheduler deve ser menor que o original (44.1kHz -> 16kHz)
+        # Audio received by the scheduler should be smaller than the original (44.1kHz -> 16kHz)
         assert scheduler.last_request is not None
         assert len(scheduler.last_request.audio_data) < len(wav_bytes)
 
 
 class TestFullPipeline8kHz:
-    """Audio 8kHz -> preprocessing faz upsample para 16kHz -> ITN transforma texto."""
+    """Audio 8kHz -> preprocessing upsamples to 16kHz -> ITN transforms text."""
 
     async def test_full_pipeline_8khz_with_itn(self) -> None:
         wav_bytes = _generate_wav(sample_rate=8000, duration=0.5)
@@ -229,13 +229,13 @@ class TestFullPipeline8kHz:
         body = response.json()
         assert "R$2.500" in body["text"]
         assert "10%" in body["text"]
-        # Audio recebido pelo scheduler deve ser maior que o original (8kHz -> 16kHz)
+        # Audio received by the scheduler should be larger than the original (8kHz -> 16kHz)
         assert scheduler.last_request is not None
         assert len(scheduler.last_request.audio_data) > len(wav_bytes)
 
 
 class TestFullPipeline16kHz:
-    """Audio ja em 16kHz -> sem resample necessario -> funciona corretamente."""
+    """Audio already at 16kHz -> no resampling needed -> works correctly."""
 
     async def test_full_pipeline_16khz_no_resample(self) -> None:
         wav_bytes = _generate_wav(sample_rate=16000, duration=0.5)
@@ -256,12 +256,12 @@ class TestFullPipeline16kHz:
         body = response.json()
         assert "R$2.500" in body["text"]
         assert "10%" in body["text"]
-        # Audio recebido pelo scheduler: tamanho similar (16kHz -> 16kHz, sem resample)
+        # Audio received by the scheduler: similar size (16kHz -> 16kHz, no resample)
         assert scheduler.last_request is not None
 
 
 class TestFullPipelineITNDisabled:
-    """itn=false -> texto NAO e transformado (raw do scheduler)."""
+    """itn=false -> text is NOT transformed (raw from scheduler)."""
 
     async def test_full_pipeline_itn_disabled(self) -> None:
         wav_bytes = _generate_wav(sample_rate=16000, duration=0.5)
@@ -280,14 +280,14 @@ class TestFullPipelineITNDisabled:
 
         assert response.status_code == 200
         body = response.json()
-        # Texto deve estar cru, sem transformacao ITN
+        # Text should be raw, without ITN transformation
         assert "dois mil e quinhentos reais" in body["text"]
         assert "dez por cento" in body["text"]
         assert "R$2.500" not in body["text"]
 
 
 class TestFullPipelineVerboseJson:
-    """verbose_json -> texto principal E textos de segmentos sao ITN-transformados."""
+    """verbose_json -> main text AND segment texts are ITN-transformed."""
 
     async def test_full_pipeline_verbose_json_segments_transformed(self) -> None:
         wav_bytes = _generate_wav(sample_rate=16000, duration=0.5)
@@ -306,16 +306,16 @@ class TestFullPipelineVerboseJson:
 
         assert response.status_code == 200
         body = response.json()
-        # Texto principal transformado
+        # Main text transformed
         assert "R$2.500" in body["text"]
         assert "10%" in body["text"]
-        # Segmentos tambem transformados
+        # Segments also transformed
         assert "R$2.500" in body["segments"][0]["text"]
         assert "10%" in body["segments"][1]["text"]
 
 
 class TestFullPipelineSrtFormat:
-    """SRT format -> legendas contem texto ITN-transformado."""
+    """SRT format -> subtitles contain ITN-transformed text."""
 
     async def test_full_pipeline_srt_format_transformed(self) -> None:
         wav_bytes = _generate_wav(sample_rate=16000, duration=0.5)
@@ -334,15 +334,15 @@ class TestFullPipelineSrtFormat:
 
         assert response.status_code == 200
         srt_text = response.text
-        # SRT deve conter texto transformado
+        # SRT should contain transformed text
         assert "R$2.500" in srt_text
         assert "10%" in srt_text
-        # E ter formato SRT com timestamps
+        # And have SRT format with timestamps
         assert "00:00:00,000 --> " in srt_text
 
 
 class TestFullPipelineVttFormat:
-    """VTT format -> legendas contem texto ITN-transformado."""
+    """VTT format -> subtitles contain ITN-transformed text."""
 
     async def test_full_pipeline_vtt_format_transformed(self) -> None:
         wav_bytes = _generate_wav(sample_rate=16000, duration=0.5)
@@ -367,7 +367,7 @@ class TestFullPipelineVttFormat:
 
 
 class TestFullPipelineTextFormat:
-    """text format -> texto puro com ITN-transformado."""
+    """text format -> plain text with ITN transformation."""
 
     async def test_full_pipeline_text_format(self) -> None:
         wav_bytes = _generate_wav(sample_rate=16000, duration=0.5)
@@ -390,7 +390,7 @@ class TestFullPipelineTextFormat:
 
 
 class TestFullPipelinePreprocessingOnly:
-    """Apenas preprocessing configurado (sem post-processing) -> texto raw."""
+    """Only preprocessing configured (no post-processing) -> raw text."""
 
     async def test_full_pipeline_preprocessing_only(self) -> None:
         wav_bytes = _generate_wav(sample_rate=44100, duration=0.5)
@@ -409,16 +409,16 @@ class TestFullPipelinePreprocessingOnly:
 
         assert response.status_code == 200
         body = response.json()
-        # Texto deve estar cru (sem post-processing)
+        # Text should be raw (no post-processing)
         assert "dois mil e quinhentos reais" in body["text"]
         assert "R$2.500" not in body["text"]
-        # Mas preprocessing deve ter rodado (audio menor por causa do downsample)
+        # But preprocessing should have run (audio smaller due to downsample)
         assert scheduler.last_request is not None
         assert len(scheduler.last_request.audio_data) < len(wav_bytes)
 
 
 class TestFullPipelineNoPipelines:
-    """Nenhum pipeline configurado -> funciona como antes (backwards compatible)."""
+    """No pipeline configured -> works as before (backwards compatible)."""
 
     async def test_full_pipeline_no_pipelines(self) -> None:
         scheduler_mock = MagicMock()

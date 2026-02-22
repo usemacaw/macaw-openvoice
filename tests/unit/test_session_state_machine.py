@@ -1,7 +1,7 @@
-"""Testes unitarios para SessionStateMachine.
+"""Unit tests for SessionStateMachine.
 
-Cobre: transicoes validas, transicoes invalidas, timeouts de cada estado,
-callbacks on_enter/on_exit, estado CLOSED terminal, clock injetavel, e
+Covers: valid transitions, invalid transitions, per-state timeouts,
+on_enter/on_exit callbacks, terminal CLOSED state, injectable clock, and
 elapsed_in_state_ms.
 """
 
@@ -11,7 +11,11 @@ import pytest
 
 from macaw._types import SessionState
 from macaw.exceptions import InvalidTransitionError
-from macaw.session.state_machine import SessionStateMachine, SessionTimeouts
+from macaw.session.state_machine import (
+    _VALID_TRANSITIONS,
+    SessionStateMachine,
+    SessionTimeouts,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -19,7 +23,7 @@ from macaw.session.state_machine import SessionStateMachine, SessionTimeouts
 
 
 class FakeClock:
-    """Clock determinisico para testes."""
+    """Deterministic clock for tests."""
 
     def __init__(self, start: float = 0.0) -> None:
         self._now = start
@@ -32,7 +36,7 @@ class FakeClock:
 
 
 # ---------------------------------------------------------------------------
-# Estado inicial
+# Initial state
 # ---------------------------------------------------------------------------
 
 
@@ -48,7 +52,7 @@ class TestInitialState:
 
 
 # ---------------------------------------------------------------------------
-# Transicoes validas
+# Valid transitions
 # ---------------------------------------------------------------------------
 
 
@@ -142,7 +146,7 @@ class TestValidTransitions:
 
 
 # ---------------------------------------------------------------------------
-# Transicoes invalidas
+# Invalid transitions
 # ---------------------------------------------------------------------------
 
 
@@ -215,7 +219,7 @@ class TestInvalidTransitions:
 
 
 # ---------------------------------------------------------------------------
-# Estado CLOSED e terminal
+# CLOSED state is terminal
 # ---------------------------------------------------------------------------
 
 
@@ -258,7 +262,7 @@ class TestClosedIsTerminal:
 
 
 # ---------------------------------------------------------------------------
-# Qualquer estado -> CLOSED (erro irrecuperavel)
+# Any state -> CLOSED (irrecoverable error)
 # ---------------------------------------------------------------------------
 
 
@@ -376,13 +380,13 @@ class TestTimeouts:
     def test_timeout_resets_on_transition(self) -> None:
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
-        clock.advance(25.0)  # 25s em INIT (nao expirou)
+        clock.advance(25.0)  # 25s in INIT (not expired)
         sm.transition(SessionState.ACTIVE)
         sm.transition(SessionState.SILENCE)
-        # Agora em SILENCE, timeout e 30s a partir de agora
+        # Now in SILENCE, timeout is 30s from now
         clock.advance(25.0)
         assert sm.check_timeout() is None
-        clock.advance(5.0)  # 30s em SILENCE -> expirou
+        clock.advance(5.0)  # 30s in SILENCE -> expired
         assert sm.check_timeout() == SessionState.HOLD
 
 
@@ -450,7 +454,7 @@ class TestCallbacks:
 
 
 # ---------------------------------------------------------------------------
-# Clock injetavel e elapsed_in_state_ms
+# Injectable clock and elapsed_in_state_ms
 # ---------------------------------------------------------------------------
 
 
@@ -540,21 +544,21 @@ class TestUpdateTimeouts:
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
         clock.advance(6.0)
-        # Com timeout default (30s), nao expirou
+        # With default timeout (30s), not expired
         assert sm.check_timeout() is None
-        # Atualizar para 5s -> ja expirou
+        # Update to 5s -> already expired
         sm.update_timeouts(SessionTimeouts(init_timeout_s=5.0))
         assert sm.check_timeout() == SessionState.CLOSED
 
 
 # ---------------------------------------------------------------------------
-# Fluxo completo (integracao)
+# Full lifecycle (integration)
 # ---------------------------------------------------------------------------
 
 
 class TestFullLifecycle:
     def test_full_lifecycle_init_to_closed_via_hold(self) -> None:
-        """Simula ciclo completo: INIT -> ACTIVE -> SILENCE -> HOLD -> CLOSING -> CLOSED."""
+        """Simulates full cycle: INIT -> ACTIVE -> SILENCE -> HOLD -> CLOSING -> CLOSED."""
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
 
@@ -571,7 +575,7 @@ class TestFullLifecycle:
         assert sm.state == SessionState.CLOSED
 
     def test_full_lifecycle_with_timeouts(self) -> None:
-        """Simula ciclo via timeouts: INIT -> ACTIVE -> SILENCE --(30s)--> HOLD --(5min)--> CLOSING --(2s)--> CLOSED."""
+        """Simulates cycle via timeouts: INIT -> ACTIVE -> SILENCE --(30s)--> HOLD --(5min)--> CLOSING --(2s)--> CLOSED."""
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
 
@@ -600,23 +604,40 @@ class TestFullLifecycle:
         assert sm.state == SessionState.CLOSED
 
     def test_silence_to_active_resets_timeout(self) -> None:
-        """Simula: SILENCE (25s) -> fala detectada -> ACTIVE -> SILENCE (novo timeout)."""
+        """Simulates: SILENCE (25s) -> speech detected -> ACTIVE -> SILENCE (new timeout)."""
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
 
         sm.transition(SessionState.ACTIVE)
         sm.transition(SessionState.SILENCE)
 
-        clock.advance(25.0)  # 25s em SILENCE, nao expirou
+        clock.advance(25.0)  # 25s in SILENCE, not expired
         assert sm.check_timeout() is None
 
-        # Nova fala detectada
+        # New speech detected
         sm.transition(SessionState.ACTIVE)
         sm.transition(SessionState.SILENCE)
 
-        # 25s de novo: total desde inicio 50s, mas timeout resetou
+        # 25s again: total since start 50s, but timeout was reset
         clock.advance(25.0)
         assert sm.check_timeout() is None
 
-        clock.advance(5.0)  # 30s em SILENCE -> expirou
+        clock.advance(5.0)  # 30s in SILENCE -> expired
         assert sm.check_timeout() == SessionState.HOLD
+
+
+# ---------------------------------------------------------------------------
+# Transition map immutability
+# ---------------------------------------------------------------------------
+
+
+class TestTransitionMapImmutability:
+    def test_valid_transitions_frozenset_prevents_mutation(self) -> None:
+        """frozenset values in _VALID_TRANSITIONS prevent target set mutation."""
+        with pytest.raises(AttributeError):
+            _VALID_TRANSITIONS[SessionState.INIT].add(SessionState.HOLD)  # type: ignore[attr-defined]
+
+    def test_all_transition_values_are_frozenset(self) -> None:
+        """Every entry in _VALID_TRANSITIONS must be a frozenset."""
+        for state, targets in _VALID_TRANSITIONS.items():
+            assert isinstance(targets, frozenset), f"{state} targets not frozenset"

@@ -1,7 +1,7 @@
-"""Testes do ResampleStage.
+"""Tests for ResampleStage.
 
-Valida resampling de audio entre sample rates, conversao stereo->mono,
-preservacao de tipo float32 e edge cases (audio vazio, sample rate inalterado).
+Validates audio resampling between sample rates, stereo->mono conversion,
+float32 type preservation, and edge cases (empty audio, unchanged sample rate).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ def _make_sine(
     frequency: float = 440.0,
     amplitude: float = 0.5,
 ) -> np.ndarray:
-    """Gera sinal senoidal float32 para testes."""
+    """Generate float32 sine wave signal for tests."""
     n_samples = int(sample_rate * duration)
     t = np.arange(n_samples, dtype=np.float32) / sample_rate
     return (amplitude * np.sin(2 * np.pi * frequency * t)).astype(np.float32)
@@ -25,7 +25,7 @@ def _make_sine(
 
 class TestResampleStage:
     def test_resample_44khz_to_16khz(self) -> None:
-        """Audio a 44.1kHz e resampleado para 16kHz com comprimento proporcional."""
+        """Audio at 44.1kHz is resampled to 16kHz with proportional length."""
         # Arrange
         audio = _make_sine(sample_rate=44100, duration=1.0)
         stage = ResampleStage(target_sample_rate=16000)
@@ -39,7 +39,7 @@ class TestResampleStage:
         assert len(result) == expected_length
 
     def test_resample_48khz_to_16khz(self) -> None:
-        """Audio a 48kHz e resampleado para 16kHz com comprimento proporcional."""
+        """Audio at 48kHz is resampled to 16kHz with proportional length."""
         # Arrange
         audio = _make_sine(sample_rate=48000, duration=1.0)
         stage = ResampleStage(target_sample_rate=16000)
@@ -53,7 +53,7 @@ class TestResampleStage:
         assert len(result) == expected_length
 
     def test_resample_8khz_to_16khz(self) -> None:
-        """Audio a 8kHz e upsampled para 16kHz com comprimento proporcional."""
+        """Audio at 8kHz is upsampled to 16kHz with proportional length."""
         # Arrange
         audio = _make_sine(sample_rate=8000, duration=1.0)
         stage = ResampleStage(target_sample_rate=16000)
@@ -67,7 +67,7 @@ class TestResampleStage:
         assert len(result) == expected_length
 
     def test_resample_16khz_skip(self) -> None:
-        """Audio ja a 16kHz e retornado inalterado (mesmo objeto)."""
+        """Audio already at 16kHz is returned unchanged (same object)."""
         # Arrange
         audio = _make_sine(sample_rate=16000, duration=0.1)
         stage = ResampleStage(target_sample_rate=16000)
@@ -77,7 +77,7 @@ class TestResampleStage:
 
         # Assert
         assert result_sr == 16000
-        assert result is audio  # Mesmo objeto, sem copia
+        assert result is audio  # Same object, no copy
 
     def test_resample_mono_from_high_sample_rate(self) -> None:
         """Mono audio at 44.1kHz is correctly resampled to 16kHz."""
@@ -95,7 +95,7 @@ class TestResampleStage:
         assert len(result) == expected_length
 
     def test_resample_preserves_float32(self) -> None:
-        """Output e sempre float32, independente do sample rate de entrada."""
+        """Output is always float32, regardless of input sample rate."""
         # Arrange
         stage = ResampleStage(target_sample_rate=16000)
 
@@ -107,11 +107,11 @@ class TestResampleStage:
 
             # Assert
             assert result.dtype == np.float32, (
-                f"Esperado float32 para input_sr={input_sr}, obteve {result.dtype}"
+                f"Expected float32 for input_sr={input_sr}, got {result.dtype}"
             )
 
     def test_resample_empty_audio(self) -> None:
-        """Array vazio e retornado inalterado sem erro."""
+        """Empty array is returned unchanged without error."""
         # Arrange
         audio = np.array([], dtype=np.float32)
         stage = ResampleStage(target_sample_rate=16000)
@@ -121,10 +121,10 @@ class TestResampleStage:
 
         # Assert
         assert len(result) == 0
-        assert result_sr == 44100  # Sample rate original preservado
+        assert result_sr == 44100  # Original sample rate preserved
 
     def test_resample_name_property(self) -> None:
-        """Propriedade name retorna 'resample'."""
+        """name property returns 'resample'."""
         # Arrange & Act
         stage = ResampleStage()
 
@@ -132,7 +132,7 @@ class TestResampleStage:
         assert stage.name == "resample"
 
     def test_resample_custom_target_sample_rate(self) -> None:
-        """ResampleStage aceita sample rate alvo customizado."""
+        """ResampleStage accepts custom target sample rate."""
         # Arrange
         audio = _make_sine(sample_rate=44100, duration=1.0)
         stage = ResampleStage(target_sample_rate=8000)
@@ -145,7 +145,7 @@ class TestResampleStage:
         assert len(result) == 8000
 
     def test_resample_signal_energy_preserved(self) -> None:
-        """Energia do sinal e aproximadamente preservada apos resample."""
+        """Signal energy is approximately preserved after resample."""
         # Arrange
         audio = _make_sine(sample_rate=48000, duration=1.0, frequency=200.0)
         stage = ResampleStage(target_sample_rate=16000)
@@ -154,7 +154,7 @@ class TestResampleStage:
         result, _ = stage.process(audio, 48000)
 
         # Assert
-        # RMS do sinal original e resampleado devem ser proximos
+        # RMS of original and resampled signal should be close
         rms_original = np.sqrt(np.mean(audio**2))
         rms_resampled = np.sqrt(np.mean(result**2))
         # Tolerancia de 5% na energia

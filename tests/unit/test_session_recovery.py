@@ -1,15 +1,15 @@
-"""Testes de recovery de crash do worker (M6-07).
+"""Tests for worker crash recovery (M6-07).
 
-Cobre:
-- recover() abre novo stream gRPC
-- recover() reenvia dados nao commitados do ring buffer
-- recover() restaura segment_id do WAL
-- recover() inicia nova receiver task
-- Timeout de recovery fecha sessao
-- Prevencao de recursao durante recovery
-- Integracao: WorkerCrashError em receive_events dispara recovery
-- Recovery sem ring buffer (apenas reabre stream)
-- Recovery com ring buffer parcialmente commitado
+Covers:
+- recover() opens a new gRPC stream
+- recover() resends uncommitted data from the ring buffer
+- recover() restores segment_id from WAL
+- recover() starts a new receiver task
+- Recovery timeout closes the session
+- Recursion prevention during recovery
+- Integration: WorkerCrashError in receive_events triggers recovery
+- Recovery without ring buffer (only reopens stream)
+- Recovery with partially committed ring buffer
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create a StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test-recovery"
@@ -49,7 +49,7 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
 
 
 def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
-    """Cria mock de StreamingGRPCClient."""
+    """Create a StreamingGRPCClient mock."""
     client = AsyncMock()
     if stream_handle is None:
         stream_handle = _make_stream_handle_mock()
@@ -59,7 +59,7 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 
 def _make_postprocessor_mock() -> Mock:
-    """Cria mock de PostProcessingPipeline."""
+    """Create a PostProcessingPipeline mock."""
     mock = Mock()
     mock.process.side_effect = lambda text, **kwargs: text
     return mock
@@ -74,7 +74,7 @@ def _create_recovery_session(
     recovery_timeout_s: float = 1.0,
     state_machine: SessionStateMachine | None = None,
 ) -> tuple[StreamingSession, AsyncMock, AsyncMock]:
-    """Cria sessao com ring buffer e WAL para teste de recovery.
+    """Create a session with ring buffer and WAL for recovery testing.
 
     Returns:
         (session, grpc_client, on_event)
@@ -99,18 +99,18 @@ def _create_recovery_session(
 
 
 # ---------------------------------------------------------------------------
-# Tests: recover() abre novo stream
+# Tests: recover() opens a new stream
 # ---------------------------------------------------------------------------
 
 
 async def test_recover_opens_new_stream():
-    """recover() abre um novo stream gRPC via grpc_client.open_stream()."""
+    """recover() opens a new gRPC stream via grpc_client.open_stream()."""
     # Arrange
     new_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(new_handle)
     session, _, _ = _create_recovery_session(grpc_client=grpc_client)
 
-    # Colocar em ACTIVE (recovery so faz sentido em sessao ativa)
+    # Set to ACTIVE (recovery only makes sense in an active session)
     session._state_machine.transition(SessionState.ACTIVE)
 
     # Act
@@ -126,7 +126,7 @@ async def test_recover_opens_new_stream():
 
 
 async def test_recover_resends_uncommitted_data():
-    """recover() reenvia dados nao commitados do ring buffer ao novo worker."""
+    """recover() resends uncommitted data from the ring buffer to the new worker."""
     # Arrange
     rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
     new_handle = _make_stream_handle_mock()
@@ -137,7 +137,7 @@ async def test_recover_resends_uncommitted_data():
     )
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # Escrever dados no ring buffer SEM commitar
+    # Write data to ring buffer WITHOUT committing
     test_data = b"\x01\x02" * 500  # 1000 bytes
     rb.write(test_data)
     assert rb.uncommitted_bytes == 1000
@@ -157,7 +157,7 @@ async def test_recover_resends_uncommitted_data():
 
 
 async def test_recover_with_no_uncommitted_data():
-    """recover() com ring buffer vazio ou totalmente commitado nao reenvia dados."""
+    """recover() with empty or fully committed ring buffer does not resend data."""
     # Arrange
     rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
     new_handle = _make_stream_handle_mock()
@@ -168,7 +168,7 @@ async def test_recover_with_no_uncommitted_data():
     )
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # Escrever e commitar dados (tudo commitado, nada para reenviar)
+    # Write and commit data (all committed, nothing to resend)
     test_data = b"\x01\x02" * 100
     rb.write(test_data)
     rb.commit(rb.total_written)
@@ -186,7 +186,7 @@ async def test_recover_with_no_uncommitted_data():
 
 
 async def test_recover_restores_segment_id_from_wal():
-    """recover() restaura segment_id = WAL.last_committed_segment_id + 1."""
+    """recover() restores segment_id = WAL.last_committed_segment_id + 1."""
     # Arrange
     wal = SessionWAL()
     wal.record_checkpoint(segment_id=5, buffer_offset=10000, timestamp_ms=50000)
@@ -194,8 +194,8 @@ async def test_recover_restores_segment_id_from_wal():
     session, _, _ = _create_recovery_session(wal=wal)
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # segment_id antes do recovery
-    session._segment_id = 99  # Valor arbitrario pre-recovery
+    # segment_id before recovery
+    session._segment_id = 99  # Arbitrary value pre-recovery
 
     # Act
     result = await session.recover()
@@ -209,7 +209,7 @@ async def test_recover_restores_segment_id_from_wal():
 
 
 async def test_recover_starts_new_receiver_task():
-    """recover() inicia uma nova receiver task para consumir eventos do worker."""
+    """recover() starts a new receiver task to consume events from the worker."""
     # Arrange
     session, _, _ = _create_recovery_session()
     session._state_machine.transition(SessionState.ACTIVE)
@@ -229,19 +229,19 @@ async def test_recover_starts_new_receiver_task():
 
 
 async def test_recover_timeout_closes_session():
-    """Se open_stream falha com timeout, sessao transita para CLOSED."""
+    """If open_stream fails with timeout, session transitions to CLOSED."""
     # Arrange
     grpc_client = AsyncMock()
 
     async def slow_open_stream(_session_id: str) -> Mock:
-        await asyncio.sleep(10.0)  # Muito lento
+        await asyncio.sleep(10.0)  # Very slow
         return _make_stream_handle_mock()
 
     grpc_client.open_stream = slow_open_stream
 
     session, _, _ = _create_recovery_session(
         grpc_client=grpc_client,
-        recovery_timeout_s=0.1,  # Timeout rapido
+        recovery_timeout_s=0.1,  # Fast timeout
     )
     session._state_machine.transition(SessionState.ACTIVE)
 
@@ -254,14 +254,14 @@ async def test_recover_timeout_closes_session():
 
 
 async def test_recover_emits_recoverable_error():
-    """WorkerCrashError no receiver emite erro recoverable com resume_segment_id."""
+    """WorkerCrashError in receiver emits recoverable error with resume_segment_id."""
     # Arrange
     crash_handle = _make_stream_handle_mock()
     crash_handle.receive_events.return_value = AsyncIterFromList(
         [WorkerCrashError("test-recovery")]
     )
 
-    # open_stream e chamado pelo recover() -- deve retornar handle valido
+    # open_stream is called by recover() -- must return a valid handle
     recovery_handle = _make_stream_handle_mock()
     grpc_client = AsyncMock()
     grpc_client.open_stream = AsyncMock(return_value=recovery_handle)
@@ -273,16 +273,16 @@ async def test_recover_emits_recoverable_error():
     )
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # Abrir stream inicial (que vai crashar) -- atribuicao manual
+    # Open initial stream (which will crash) -- manual assignment
     session._stream_handle = crash_handle
     session._receiver_task = asyncio.create_task(
         session._receive_worker_events(),
     )
 
-    # Aguardar receiver processar o crash e disparar recovery
+    # Wait for receiver to process the crash and trigger recovery
     await asyncio.sleep(0.1)
 
-    # Assert: evento de erro recoverable emitido
+    # Assert: recoverable error event emitted
     error_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], StreamingErrorEvent)
     ]
@@ -298,12 +298,12 @@ async def test_recover_emits_recoverable_error():
 
 
 async def test_recover_prevents_recursion():
-    """Se _recovering ja e True, recover() retorna False sem tentar novamente."""
+    """If _recovering is already True, recover() returns False without retrying."""
     # Arrange
     session, _, _ = _create_recovery_session()
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # Simular recovery em andamento
+    # Simulate recovery in progress
     session._recovery._recovering = True
 
     # Act
@@ -311,16 +311,16 @@ async def test_recover_prevents_recursion():
 
     # Assert
     assert result is False
-    # Flag permanece True (nao foi modificada)
+    # Flag remains True (was not modified)
     assert session._recovery._recovering is True
 
-    # Reset para cleanup
+    # Reset for cleanup
     session._recovery._recovering = False
     await session.close()
 
 
 async def test_recover_with_ring_buffer_data_partially_committed():
-    """Recovery com ring buffer parcialmente commitado reenvia apenas uncommitted."""
+    """Recovery with partially committed ring buffer resends only uncommitted."""
     # Arrange
     rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
     new_handle = _make_stream_handle_mock()
@@ -331,11 +331,11 @@ async def test_recover_with_ring_buffer_data_partially_committed():
     )
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # Escrever dados e commitar metade
+    # Write data and commit half
     committed_data = b"\x01\x00" * 500  # 1000 bytes
     uncommitted_data = b"\x02\x00" * 300  # 600 bytes
     rb.write(committed_data)
-    rb.commit(rb.total_written)  # Commitar os primeiros 1000 bytes
+    rb.commit(rb.total_written)  # Commit the first 1000 bytes
     rb.write(uncommitted_data)
 
     assert rb.uncommitted_bytes == 600
@@ -355,12 +355,12 @@ async def test_recover_with_ring_buffer_data_partially_committed():
 
 
 async def test_recover_without_ring_buffer():
-    """Recovery sem ring buffer apenas reabre stream (sem reenvio de dados)."""
+    """Recovery without ring buffer only reopens stream (no data resend)."""
     # Arrange
     new_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(new_handle)
     session, _, _ = _create_recovery_session(
-        ring_buffer=None,  # Sem ring buffer
+        ring_buffer=None,  # No ring buffer
         grpc_client=grpc_client,
     )
     session._state_machine.transition(SessionState.ACTIVE)
@@ -378,8 +378,8 @@ async def test_recover_without_ring_buffer():
 
 
 async def test_recover_resets_recovering_flag():
-    """Flag _recovering e resetada para False apos recovery (sucesso ou falha)."""
-    # Arrange: recovery bem-sucedido
+    """Flag _recovering is reset to False after recovery (success or failure)."""
+    # Arrange: successful recovery
     session, _, _ = _create_recovery_session()
     session._state_machine.transition(SessionState.ACTIVE)
 
@@ -394,8 +394,8 @@ async def test_recover_resets_recovering_flag():
 
 
 async def test_recover_resets_recovering_flag_on_failure():
-    """Flag _recovering e resetada para False mesmo quando recovery falha."""
-    # Arrange: recovery que falha (timeout)
+    """Flag _recovering is reset to False even when recovery fails."""
+    # Arrange: recovery that fails (timeout)
     grpc_client = AsyncMock()
 
     async def failing_open_stream(_session_id: str) -> Mock:
@@ -415,7 +415,7 @@ async def test_recover_resets_recovering_flag_on_failure():
 
 
 async def test_receiver_crash_triggers_recovery():
-    """WorkerCrashError durante receive_events dispara recover() automaticamente."""
+    """WorkerCrashError during receive_events triggers recover() automatically."""
     # Arrange
     crash_handle = _make_stream_handle_mock()
     crash_handle.receive_events.return_value = AsyncIterFromList(
@@ -424,8 +424,8 @@ async def test_receiver_crash_triggers_recovery():
 
     recovery_handle = _make_stream_handle_mock()
 
-    # open_stream e chamado pelo recover(), nao pela criacao da sessao.
-    # A primeira chamada vem do recover() e deve retornar recovery_handle.
+    # open_stream is called by recover(), not by session creation.
+    # The first call comes from recover() and should return recovery_handle.
     grpc_client = AsyncMock()
     grpc_client.open_stream = AsyncMock(return_value=recovery_handle)
     on_event = AsyncMock()
@@ -436,18 +436,18 @@ async def test_receiver_crash_triggers_recovery():
     )
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # Abrir stream inicial (que vai crashar) -- atribuicao manual
+    # Open initial stream (which will crash) -- manual assignment
     session._stream_handle = crash_handle
     session._receiver_task = asyncio.create_task(
         session._receive_worker_events(),
     )
 
-    # Aguardar recovery acontecer
+    # Wait for recovery to happen
     await asyncio.sleep(0.2)
 
-    # Assert: recovery foi chamado (novo stream aberto)
+    # Assert: recovery was called (new stream opened)
     grpc_client.open_stream.assert_awaited_once_with("test-recovery")
-    # Session nao esta fechada (recovery bem-sucedido)
+    # Session is not closed (recovery succeeded)
     assert session.session_state != SessionState.CLOSED
 
     # Cleanup
@@ -455,7 +455,7 @@ async def test_receiver_crash_triggers_recovery():
 
 
 async def test_recover_resets_hot_words_sent_flag():
-    """recover() reseta _hot_words_sent_for_segment para reenviar hot words."""
+    """recover() resets _hot_words_sent_for_segment to resend hot words."""
     # Arrange
     session, _, _ = _create_recovery_session()
     session._state_machine.transition(SessionState.ACTIVE)
@@ -473,10 +473,10 @@ async def test_recover_resets_hot_words_sent_flag():
 
 
 async def test_recover_resend_failure_returns_false():
-    """Se reenvio de dados uncommitted falha, recover() retorna False."""
+    """If resending uncommitted data fails, recover() returns False."""
     # Arrange
     rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
-    rb.write(b"\x01\x02" * 500)  # Dados uncommitted
+    rb.write(b"\x01\x02" * 500)  # Uncommitted data
 
     new_handle = _make_stream_handle_mock()
     new_handle.send_frame = AsyncMock(side_effect=WorkerCrashError("test-recovery"))
@@ -497,7 +497,7 @@ async def test_recover_resend_failure_returns_false():
 
 
 async def test_recover_open_stream_crash_closes_session():
-    """Se open_stream levanta WorkerCrashError, sessao transita para CLOSED."""
+    """If open_stream raises WorkerCrashError, session transitions to CLOSED."""
     # Arrange
     grpc_client = AsyncMock()
     grpc_client.open_stream = AsyncMock(
@@ -516,15 +516,15 @@ async def test_recover_open_stream_crash_closes_session():
 
 
 async def test_recovery_failed_emits_irrecoverable_error():
-    """Quando recovery falha, erro irrecuperavel e emitido."""
+    """When recovery fails, an irrecoverable error is emitted."""
     # Arrange
     crash_handle = _make_stream_handle_mock()
     crash_handle.receive_events.return_value = AsyncIterFromList(
         [WorkerCrashError("test-recovery")]
     )
 
-    # open_stream e chamado pelo recover() -- a primeira chamada
-    # vem do recover() e deve falhar para testar o caminho de falha.
+    # open_stream is called by recover() -- the first call
+    # comes from recover() and should fail to test the failure path.
     grpc_client = AsyncMock()
     grpc_client.open_stream = AsyncMock(
         side_effect=WorkerCrashError("test-recovery"),
@@ -537,16 +537,16 @@ async def test_recovery_failed_emits_irrecoverable_error():
     )
     session._state_machine.transition(SessionState.ACTIVE)
 
-    # Abrir stream inicial (que vai crashar) -- atribuicao manual
+    # Open initial stream (which will crash) -- manual assignment
     session._stream_handle = crash_handle
     session._receiver_task = asyncio.create_task(
         session._receive_worker_events(),
     )
 
-    # Aguardar recovery falhar
+    # Wait for recovery to fail
     await asyncio.sleep(0.2)
 
-    # Assert: erro irrecuperavel emitido
+    # Assert: irrecoverable error emitted
     error_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], StreamingErrorEvent)
     ]

@@ -22,6 +22,7 @@ __all__ = [
     "hanning_window",
     "istft",
     "mel_filterbank",
+    "resample_output",
     "stft",
 ]
 
@@ -282,3 +283,37 @@ def mel_filterbank(
 
     cached = _mel_filterbank_cached(n_mels, n_fft, sample_rate, fmin, fmax)
     return np.array(cached, dtype=np.float32)
+
+
+# ---------------------------------------------------------------------------
+# Resample
+# ---------------------------------------------------------------------------
+
+
+def resample_output(audio: np.ndarray, from_rate: int, to_rate: int) -> np.ndarray:
+    """Resample audio from one sample rate to another.
+
+    Uses ``scipy.signal.resample_poly`` for high-quality polyphase resampling.
+    Returns the input unchanged when ``from_rate == to_rate``.
+
+    Args:
+        audio: 1-D float32 audio signal.
+        from_rate: Source sample rate in Hz.
+        to_rate: Target sample rate in Hz.
+
+    Returns:
+        Float32 resampled audio.
+    """
+    if from_rate == to_rate:
+        return audio
+
+    from math import gcd
+
+    from scipy.signal import resample_poly as _resample_poly
+
+    divisor = gcd(from_rate, to_rate)
+    up = to_rate // divisor
+    down = from_rate // divisor
+
+    resampled = _resample_poly(audio, up, down)
+    return np.asarray(resampled, dtype=np.float32)

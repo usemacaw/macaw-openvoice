@@ -258,6 +258,8 @@ Before making significant changes, familiarize yourself with:
 - Use [GitHub Discussions](https://github.com/useMacaw/Macaw-openvoice/discussions) for questions
 - For general inquiries, reach out at [hello@usemacaw.io](mailto:hello@usemacaw.io)
 - Visit our website at [usemacaw.io](https://usemacaw.io)
+- Follow us on [X (Twitter)](https://x.com/usemacaw) for updates
+- Explore our models on [Hugging Face](https://huggingface.co/usemacaw)
 
 ## Code of Conduct
 

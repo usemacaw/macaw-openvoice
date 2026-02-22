@@ -1,7 +1,7 @@
-"""Testes para KokoroBackend.
+"""Tests for KokoroBackend.
 
-Usa mocks para o modulo kokoro -- nao requer kokoro instalado.
-Segue o mesmo padrao dos testes de STT backend.
+Uses mocks for the kokoro module -- does not require kokoro installed.
+Follows the same pattern as the STT backend tests.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from macaw.workers.tts.kokoro import (
 def _make_mock_kokoro_lib(
     audio: np.ndarray | None = None,
 ) -> MagicMock:
-    """Cria mock da biblioteca kokoro com KModel+KPipeline."""
+    """Create mock of the kokoro library with KModel+KPipeline."""
     mock_lib = MagicMock()
 
     # KModel mock: model.to(device).eval() chainable
@@ -48,7 +48,7 @@ def _make_mock_kokoro_lib(
 
 
 def _make_model_dir(tmp_path: object) -> str:
-    """Cria diretorio de modelo fake com config.json e weights."""
+    """Create fake model directory with config.json and weights."""
     from pathlib import Path
 
     model_dir = Path(str(tmp_path)) / "kokoro-v1"
@@ -256,7 +256,7 @@ class TestSynthesize:
         audio_output: np.ndarray | None = None,
         voices_dir: str = "",
     ) -> KokoroBackend:
-        """Cria backend com pipeline mock carregado."""
+        """Create backend with loaded mock pipeline."""
         backend = KokoroBackend()
         mock_model = MagicMock()
         mock_pipeline = MagicMock()
@@ -377,7 +377,7 @@ class TestSynthesize:
                 pass
 
     async def test_multi_chunk_pipeline_result(self) -> None:
-        """Pipeline pode retornar multiplas tuplas (frases longas)."""
+        """Pipeline can return multiple tuples (long sentences)."""
         backend = KokoroBackend()
         mock_model = MagicMock()
         mock_pipeline = MagicMock()

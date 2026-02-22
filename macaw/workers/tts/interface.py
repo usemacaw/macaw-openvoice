@@ -6,26 +6,51 @@ to plug into the Macaw runtime.
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, TypeVar
 
 from macaw._audio_constants import TTS_DEFAULT_SAMPLE_RATE
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from macaw._types import TTSEngineCapabilities, VoiceInfo
+    from macaw._types import TTSChunkResult, TTSEngineCapabilities, VoiceInfo
+
+_T = TypeVar("_T")
+
+
+async def _resolve_stream(result: object) -> AsyncIterator[_T]:
+    """Resolve a backend method result that may be a coroutine or async iterator.
+
+    TTSBackend methods declared as returning ``AsyncIterator`` may actually
+    return an ``AsyncGenerator`` (when using ``yield``) or a coroutine
+    wrapping one.  This helper normalises both cases into an
+    ``AsyncIterator``.
+    """
+    if inspect.iscoroutine(result):
+        return await result  # type: ignore[no-any-return]
+    return result  # type: ignore[return-value]
 
 
 class TTSBackend(ABC):
     """Contract that every TTS engine must implement.
 
     The runtime interacts with TTS engines exclusively through this interface.
-    Adding a new engine requires:
+
+    Adding a new **built-in** engine (shipped with the package):
     1. Implement TTSBackend
     2. Create a macaw.yaml manifest with type: tts
-    3. Register in the _create_backend() factory
-    Zero changes to the runtime core.
+    3. Register in ``_create_backend()`` factory (one line)
+    4. Add dependency extra in pyproject.toml
+
+    Adding an **external** engine (separate package):
+    1. Implement TTSBackend in your own package
+    2. Create a macaw.yaml manifest with ``python_package: your_module``
+    3. Install your package in the same environment
+
+    Zero changes to the runtime layers above the worker (API, session,
+    scheduler) are required in either case.
 
     The key difference from STTBackend is that synthesize() returns an
     AsyncIterator of audio chunks (streaming), enabling low TTFB TTS — the
@@ -95,6 +120,47 @@ class TTSBackend(ABC):
             List of VoiceInfo with details for each voice.
         """
         ...
+
+    async def synthesize_with_alignment(
+        self,
+        text: str,
+        voice: str = "default",
+        *,
+        sample_rate: int = TTS_DEFAULT_SAMPLE_RATE,
+        speed: float = 1.0,
+        alignment_granularity: Literal["word", "character"] = "word",
+        options: dict[str, object] | None = None,
+    ) -> AsyncIterator[TTSChunkResult]:
+        """Synthesize text with per-chunk alignment data.
+
+        Default: wraps synthesize() with no alignment. Engines with native
+        alignment (e.g., Kokoro) override this to include timing data.
+
+        Args:
+            text: Text to synthesize.
+            voice: Voice identifier (default: "default").
+            sample_rate: Output audio sample rate.
+            speed: Synthesis speed (0.25-4.0, default 1.0).
+            alignment_granularity: "word" (default) or "character".
+            options: Engine-specific options.
+
+        Yields:
+            TTSChunkResult with audio and optional alignment.
+        """
+        from macaw._types import TTSChunkResult as _TTSChunkResult
+
+        result = self.synthesize(
+            text=text,
+            voice=voice,
+            sample_rate=sample_rate,
+            speed=speed,
+            options=options,
+        )
+
+        stream: AsyncIterator[bytes] = await _resolve_stream(result)
+
+        async for audio_chunk in stream:
+            yield _TTSChunkResult(audio=audio_chunk)
 
     async def post_load_hook(self) -> None:  # noqa: B027
         """Optional hook called after load() and before warmup.

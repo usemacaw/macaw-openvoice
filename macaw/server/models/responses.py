@@ -1,4 +1,4 @@
-"""Modelos de resposta da API — Pydantic models para serializacao JSON."""
+"""API response models — Pydantic models for JSON serialization."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ from pydantic import BaseModel
 
 
 class TranscriptionResponse(BaseModel):
-    """Resposta formato json (default): {"text": "..."}."""
+    """JSON format response (default): {"text": "..."}."""
 
     text: str
 
 
 class WordResponse(BaseModel):
-    """Palavra com timestamps."""
+    """Word with timestamps."""
 
     word: str
     start: float
@@ -20,7 +20,7 @@ class WordResponse(BaseModel):
 
 
 class SegmentResponse(BaseModel):
-    """Segmento de transcricao detalhado."""
+    """Detailed transcription segment."""
 
     id: int
     start: float
@@ -34,7 +34,7 @@ class SegmentResponse(BaseModel):
 
 
 class VerboseTranscriptionResponse(BaseModel):
-    """Resposta formato verbose_json."""
+    """Response in verbose_json format."""
 
     task: str = "transcribe"
     language: str

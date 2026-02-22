@@ -57,6 +57,10 @@ class ServerSettings(BaseSettings):
         default="",
         validation_alias="MACAW_CORS_ORIGINS",
     )
+    voice_dir: str | None = Field(
+        default=None,
+        validation_alias="MACAW_VOICE_DIR",
+    )
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -433,6 +437,19 @@ class CodecSettings(BaseSettings):
     )
 
 
+class EffectsSettings(BaseSettings):
+    """Post-synthesis audio effects settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    pitch_shift_max_semitones: float = Field(
+        default=12.0,
+        ge=1.0,
+        le=24.0,
+        validation_alias="MACAW_EFFECTS_PITCH_SHIFT_MAX_SEMITONES",
+    )
+
+
 class MacawSettings(BaseSettings):
     """Root settings — aggregates all subsystem settings.
 
@@ -457,6 +474,7 @@ class MacawSettings(BaseSettings):
     preprocessing: PreprocessingSettings = Field(default_factory=PreprocessingSettings)
     postprocessing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
     codec: CodecSettings = Field(default_factory=CodecSettings)
+    effects: EffectsSettings = Field(default_factory=EffectsSettings)
 
 
 @lru_cache(maxsize=1)

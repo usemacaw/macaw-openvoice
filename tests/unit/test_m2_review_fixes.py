@@ -1,10 +1,10 @@
-"""Testes para as 5 correcoes do code review M2.
+"""Tests for the 5 fixes from M2 code review.
 
-Fix 1: Servicer TranscribeFile - return explicito apos context.abort
-Fix 2: WorkerManager - _build_worker_cmd extraido (DRY)
-Fix 3: WorkerManager - _check_worker_health import movido para fora do try
-Fix 4: Worker main.py - protecao contra duplo shutdown
-Fix 5: WorkerManager - tasks awaited apos cancel em stop_worker
+Fix 1: Servicer TranscribeFile - explicit return after context.abort
+Fix 2: WorkerManager - _build_worker_cmd extracted (DRY)
+Fix 3: WorkerManager - _check_worker_health import moved outside try
+Fix 4: Worker main.py - protection against double shutdown
+Fix 5: WorkerManager - tasks awaited after cancel in stop_worker
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 
 
 class MockBackend(STTBackend):
-    """Backend mock para testes."""
+    """Mock backend for tests."""
 
     def __init__(self, transcribe_result: BatchResult | None = None) -> None:
         self._result = transcribe_result or BatchResult(
@@ -90,14 +90,14 @@ class MockBackend(STTBackend):
 
 
 def _make_context() -> MagicMock:
-    """Cria mock de grpc.aio.ServicerContext."""
+    """Create a mock grpc.aio.ServicerContext."""
     ctx = MagicMock()
     ctx.abort = AsyncMock()
     return ctx
 
 
 def _make_mock_process(poll_return: int | None = None) -> MagicMock:
-    """Cria mock de subprocess.Popen."""
+    """Create a mock subprocess.Popen."""
     proc = MagicMock()
     proc.poll.return_value = poll_return
     proc.wait.return_value = 0
@@ -109,15 +109,15 @@ def _make_mock_process(poll_return: int | None = None) -> MagicMock:
 
 
 # ============================================================
-# Fix 1: Servicer TranscribeFile — return apos abort
+# Fix 1: Servicer TranscribeFile — return after abort
 # ============================================================
 
 
 class TestFix1ServicerAbortReturn:
-    """Verifica que TranscribeFile nao acessa `result` indefinida apos erro."""
+    """Verifies that TranscribeFile does not access undefined `result` after error."""
 
     async def test_error_returns_empty_response_when_abort_does_not_raise(self) -> None:
-        """Se context.abort nao levantar (mock), o return explicito evita UnboundLocalError."""
+        """If context.abort does not raise (mock), the explicit return avoids UnboundLocalError."""
         backend = MockBackend()
         backend.transcribe_file = AsyncMock(side_effect=RuntimeError("GPU OOM"))  # type: ignore[method-assign]
         servicer = STTWorkerServicer(
@@ -130,16 +130,16 @@ class TestFix1ServicerAbortReturn:
             audio_data=b"\x00\x01" * 100,
         )
         ctx = _make_context()
-        # abort nao levanta excecao neste mock — simula cenario defensivo
+        # abort does not raise in this mock — simulates defensive scenario
         ctx.abort = AsyncMock(return_value=None)
 
         response = await servicer.TranscribeFile(request, ctx)
-        # O return explicito deve retornar TranscribeFileResponse vazia
+        # The explicit return should return an empty TranscribeFileResponse
         assert response.text == ""
         ctx.abort.assert_called_once_with(grpc.StatusCode.INTERNAL, "GPU OOM")
 
     async def test_error_with_abort_raising_propagates_correctly(self) -> None:
-        """Cenario normal: abort levanta AbortError, e a excecao propaga."""
+        """Normal scenario: abort raises AbortError, and the exception propagates."""
         backend = MockBackend()
         backend.transcribe_file = AsyncMock(side_effect=RuntimeError("OOM"))  # type: ignore[method-assign]
         servicer = STTWorkerServicer(
@@ -163,12 +163,12 @@ class TestFix1ServicerAbortReturn:
 
 
 # ============================================================
-# Fix 2: _build_worker_cmd extraido (DRY)
+# Fix 2: _build_worker_cmd extracted (DRY)
 # ============================================================
 
 
 class TestFix2BuildWorkerCmd:
-    """Verifica que _build_worker_cmd gera comando correto."""
+    """Verifies that _build_worker_cmd generates the correct command."""
 
     def test_basic_cmd(self) -> None:
         cmd = _build_worker_cmd(
@@ -234,17 +234,39 @@ class TestFix2BuildWorkerCmd:
         parsed = json.loads(cmd[idx + 1])
         assert parsed == {}
 
+    def test_python_package_included_when_set(self) -> None:
+        cmd = _build_worker_cmd(
+            port=50051,
+            engine="my-engine",
+            model_path="/models/test",
+            engine_config={},
+            python_package="my_company.engines.stt",
+        )
+        assert "--python-package" in cmd
+        idx = cmd.index("--python-package")
+        assert cmd[idx + 1] == "my_company.engines.stt"
+
+    def test_python_package_omitted_when_none(self) -> None:
+        cmd = _build_worker_cmd(
+            port=50051,
+            engine="faster-whisper",
+            model_path="/models/test",
+            engine_config={},
+            python_package=None,
+        )
+        assert "--python-package" not in cmd
+
 
 # ============================================================
-# Fix 3: _check_worker_health — import fora do try
+# Fix 3: _check_worker_health — import outside try
 # ============================================================
 
 
 class TestFix3HealthCheckImport:
-    """Verifica que _check_worker_health fecha channel corretamente."""
+    """Verifies that _check_worker_health closes channel correctly."""
 
     async def test_channel_closed_on_success(self) -> None:
-        """Channel e fechado mesmo quando health retorna com sucesso."""
+        """Channel is closed even when health returns successfully."""
         from macaw.workers.manager import _check_worker_health
 
         mock_response = MagicMock()
@@ -269,7 +291,7 @@ class TestFix3HealthCheckImport:
             mock_channel.close.assert_called_once()
 
     async def test_channel_closed_on_error(self) -> None:
-        """Channel e fechado mesmo quando ocorre erro."""
+        """Channel is closed even when an error occurs."""
         from macaw.workers.manager import _check_worker_health
 
         mock_stub_instance = MagicMock()
@@ -290,21 +312,21 @@ class TestFix3HealthCheckImport:
 
 
 # ============================================================
-# Fix 4: Signal handler — protecao contra duplo shutdown
+# Fix 4: Signal handler — protection against double shutdown
 # ============================================================
 
 
 class TestFix4DoubleShutdownProtection:
-    """Verifica que _shutdown nao executa duas vezes."""
+    """Verifies that _shutdown does not execute twice."""
 
     async def test_shutdown_guard_flag(self) -> None:
-        """Simula dupla invocacao de _shutdown e verifica que so executa uma vez."""
+        """Simulates double invocation of _shutdown and verifies it only executes once."""
         shutdown_count = 0
 
         async def mock_serve() -> None:
             nonlocal shutdown_count
-            # Nao podemos realmente chamar serve() sem gRPC, mas podemos
-            # testar a logica de guarda diretamente.
+            # We cannot actually call serve() without gRPC, but we can
+            # test the guard logic directly.
             shutting_down = False
 
             async def _shutdown() -> None:
@@ -315,29 +337,29 @@ class TestFix4DoubleShutdownProtection:
                 shutdown_count += 1
 
             await _shutdown()
-            await _shutdown()  # Segunda chamada deve ser no-op
+            await _shutdown()  # Second call should be no-op
 
         await mock_serve()
         assert shutdown_count == 1
 
     async def test_signal_handler_is_named_function(self) -> None:
-        """Verifica que o signal handler e uma funcao nomeada, nao um lambda."""
+        """Verifies that the signal handler is a named function, not a lambda."""
         import inspect
 
         from macaw.workers.stt import main as main_mod
 
         source = inspect.getsource(main_mod.serve)
-        # Nao deve haver lambda no add_signal_handler
+        # There should be no lambda in add_signal_handler
         assert "lambda:" not in source or "lambda: asyncio.ensure_future" not in source
 
 
 # ============================================================
-# Fix 5: Tasks awaited apos cancel
+# Fix 5: Tasks awaited after cancel
 # ============================================================
 
 
 class TestFix5TasksAwaitedAfterCancel:
-    """Verifica que background tasks sao awaited apos cancel."""
+    """Verifies that background tasks are awaited after cancel."""
 
     @patch("macaw.workers.manager._spawn_worker_process")
     async def test_tasks_removed_from_dict_after_stop(self, mock_spawn: MagicMock) -> None:
@@ -369,7 +391,7 @@ class TestFix5TasksAwaitedAfterCancel:
     async def test_cancel_background_tasks_gathers_with_return_exceptions(
         self, mock_spawn: MagicMock
     ) -> None:
-        """_cancel_background_tasks usa gather com return_exceptions=True."""
+        """_cancel_background_tasks uses gather with return_exceptions=True."""
         mock_spawn.return_value = _make_mock_process()
         manager = WorkerManager()
 
@@ -398,7 +420,7 @@ class TestFix5TasksAwaitedAfterCancel:
 
     @patch("macaw.workers.manager._spawn_worker_process")
     async def test_spawn_uses_extracted_spawn_function(self, mock_spawn: MagicMock) -> None:
-        """spawn_worker usa _spawn_worker_process (DRY)."""
+        """spawn_worker uses _spawn_worker_process (DRY)."""
         mock_spawn.return_value = _make_mock_process()
         manager = WorkerManager()
 
@@ -420,6 +442,7 @@ class TestFix5TasksAwaitedAfterCancel:
                 "/models/test",
                 {"device": "cpu"},
                 worker_type=WorkerType.STT,
+                python_package=None,
             )
 
             await manager.stop_all()

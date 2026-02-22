@@ -39,7 +39,8 @@ from macaw.workers.manager import WorkerManager  # noqa: TC001
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from macaw.proto.tts_worker_pb2 import SynthesizeRequest
+    from macaw.audio_effects.chain import AudioEffectChain
+    from macaw.proto.tts_worker_pb2 import SynthesizeChunk, SynthesizeRequest
 
 router = APIRouter(tags=["Audio"])
 
@@ -83,7 +84,24 @@ async def create_speech(
     if not body.input.strip():
         raise InvalidRequestError("The 'input' field cannot be empty.")
 
-    # response_format validated by Pydantic Literal["wav", "pcm", "opus"]
+    # Alignment forces NDJSON output — reject incompatible response_format
+    # before opening any gRPC stream (fail-fast, avoid resource leaks).
+    if body.include_alignment and body.response_format not in ("wav", "pcm"):
+        raise InvalidRequestError(
+            f"include_alignment=true is not compatible with response_format='{body.response_format}'. "
+            "Use response_format='wav' or 'pcm' with alignment."
+        )
+
+    # response_format validated by Pydantic Literal["wav", "pcm", "opus", "mp3", "mulaw", "alaw"]
+
+    # Pre-flight: check codec availability before opening gRPC stream
+    if body.response_format not in ("wav", "pcm"):
+        from macaw.codec import is_codec_available
+
+        if not is_codec_available(body.response_format):
+            raise InvalidRequestError(
+                f"Codec '{body.response_format}' is not available. Install the required library."
+            )
 
     # Resolve TTS model + worker
     _manifest, worker, worker_address = resolve_tts_resources(registry, worker_manager, body.model)
@@ -145,39 +163,77 @@ async def create_speech(
         ref_audio=ref_audio_bytes,
         ref_text=ref_text,
         instruction=instruction,
+        include_alignment=body.include_alignment,
+        alignment_granularity=body.alignment_granularity,
+        seed=body.seed,
+        text_normalization=body.text_normalization,
+        temperature=body.temperature,
+        top_k=body.top_k,
+        top_p=body.top_p,
     )
 
     # Get pooled TTS channel (reused across requests)
     tts_channels: dict[str, grpc.aio.Channel] = request.app.state.tts_channels
     channel = get_or_create_tts_channel(tts_channels, worker_address)
 
-    # Pre-flight: open gRPC stream and fetch first audio chunk.
+    # Pre-flight: open gRPC stream and fetch first chunk.
     # This validates the connection and request params BEFORE starting
     # the StreamingResponse (so we can still return proper HTTP errors).
-    response_stream, first_audio_chunk = await _open_tts_stream(
+    response_stream, first_chunk = await _open_tts_stream(
         channel=channel,
         proto_request=proto_request,
         worker_id=worker.worker_id,
     )
 
-    # Stream response — TTFB is now time-to-first-gRPC-chunk instead of
-    # total synthesis time.
+    # Build effect chain from request params (None = no effects)
+    effect_chain = None
+    if body.effects is not None:
+        from macaw.audio_effects import create_effect_chain
+
+        effect_chain = create_effect_chain(
+            pitch_shift_semitones=body.effects.pitch_shift_semitones,
+            reverb_room_size=body.effects.reverb_room_size,
+            reverb_damping=body.effects.reverb_damping,
+            reverb_wet_dry_mix=body.effects.reverb_wet_dry_mix,
+            sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+        )
+
+    # Alignment mode: NDJSON response with audio + timing data per chunk.
+    if body.include_alignment:
+        return StreamingResponse(
+            _stream_tts_audio_with_alignment(
+                response_stream=response_stream,
+                first_chunk=first_chunk,
+                sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+                request_id=request_id,
+                effect_chain=effect_chain,
+            ),
+            media_type="application/x-ndjson",
+        )
+
+    # Standard mode: binary audio stream
+    first_audio_chunk = first_chunk.audio_data if first_chunk else b""
     fmt = body.response_format
-    if fmt == "wav":
-        media_type = "audio/wav"
-    elif fmt == "opus":
-        media_type = "audio/opus"
-    else:
-        media_type = "audio/pcm"
+    media_types: dict[str, str] = {
+        "wav": "audio/wav",
+        "pcm": "audio/pcm",
+        "opus": "audio/opus",
+        "mp3": "audio/mpeg",
+        "mulaw": "audio/basic",
+        "alaw": "audio/basic",
+    }
+    media_type = media_types.get(fmt, "audio/pcm")
+    codec_name = fmt if fmt not in ("wav", "pcm") else None
 
     return StreamingResponse(
         _stream_tts_audio(
             response_stream=response_stream,
             first_audio_chunk=first_audio_chunk,
             is_wav=(fmt == "wav"),
-            is_opus=(fmt == "opus"),
+            codec_name=codec_name,
             sample_rate=TTS_DEFAULT_SAMPLE_RATE,
             request_id=request_id,
+            effect_chain=effect_chain,
         ),
         media_type=media_type,
     )
@@ -188,13 +244,15 @@ async def _open_tts_stream(
     channel: grpc.aio.Channel,
     proto_request: SynthesizeRequest,
     worker_id: str,
-) -> tuple[grpc.aio.UnaryStreamCall[Any, Any], bytes]:
-    """Open gRPC stream and fetch first audio chunk (pre-flight validation).
+) -> tuple[grpc.aio.UnaryStreamCall[Any, Any], SynthesizeChunk | None]:
+    """Open gRPC stream and fetch first chunk (pre-flight validation).
 
     Uses a pooled channel (not closed on error — gRPC channels handle
     reconnection automatically).
 
-    Returns the response stream iterator and the first audio bytes.
+    Returns the response stream iterator and the first SynthesizeChunk
+    proto (or None if the stream is empty). The caller extracts
+    .audio_data and optionally .alignment from the first chunk.
 
     Raises domain exceptions on gRPC errors so the HTTP layer can return
     proper status codes before the StreamingResponse starts.
@@ -204,15 +262,15 @@ async def _open_tts_stream(
         response_stream = stub.Synthesize(proto_request, timeout=TTS_GRPC_TIMEOUT)
 
         # Read chunks until we get one with audio_data (pre-flight)
-        first_audio_chunk = b""
+        first_chunk: SynthesizeChunk | None = None
         async for chunk in response_stream:
             if chunk.audio_data:
-                first_audio_chunk = chunk.audio_data
+                first_chunk = chunk
                 break
             if chunk.is_last:
                 break
 
-        return response_stream, first_audio_chunk
+        return response_stream, first_chunk
 
     except grpc.aio.AioRpcError as exc:
         code = exc.code()
@@ -231,15 +289,16 @@ async def _stream_tts_audio(
     response_stream: grpc.aio.UnaryStreamCall[Any, Any],
     first_audio_chunk: bytes,
     is_wav: bool,
-    is_opus: bool = False,
+    codec_name: str | None = None,
     sample_rate: int,
     request_id: str,
+    effect_chain: AudioEffectChain | None = None,
 ) -> AsyncIterator[bytes]:
     """Async generator that yields TTS audio chunks for StreamingResponse.
 
     For WAV format: yields a WAV header (with max data size placeholder)
-    followed by raw PCM chunks. For Opus format: encodes PCM chunks via
-    CodecEncoder. For PCM format: yields raw PCM directly.
+    followed by raw PCM chunks. For encoded formats (opus, mp3, mulaw, alaw):
+    encodes PCM chunks via CodecEncoder. For PCM format: yields raw PCM directly.
 
     The gRPC channel is pooled and NOT closed here — it is reused across
     requests and closed on server shutdown via close_tts_channels().
@@ -248,9 +307,9 @@ async def _stream_tts_audio(
     from macaw.config.settings import get_settings
 
     encoder = None
-    if is_opus:
+    if codec_name is not None:
         bitrate = get_settings().codec.opus_bitrate
-        encoder = create_encoder("opus", sample_rate=sample_rate, bitrate=bitrate)
+        encoder = create_encoder(codec_name, sample_rate=sample_rate, bitrate=bitrate)
 
     total_audio_bytes = 0
     try:
@@ -260,24 +319,30 @@ async def _stream_tts_audio(
 
         # Yield pre-fetched first chunk
         if first_audio_chunk:
-            total_audio_bytes += len(first_audio_chunk)
+            audio_data = first_audio_chunk
+            total_audio_bytes += len(audio_data)
+            if effect_chain is not None:
+                audio_data = effect_chain.process_bytes(audio_data, sample_rate)
             if encoder is not None:
-                encoded = encoder.encode(first_audio_chunk)
+                encoded = encoder.encode(audio_data)
                 if encoded:
                     yield encoded
             else:
-                yield first_audio_chunk
+                yield audio_data
 
         # Stream remaining chunks
         async for chunk in response_stream:
             if chunk.audio_data:
-                total_audio_bytes += len(chunk.audio_data)
+                audio_data = chunk.audio_data
+                total_audio_bytes += len(audio_data)
+                if effect_chain is not None:
+                    audio_data = effect_chain.process_bytes(audio_data, sample_rate)
                 if encoder is not None:
-                    encoded = encoder.encode(chunk.audio_data)
+                    encoded = encoder.encode(audio_data)
                     if encoded:
                         yield encoded
                 else:
-                    yield chunk.audio_data
+                    yield audio_data
             if chunk.is_last:
                 break
 
@@ -305,6 +370,142 @@ async def _stream_tts_audio(
     except Exception:
         logger.exception(
             "tts_stream_unexpected_error",
+            request_id=request_id,
+            audio_bytes_sent=total_audio_bytes,
+        )
+
+
+async def _stream_tts_audio_with_alignment(
+    *,
+    response_stream: grpc.aio.UnaryStreamCall[Any, Any],
+    first_chunk: SynthesizeChunk | None,
+    sample_rate: int,
+    request_id: str,
+    effect_chain: AudioEffectChain | None = None,
+) -> AsyncIterator[bytes]:
+    """Async generator that yields NDJSON lines with audio + alignment.
+
+    Each line is a JSON object encoded as UTF-8 followed by newline.
+    Audio data is base64-encoded. Alignment data (when present) includes
+    per-word/character timing information.
+
+    Format:
+        {"type":"audio","audio":"<base64>","alignment":{...}}
+        {"type":"audio","audio":"<base64>"}
+        {"type":"done","duration":1.5}
+    """
+    from macaw.server.models.alignment import (
+        AlignmentItemResponse,
+        AlignmentStreamDone,
+        AudioChunkWithAlignment,
+        ChunkAlignmentResponse,
+    )
+
+    accumulated_duration = 0.0
+    total_audio_bytes = 0
+    has_alignment_data = False
+
+    try:
+
+        def _chunk_to_ndjson(chunk: SynthesizeChunk) -> bytes | None:
+            """Convert a SynthesizeChunk proto to an NDJSON line (bytes)."""
+            nonlocal accumulated_duration, total_audio_bytes, has_alignment_data
+
+            if not chunk.audio_data:
+                return None
+
+            audio_data = chunk.audio_data
+            total_audio_bytes += len(audio_data)
+
+            # Apply effects if configured
+            if effect_chain is not None:
+                audio_data = effect_chain.process_bytes(audio_data, sample_rate)
+
+            # Estimate duration from PCM
+            chunk_duration = len(chunk.audio_data) / (sample_rate * 2) if sample_rate > 0 else 0.0
+            accumulated_duration += chunk_duration
+
+            # Build alignment response if present
+            alignment_resp = None
+            if chunk.alignment and chunk.alignment.items:
+                has_alignment_data = True
+                raw_gran = chunk.alignment.granularity or "word"
+                gran = raw_gran if raw_gran in ("word", "character") else "word"
+                alignment_resp = ChunkAlignmentResponse(
+                    items=[
+                        AlignmentItemResponse(
+                            text=item.text,
+                            start_ms=item.start_ms,
+                            duration_ms=item.duration_ms,
+                        )
+                        for item in chunk.alignment.items
+                    ],
+                    granularity=gran,  # type: ignore[arg-type]
+                )
+
+            # Build normalized alignment response if present
+            norm_alignment_resp = None
+            if chunk.normalized_alignment and chunk.normalized_alignment.items:
+                raw_ngran = chunk.normalized_alignment.granularity or "word"
+                ngran = raw_ngran if raw_ngran in ("word", "character") else "word"
+                norm_alignment_resp = ChunkAlignmentResponse(
+                    items=[
+                        AlignmentItemResponse(
+                            text=item.text,
+                            start_ms=item.start_ms,
+                            duration_ms=item.duration_ms,
+                        )
+                        for item in chunk.normalized_alignment.items
+                    ],
+                    granularity=ngran,  # type: ignore[arg-type]
+                )
+
+            line = AudioChunkWithAlignment(
+                audio=base64.b64encode(audio_data).decode("ascii"),
+                alignment=alignment_resp,
+                normalized_alignment=norm_alignment_resp,
+            )
+            return line.model_dump_json(exclude_none=True).encode("utf-8") + b"\n"
+
+        # Yield pre-fetched first chunk
+        if first_chunk is not None:
+            ndjson_line = _chunk_to_ndjson(first_chunk)
+            if ndjson_line:
+                yield ndjson_line
+
+        # Stream remaining chunks
+        async for chunk in response_stream:
+            if chunk.audio_data:
+                ndjson_line = _chunk_to_ndjson(chunk)
+                if ndjson_line:
+                    yield ndjson_line
+            if chunk.is_last:
+                break
+
+        # Done marker with alignment availability feedback
+        done_line = AlignmentStreamDone(
+            duration=accumulated_duration,
+            alignment_available=has_alignment_data,
+        )
+        yield done_line.model_dump_json().encode("utf-8") + b"\n"
+
+        logger.info(
+            "speech_alignment_done",
+            request_id=request_id,
+            audio_bytes=total_audio_bytes,
+            duration=accumulated_duration,
+        )
+
+    except grpc.aio.AioRpcError as exc:
+        logger.error(
+            "tts_alignment_stream_error",
+            request_id=request_id,
+            grpc_code=str(exc.code()),
+            audio_bytes_sent=total_audio_bytes,
+        )
+    except Exception:
+        logger.exception(
+            "tts_alignment_stream_unexpected_error",
             request_id=request_id,
             audio_bytes_sent=total_audio_bytes,
         )

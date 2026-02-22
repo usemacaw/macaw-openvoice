@@ -212,3 +212,41 @@ async def delete_voice(
         raise VoiceNotFoundError(voice_id)
 
     logger.info("voice_deleted", voice_id=voice_id)
+
+
+@router.put("/v1/voices/{voice_id}", response_model=SavedVoiceResponse)
+async def update_voice(
+    voice_id: str,
+    name: str | None = Form(default=None),
+    language: str | None = Form(default=None),
+    ref_text: str | None = Form(default=None),
+    instruction: str | None = Form(default=None),
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
+) -> SavedVoiceResponse:
+    """Update a saved voice's metadata fields.
+
+    Only non-None fields are updated. Use multipart/form-data.
+    """
+
+    updated = await voice_store.update(
+        voice_id,
+        name=name,
+        language=language,
+        ref_text=ref_text,
+        instruction=instruction,
+    )
+    if updated is None:
+        raise VoiceNotFoundError(voice_id)
+
+    logger.info("voice_updated", voice_id=voice_id)
+
+    return SavedVoiceResponse(
+        voice_id=updated.voice_id,
+        name=updated.name,
+        voice_type=updated.voice_type,
+        language=updated.language,
+        ref_text=updated.ref_text,
+        instruction=updated.instruction,
+        has_ref_audio=updated.ref_audio_path is not None,
+        created_at=updated.created_at,
+    )

@@ -1,10 +1,10 @@
-"""Testes do StreamingSession.
+"""Tests for StreamingSession.
 
-Valida que o orquestrador de streaming coordena corretamente:
+Validates that the streaming orchestrator correctly coordinates:
 preprocessing -> VAD -> gRPC worker -> post-processing.
 
-Todos os testes usam mocks para dependencias externas.
-Testes sao deterministicos — sem dependencia de timing real.
+All tests use mocks for external dependencies.
+Tests are deterministic -- no dependency on real timing.
 """
 
 from __future__ import annotations
@@ -35,17 +35,17 @@ from tests.helpers import (
 def _make_stream_handle_mock(
     events: list | None = None,
 ) -> Mock:
-    """Cria mock de StreamHandle.
+    """Create StreamHandle mock.
 
     Args:
-        events: Lista de TranscriptSegment ou Exception para o receive_events.
-                Se None, retorna iterator vazio.
+        events: List of TranscriptSegment or Exception for receive_events.
+                If None, returns empty iterator.
     """
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
 
-    # receive_events retorna um async iterable
+    # receive_events returns an async iterable
     if events is None:
         events = []
     handle.receive_events.return_value = AsyncIterFromList(events)
@@ -57,7 +57,7 @@ def _make_stream_handle_mock(
 
 
 def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
-    """Cria mock de StreamingGRPCClient."""
+    """Create StreamingGRPCClient mock."""
     client = AsyncMock()
     if stream_handle is None:
         stream_handle = _make_stream_handle_mock()
@@ -67,14 +67,14 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 
 def _make_postprocessor_mock() -> Mock:
-    """Cria mock de PostProcessingPipeline."""
+    """Create PostProcessingPipeline mock."""
     mock = Mock()
     mock.process.side_effect = lambda text, **kwargs: f"ITN({text})"
     return mock
 
 
 def _make_on_event() -> AsyncMock:
-    """Cria callback on_event mock."""
+    """Create on_event mock callback."""
     return AsyncMock()
 
 
@@ -89,7 +89,7 @@ def _make_session(
     enable_itn: bool = True,
     session_id: str = "test_session",
 ) -> tuple[StreamingSession, Mock, Mock, AsyncMock, Mock, AsyncMock]:
-    """Cria StreamingSession com mocks configurados.
+    """Create StreamingSession with configured mocks.
 
     Returns:
         (session, preprocessor, vad, grpc_client, postprocessor, on_event)
@@ -120,21 +120,21 @@ def _make_session(
 
 
 async def test_speech_start_emits_vad_event():
-    """VAD speech_start emite vad.speech_start via callback."""
+    """VAD speech_start emits vad.speech_start via callback."""
     # Arrange
     vad = make_vad_mock()
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1500,
     )
-    vad.is_speaking = False  # Antes do speech_start, nao esta falando
+    vad.is_speaking = False  # Before speech_start, not speaking
 
     session, _, _, _, _, on_event = _make_session(vad=vad)
 
     # Act
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para receiver task iniciar
+    # Give time for receiver task to start
     await asyncio.sleep(0.01)
 
     # Assert
@@ -147,7 +147,7 @@ async def test_speech_start_emits_vad_event():
 
 
 async def test_speech_end_emits_vad_event():
-    """VAD speech_end emite vad.speech_end via callback."""
+    """VAD speech_end emits vad.speech_end via callback."""
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
@@ -163,7 +163,7 @@ async def test_speech_end_emits_vad_event():
         on_event=on_event,
     )
 
-    # Simular speech_start
+    # Simulate speech_start
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -172,7 +172,7 @@ async def test_speech_end_emits_vad_event():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
-    # Simular speech_end
+    # Simulate speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_END,
         timestamp_ms=2000,
@@ -187,7 +187,7 @@ async def test_speech_end_emits_vad_event():
 
 
 async def test_final_transcript_applies_postprocessing():
-    """ITN e aplicado apenas em transcript.final."""
+    """ITN is applied only to transcript.final."""
     # Arrange
     final_segment = TranscriptSegment(
         text="dois mil e vinte e cinco",
@@ -215,7 +215,7 @@ async def test_final_transcript_applies_postprocessing():
         enable_itn=True,
     )
 
-    # Trigger speech_start -> abre stream e inicia receiver
+    # Trigger speech_start -> opens stream and starts receiver
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -223,7 +223,7 @@ async def test_final_transcript_applies_postprocessing():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para o receiver task processar o evento
+    # Give time for receiver task to process the event
     await asyncio.sleep(0.05)
 
     # Trigger speech_end para flush
@@ -234,10 +234,10 @@ async def test_final_transcript_applies_postprocessing():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Assert: ITN foi aplicado ao texto final
+    # Assert: ITN was applied to the final text
     postprocessor.process.assert_called_once_with("dois mil e vinte e cinco", language="pt")
 
-    # Verificar que o evento final tem texto pos-processado
+    # Verify that the final event has post-processed text
     final_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], TranscriptFinalEvent)
     ]
@@ -246,7 +246,7 @@ async def test_final_transcript_applies_postprocessing():
 
 
 async def test_partial_transcript_no_postprocessing():
-    """Partial transcripts NAO sao processados por ITN."""
+    """Partial transcripts are NOT processed by ITN."""
     # Arrange
     partial_segment = TranscriptSegment(
         text="ola como",
@@ -278,13 +278,13 @@ async def test_partial_transcript_no_postprocessing():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para receiver task
+    # Give time for receiver task
     await asyncio.sleep(0.05)
 
-    # Assert: ITN NAO foi chamado
+    # Assert: ITN was NOT called
     postprocessor.process.assert_not_called()
 
-    # Verificar que o partial foi emitido com texto original
+    # Verify that the partial was emitted with original text
     partial_calls = [
         call
         for call in on_event.call_args_list
@@ -298,7 +298,7 @@ async def test_partial_transcript_no_postprocessing():
 
 
 async def test_segment_id_increments():
-    """Cada segmento de fala recebe segment_id incremental."""
+    """Each speech segment receives incremental segment_id."""
     # Arrange
     stream_handle1 = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle1)
@@ -316,7 +316,7 @@ async def test_segment_id_increments():
 
     assert session.segment_id == 0
 
-    # Primeiro segmento: speech_start -> speech_end
+    # First segment: speech_start -> speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -325,7 +325,7 @@ async def test_segment_id_increments():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
-    # Novo stream_handle para proximo open_stream
+    # New stream_handle for next open_stream
     stream_handle2 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle2)
 
@@ -338,7 +338,7 @@ async def test_segment_id_increments():
 
     assert session.segment_id == 1
 
-    # Segundo segmento: speech_start -> speech_end
+    # Second segment: speech_start -> speech_end
     stream_handle3 = _make_stream_handle_mock()
     grpc_client.open_stream = AsyncMock(return_value=stream_handle3)
 
@@ -361,7 +361,7 @@ async def test_segment_id_increments():
 
 
 async def test_close_cleans_up_resources():
-    """close() fecha gRPC stream e marca sessao como CLOSED."""
+    """close() closes gRPC stream and marks session as CLOSED."""
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
@@ -376,7 +376,7 @@ async def test_close_cleans_up_resources():
         on_event=_make_on_event(),
     )
 
-    # Abrir stream (trigger speech_start)
+    # Open stream (trigger speech_start)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -395,28 +395,28 @@ async def test_close_cleans_up_resources():
 
 
 async def test_process_frame_during_closed_is_noop():
-    """Frames recebidos apos close sao ignorados."""
+    """Frames received after close are ignored."""
     # Arrange
     preprocessor = make_preprocessor_mock()
 
     session, _, _, _, _, _ = _make_session(preprocessor=preprocessor)
 
-    # Fechar sessao
+    # Close session
     await session.close()
     assert session.is_closed
 
-    # Resetar contadores do mock
+    # Reset mock counters
     preprocessor.process_frame.reset_mock()
 
-    # Act: tentar processar frame
+    # Act: try to process frame
     await session.process_frame(make_raw_bytes())
 
-    # Assert: preprocessor NAO foi chamado
+    # Assert: preprocessor was NOT called
     preprocessor.process_frame.assert_not_called()
 
 
 async def test_full_speech_cycle():
-    """Ciclo completo: speech_start -> partials -> final -> speech_end em ordem."""
+    """Full cycle: speech_start -> partials -> final -> speech_end in order."""
     # Arrange
     partial_seg = TranscriptSegment(
         text="ola",
@@ -458,7 +458,7 @@ async def test_full_speech_cycle():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para receiver task processar ambos eventos
+    # Give time for receiver task to process both events
     await asyncio.sleep(0.05)
 
     # 2. Speech end
@@ -469,7 +469,7 @@ async def test_full_speech_cycle():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Assert: eventos na ordem correta
+    # Assert: events in correct order
     event_types = [type(call.args[0]).__name__ for call in on_event.call_args_list]
 
     assert "VADSpeechStartEvent" in event_types
@@ -477,7 +477,7 @@ async def test_full_speech_cycle():
     assert "TranscriptFinalEvent" in event_types
     assert "VADSpeechEndEvent" in event_types
 
-    # Verificar ordem: speech_start < partial < final < speech_end
+    # Verify order: speech_start < partial < final < speech_end
     start_idx = event_types.index("VADSpeechStartEvent")
     partial_idx = event_types.index("TranscriptPartialEvent")
     final_idx = event_types.index("TranscriptFinalEvent")
@@ -487,7 +487,7 @@ async def test_full_speech_cycle():
 
 
 async def test_hot_words_sent_only_on_first_frame():
-    """Hot words sao enviados ao worker apenas no primeiro frame do segmento."""
+    """Hot words are sent to worker only on the first frame of the segment."""
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
@@ -509,21 +509,21 @@ async def test_hot_words_sent_only_on_first_frame():
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
     )
-    vad.is_speaking = True  # Apos speech_start, is_speaking = True
+    vad.is_speaking = True  # After speech_start, is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    # Enviar mais frames durante fala
-    vad.process_frame.return_value = None  # Sem transicao
+    # Send more frames during speech
+    vad.process_frame.return_value = None  # No transition
     await session.process_frame(make_raw_bytes())
     await session.process_frame(make_raw_bytes())
 
-    # Assert: hot_words enviados no primeiro frame, None nos seguintes
+    # Assert: hot_words sent on first frame, None on subsequent ones
     calls = stream_handle.send_frame.call_args_list
 
-    # Primeiro send_frame: deve ter hot_words
+    # First send_frame: should have hot_words
     assert calls[0].kwargs.get("hot_words") == ["PIX", "TED", "Selic"]
 
-    # Segundo e terceiro: sem hot_words
+    # Second and third: no hot_words
     assert calls[1].kwargs.get("hot_words") is None
     assert calls[2].kwargs.get("hot_words") is None
 
@@ -532,7 +532,7 @@ async def test_hot_words_sent_only_on_first_frame():
 
 
 async def test_close_is_idempotent():
-    """Chamar close() multiplas vezes nao causa erro."""
+    """Calling close() multiple times does not cause error."""
     # Arrange
     session, _, _, _, _, _ = _make_session()
 
@@ -546,7 +546,7 @@ async def test_close_is_idempotent():
 
 
 async def test_no_postprocessor_skips_itn():
-    """Se postprocessor e None, transcript.final e emitido sem ITN."""
+    """If postprocessor is None, transcript.final is emitted without ITN."""
     # Arrange
     final_segment = TranscriptSegment(
         text="texto cru",
@@ -589,7 +589,7 @@ async def test_no_postprocessor_skips_itn():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Assert: texto sem ITN
+    # Assert: text without ITN
     final_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], TranscriptFinalEvent)
     ]
@@ -598,7 +598,7 @@ async def test_no_postprocessor_skips_itn():
 
 
 async def test_itn_disabled_skips_postprocessing():
-    """Se enable_itn=False, transcript.final e emitido sem ITN."""
+    """If enable_itn=False, transcript.final is emitted without ITN."""
     # Arrange
     final_segment = TranscriptSegment(
         text="texto cru",
@@ -642,10 +642,10 @@ async def test_itn_disabled_skips_postprocessing():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Assert: postprocessor NAO foi chamado
+    # Assert: postprocessor was NOT called
     postprocessor.process.assert_not_called()
 
-    # Texto original emitido
+    # Original text emitted
     final_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], TranscriptFinalEvent)
     ]
@@ -654,7 +654,7 @@ async def test_itn_disabled_skips_postprocessing():
 
 
 async def test_worker_crash_emits_error_event():
-    """Worker crash durante streaming emite erro recuperavel."""
+    """Worker crash during streaming emits recoverable error."""
     # Arrange
     stream_handle = _make_stream_handle_mock(
         events=[WorkerCrashError("worker_1")],
@@ -673,7 +673,7 @@ async def test_worker_crash_emits_error_event():
         on_event=on_event,
     )
 
-    # Trigger speech_start (inicia receiver task que vai crashar)
+    # Trigger speech_start (starts receiver task that will crash)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -683,7 +683,7 @@ async def test_worker_crash_emits_error_event():
 
     await asyncio.sleep(0.05)
 
-    # Assert: evento de erro emitido
+    # Assert: error event emitted
     error_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], StreamingErrorEvent)
     ]
@@ -697,8 +697,8 @@ async def test_worker_crash_emits_error_event():
 
 
 async def test_inactivity_check():
-    """check_inactivity() retorna True apos timeout de INIT (30s default)."""
-    # Arrange: usar clock controlavel na state machine
+    """check_inactivity() returns True after INIT timeout (30s default)."""
+    # Arrange: use controllable clock in state machine
     current_time = [0.0]
 
     def fake_clock() -> float:
@@ -706,26 +706,26 @@ async def test_inactivity_check():
 
     sm = SessionStateMachine(clock=fake_clock)
     session, _, _, _, _, _ = _make_session()
-    # Injetar state machine com clock controlavel
+    # Inject state machine with controllable clock
     session._state_machine = sm
 
-    # Recentemente criado: nao expirou
+    # Recently created: not expired
     assert not session.check_inactivity()
 
-    # Simular 31s sem audio (INIT timeout = 30s -> CLOSED)
+    # Simulate 31s without audio (INIT timeout = 30s -> CLOSED)
     current_time[0] = 31.0
     assert session.check_inactivity()
 
 
 async def test_inactivity_reset_on_frame():
-    """process_frame() reseta o timer de inatividade via state machine transition.
+    """process_frame() resets the inactivity timer via state machine transition.
 
-    Quando um frame com speech_start e processado, a state machine transita
-    de INIT para ACTIVE (que nao tem timeout), impedindo que check_inactivity()
-    retorne True. Frames em INIT (sem fala) nao resetam o timer da state machine,
-    mas o estado INIT tem timeout de 30s para CLOSED.
+    When a frame with speech_start is processed, the state machine transitions
+    from INIT to ACTIVE (which has no timeout), preventing check_inactivity()
+    from returning True. Frames in INIT (without speech) do not reset the state
+    machine timer, but INIT state has a 30s timeout to CLOSED.
     """
-    # Arrange: usar clock controlavel na state machine
+    # Arrange: use controllable clock in state machine
     current_time = [0.0]
 
     def fake_clock() -> float:
@@ -735,11 +735,11 @@ async def test_inactivity_reset_on_frame():
     session, _, vad, _, _, _ = _make_session()
     session._state_machine = sm
 
-    # Verificar que em INIT com 25s passados, nao expirou
+    # Verify that in INIT with 25s elapsed, not expired
     current_time[0] = 25.0
     assert not session.check_inactivity()
 
-    # Simular speech_start -> transita para ACTIVE (sem timeout)
+    # Simulate speech_start -> transitions to ACTIVE (no timeout)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -749,7 +749,7 @@ async def test_inactivity_reset_on_frame():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.01)
 
-    # ACTIVE nao tem timeout, logo check_inactivity retorna False
+    # ACTIVE has no timeout, so check_inactivity returns False
     current_time[0] = 200.0
     assert not session.check_inactivity()
 
@@ -758,7 +758,7 @@ async def test_inactivity_reset_on_frame():
 
 
 async def test_word_timestamps_in_final():
-    """Final transcript com word timestamps e corretamente convertido."""
+    """Final transcript with word timestamps is correctly converted."""
     # Arrange
     final_segment = TranscriptSegment(
         text="ola mundo",
@@ -786,7 +786,7 @@ async def test_word_timestamps_in_final():
         grpc_client=grpc_client,
         postprocessor=_make_postprocessor_mock(),
         on_event=on_event,
-        enable_itn=False,  # Sem ITN para simplificar
+        enable_itn=False,  # No ITN to simplify
     )
 
     # Trigger speech_start + speech_end
@@ -819,7 +819,7 @@ async def test_word_timestamps_in_final():
 
 
 async def test_grpc_open_stream_failure_emits_error():
-    """Falha ao abrir gRPC stream emite erro recuperavel."""
+    """Failure to open gRPC stream emits recoverable error."""
     # Arrange
     grpc_client = AsyncMock()
     grpc_client.open_stream = AsyncMock(side_effect=WorkerCrashError("worker_1"))
@@ -836,7 +836,7 @@ async def test_grpc_open_stream_failure_emits_error():
         on_event=on_event,
     )
 
-    # Trigger speech_start -> open_stream vai falhar
+    # Trigger speech_start -> open_stream will fail
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -844,7 +844,7 @@ async def test_grpc_open_stream_failure_emits_error():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Assert: erro emitido
+    # Assert: error emitted
     error_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], StreamingErrorEvent)
     ]
@@ -857,7 +857,7 @@ async def test_grpc_open_stream_failure_emits_error():
 
 
 async def test_frames_sent_during_speech():
-    """Frames de audio sao enviados ao worker durante fala."""
+    """Audio frames are sent to worker during speech."""
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
@@ -880,7 +880,7 @@ async def test_frames_sent_during_speech():
     vad.is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    # Mais frames durante fala
+    # More frames during speech
     vad.process_frame.return_value = None
     await session.process_frame(make_raw_bytes())
     await session.process_frame(make_raw_bytes())
@@ -893,7 +893,7 @@ async def test_frames_sent_during_speech():
 
 
 async def test_no_frames_sent_during_silence():
-    """Frames NAO sao enviados ao worker quando nao ha fala."""
+    """Frames are NOT sent to worker when there is no speech."""
     # Arrange
     stream_handle = _make_stream_handle_mock()
     grpc_client = _make_grpc_client_mock(stream_handle)
@@ -908,23 +908,23 @@ async def test_no_frames_sent_during_silence():
         on_event=_make_on_event(),
     )
 
-    # Processar frames em silencio
+    # Process frames in silence
     vad.process_frame.return_value = None
     await session.process_frame(make_raw_bytes())
     await session.process_frame(make_raw_bytes())
 
-    # Assert: nenhum frame enviado
+    # Assert: no frames sent
     stream_handle.send_frame.assert_not_called()
 
 
 class TestEventOrdering:
-    """Testes de ordenacao de eventos: transcript.final ANTES de vad.speech_end."""
+    """Tests for event ordering: transcript.final BEFORE vad.speech_end."""
 
     async def test_transcript_final_emitted_before_speech_end(self) -> None:
-        """transcript.final do worker e emitido ANTES de vad.speech_end.
+        """transcript.final from worker is emitted BEFORE vad.speech_end.
 
-        Garante que a semantica do protocolo WebSocket e respeitada:
-        o ultimo transcript.final de um segmento vem antes do vad.speech_end.
+        Ensures that the WebSocket protocol semantics are respected:
+        the last transcript.final of a segment comes before vad.speech_end.
         """
         # Arrange: worker retorna um final transcript
         final_segment = TranscriptSegment(
@@ -955,22 +955,22 @@ class TestEventOrdering:
             enable_itn=False,
         )
 
-        # Act: simular SPEECH_START -> frames -> SPEECH_END
+        # Act: simulate SPEECH_START -> frames -> SPEECH_END
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
         )
         await session.process_frame(make_raw_bytes())
 
-        # Enviar frames durante fala
+        # Send frames during speech
         vad.process_frame.return_value = None
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Aguardar receiver task processar o final (dar tempo ao event loop)
+        # Wait for receiver task to process the final (give time to event loop)
         await asyncio.sleep(0.05)
 
-        # Emitir SPEECH_END
+        # Emit SPEECH_END
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_END,
             timestamp_ms=2000,
@@ -978,10 +978,10 @@ class TestEventOrdering:
         vad.is_speaking = False
         await session.process_frame(make_raw_bytes())
 
-        # Assert: verificar ordenacao
+        # Assert: verify ordering
         event_types = [type(e).__name__ for e in events_emitted]
 
-        # Deve ter: speech_start, final, speech_end (nessa ordem)
+        # Must have: speech_start, final, speech_end (in that order)
         assert "VADSpeechStartEvent" in event_types
         assert "TranscriptFinalEvent" in event_types
         assert "VADSpeechEndEvent" in event_types
@@ -989,8 +989,8 @@ class TestEventOrdering:
         final_idx = event_types.index("TranscriptFinalEvent")
         end_idx = event_types.index("VADSpeechEndEvent")
         assert final_idx < end_idx, (
-            f"transcript.final (idx={final_idx}) deve vir antes de "
-            f"vad.speech_end (idx={end_idx}). Ordem: {event_types}"
+            f"transcript.final (idx={final_idx}) must come before "
+            f"vad.speech_end (idx={end_idx}). Order: {event_types}"
         )
 
         await session.close()

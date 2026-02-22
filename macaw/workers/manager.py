@@ -61,6 +61,7 @@ class WorkerHandle:
     model_path: str = ""
     engine_config: dict[str, object] = field(default_factory=dict)
     worker_type: WorkerType = WorkerType.STT
+    python_package: str | None = None
 
 
 class WorkerManager:
@@ -85,6 +86,8 @@ class WorkerManager:
         model_path: str,
         engine_config: dict[str, object],
         worker_type: WorkerType | str = WorkerType.STT,
+        *,
+        python_package: str | None = None,
     ) -> WorkerHandle:
         """Start a new worker as a subprocess.
 
@@ -95,6 +98,7 @@ class WorkerManager:
             model_path: Path to model files.
             engine_config: Engine configuration.
             worker_type: Worker type (WorkerType enum or "stt"/"tts" string).
+            python_package: Dotted module path for external engines (optional).
 
         Returns:
             WorkerHandle with worker information.
@@ -113,7 +117,12 @@ class WorkerManager:
         )
 
         process = _spawn_worker_process(
-            port, engine, model_path, engine_config, worker_type=worker_type
+            port,
+            engine,
+            model_path,
+            engine_config,
+            worker_type=worker_type,
+            python_package=python_package,
         )
 
         handle = WorkerHandle(
@@ -126,6 +135,7 @@ class WorkerManager:
             model_path=model_path,
             engine_config=engine_config,
             worker_type=worker_type,
+            python_package=python_package,
         )
 
         self._workers[worker_id] = handle
@@ -332,6 +342,7 @@ class WorkerManager:
             handle.model_path,
             handle.engine_config,
             worker_type=handle.worker_type,
+            python_package=handle.python_package,
         )
 
         handle.process = process
@@ -353,6 +364,8 @@ def _build_worker_cmd(
     model_path: str,
     engine_config: dict[str, object],
     worker_type: WorkerType = WorkerType.STT,
+    *,
+    python_package: str | None = None,
 ) -> list[str]:
     """Build CLI command to start a worker as a subprocess.
 
@@ -362,6 +375,7 @@ def _build_worker_cmd(
         model_path: Path to model files.
         engine_config: Engine configuration.
         worker_type: Worker type (WorkerType enum).
+        python_package: Dotted module path for external engines (optional).
 
     Returns:
         List of arguments for subprocess.Popen.
@@ -383,6 +397,9 @@ def _build_worker_cmd(
         json.dumps(engine_config),
     ]
 
+    if python_package:
+        cmd.extend(["--python-package", python_package])
+
     return cmd
 
 
@@ -392,6 +409,8 @@ def _spawn_worker_process(
     model_path: str,
     engine_config: dict[str, object],
     worker_type: WorkerType = WorkerType.STT,
+    *,
+    python_package: str | None = None,
 ) -> subprocess.Popen[bytes]:
     """Create worker subprocess.
 
@@ -401,11 +420,19 @@ def _spawn_worker_process(
         model_path: Path to model files.
         engine_config: Engine configuration.
         worker_type: Worker type (WorkerType enum).
+        python_package: Dotted module path for external engines (optional).
 
     Returns:
         Popen handle for the created process.
     """
-    cmd = _build_worker_cmd(port, engine, model_path, engine_config, worker_type=worker_type)
+    cmd = _build_worker_cmd(
+        port,
+        engine,
+        model_path,
+        engine_config,
+        worker_type=worker_type,
+        python_package=python_package,
+    )
     # Flat layout: macaw/workers/manager.py → parents[2] = repo root
     # (macaw/ is directly under the repo root, not under src/)
     repo_root = Path(__file__).resolve().parents[2]
