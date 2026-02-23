@@ -1,8 +1,8 @@
 """Hatch build hook — generates protobuf stubs before packaging.
 
 This ensures the wheel on PyPI contains the compiled *_pb2.py files
-even though they are gitignored. Users install via pip and everything
-works without needing grpcio-tools at runtime.
+(which are also kept in git for reproducible installs). Users install
+via pip without needing grpcio-tools at runtime.
 """
 
 from __future__ import annotations
@@ -49,6 +49,10 @@ class ProtobufBuildHook(BuildHookInterface):
             content = content.replace(
                 "import tts_worker_pb2 as tts__worker__pb2",
                 "from . import tts_worker_pb2 as tts__worker__pb2",
+            )
+            content = content.replace(
+                "import vc_worker_pb2 as vc__worker__pb2",
+                "from . import vc_worker_pb2 as vc__worker__pb2",
             )
             grpc_file.write_text(content)
 
