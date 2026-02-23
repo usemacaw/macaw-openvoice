@@ -450,6 +450,16 @@ class EffectsSettings(BaseSettings):
     )
 
 
+class WebhookSettings(BaseSettings):
+    """Webhook delivery settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_retries: int = Field(default=3, ge=0, le=10, validation_alias="MACAW_WEBHOOK_MAX_RETRIES")
+    retry_delay_s: float = Field(default=1.0, gt=0, validation_alias="MACAW_WEBHOOK_RETRY_DELAY_S")
+    allowed_schemes: str = Field(default="https", validation_alias="MACAW_WEBHOOK_ALLOWED_SCHEMES")
+
+
 class MacawSettings(BaseSettings):
     """Root settings — aggregates all subsystem settings.
 
@@ -475,6 +485,7 @@ class MacawSettings(BaseSettings):
     postprocessing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
     codec: CodecSettings = Field(default_factory=CodecSettings)
     effects: EffectsSettings = Field(default_factory=EffectsSettings)
+    webhook: WebhookSettings = Field(default_factory=WebhookSettings)
 
 
 @lru_cache(maxsize=1)

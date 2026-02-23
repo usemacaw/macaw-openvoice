@@ -74,6 +74,7 @@ def proto_request_to_synthesize_params(
         or request.temperature != 0
         or request.top_k != 0
         or request.top_p != 0
+        or (isinstance(request.voice_settings_json, str) and request.voice_settings_json != "")
     )
     if has_extended:
         options = {}
@@ -95,6 +96,10 @@ def proto_request_to_synthesize_params(
             options["top_k"] = request.top_k
         if request.top_p != 0:
             options["top_p"] = request.top_p
+        if isinstance(request.voice_settings_json, str) and request.voice_settings_json:
+            import json
+
+            options["voice_settings"] = json.loads(request.voice_settings_json)
 
     include_alignment: bool = request.include_alignment
     raw_granularity = request.alignment_granularity or "word"

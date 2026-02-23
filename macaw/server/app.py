@@ -74,6 +74,11 @@ def create_app(
 
             await close_tts_channels(tts_channels)
 
+        # Shutdown: cancel pending async jobs
+        job_manager = getattr(app.state, "async_job_manager", None)
+        if job_manager:
+            await job_manager.shutdown()
+
     app = FastAPI(
         title="Macaw OpenVoice",
         version=macaw.__version__,
@@ -88,6 +93,10 @@ def create_app(
     app.state.worker_manager = worker_manager
     app.state.voice_store = voice_store
     app.state.tts_channels = {}
+
+    from macaw.scheduler.async_jobs import AsyncJobManager
+
+    app.state.async_job_manager = AsyncJobManager()
 
     if cors_origins:
         from fastapi.middleware.cors import CORSMiddleware

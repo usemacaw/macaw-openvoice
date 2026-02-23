@@ -66,6 +66,17 @@ def _to_verbose_json(result: BatchResult, task: str) -> dict[str, Any]:
             {"word": w.word, "start": w.start, "end": w.end} for w in result.words
         ]
 
+    if result.speaker_segments is not None:
+        response["speaker_segments"] = [
+            {
+                "speaker_id": s.speaker_id,
+                "start": s.start,
+                "end": s.end,
+                "text": s.text,
+            }
+            for s in result.speaker_segments
+        ]
+
     return response
 
 

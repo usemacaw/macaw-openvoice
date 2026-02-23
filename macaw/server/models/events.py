@@ -315,6 +315,8 @@ class TTSSpeakCommand(BaseModel):
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     top_k: int | None = Field(default=None, ge=0)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Voice settings (ElevenLabs-compatible, sent as plain dict from WS JSON)
+    voice_settings: dict[str, object] | None = None
 
 
 class TTSCancelCommand(BaseModel):

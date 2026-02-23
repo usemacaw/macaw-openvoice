@@ -103,6 +103,13 @@ async def serve(
     await _warmup_backend(backend, warmup_steps=warmup_steps)
 
     from macaw.config.settings import get_settings
+    from macaw.workers.stt.diarization import create_diarizer
+
+    diarizer = create_diarizer()
+    if diarizer is not None:
+        logger.info("diarizer_available", backend="pyannote")
+    else:
+        logger.info("diarizer_not_available", reason="pyannote.audio not installed")
 
     model_name = str(engine_config.get("model_size", "unknown"))
     worker_settings = get_settings().worker
@@ -112,6 +119,7 @@ async def serve(
         engine=engine,
         max_concurrent=worker_settings.stt_max_concurrent,
         max_cancelled_requests=worker_settings.stt_max_cancelled_requests,
+        diarizer=diarizer,
     )
 
     server = grpc.aio.server(options=GRPC_WORKER_SERVER_OPTIONS)

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from macaw.server.constants import TTS_MAX_TEXT_LENGTH
 from macaw.server.models.effects import AudioEffectsParams
+from macaw.server.models.voice_settings import VoiceSettings
 
 
 class SpeechRequest(BaseModel):
@@ -97,4 +98,10 @@ class SpeechRequest(BaseModel):
         ge=0.0,
         le=1.0,
         description="Nucleus sampling threshold for LLM-based TTS (0 = engine default).",
+    )
+    # Voice settings (ElevenLabs-compatible abstract voice characteristics)
+    voice_settings: VoiceSettings | None = Field(
+        default=None,
+        description="Abstract voice characteristics (stability, similarity_boost, style, speed). "
+        "Mapped to engine-specific parameters by the TTS backend.",
     )

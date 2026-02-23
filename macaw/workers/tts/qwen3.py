@@ -92,7 +92,30 @@ class Qwen3TTSBackend(TTSBackend):
             supports_top_p=True,
             supports_text_normalization=True,
             supports_speed=True,
+            supports_voice_settings=True,
         )
+
+    def map_voice_settings(self, settings: dict[str, object]) -> dict[str, object]:
+        """Map voice_settings to Qwen3-TTS-specific parameters.
+
+        Stability is inverted to temperature: low stability means high
+        variation (high temperature), high stability means consistent
+        output (low temperature).
+
+        Speed is forwarded directly.
+        """
+        result: dict[str, object] = {}
+
+        stability = settings.get("stability")
+        if stability is not None:
+            # Inversion: stability 0.0 -> temperature 1.0, stability 1.0 -> temperature 0.0
+            result["temperature"] = 1.0 - float(str(stability))
+
+        speed = settings.get("speed")
+        if speed is not None:
+            result["speed"] = float(str(speed))
+
+        return result
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if _Qwen3TTSModel is None:

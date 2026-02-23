@@ -7,7 +7,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class SynthesizeRequest(_message.Message):
-    __slots__ = ("request_id", "text", "voice", "sample_rate", "speed", "language", "ref_audio", "ref_text", "instruction", "codec", "include_alignment", "alignment_granularity", "seed", "text_normalization", "temperature", "top_k", "top_p")
+    __slots__ = ("request_id", "text", "voice", "sample_rate", "speed", "language", "ref_audio", "ref_text", "instruction", "codec", "include_alignment", "alignment_granularity", "seed", "text_normalization", "temperature", "top_k", "top_p", "voice_settings_json")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     VOICE_FIELD_NUMBER: _ClassVar[int]
@@ -25,6 +25,7 @@ class SynthesizeRequest(_message.Message):
     TEMPERATURE_FIELD_NUMBER: _ClassVar[int]
     TOP_K_FIELD_NUMBER: _ClassVar[int]
     TOP_P_FIELD_NUMBER: _ClassVar[int]
+    VOICE_SETTINGS_JSON_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     text: str
     voice: str
@@ -42,7 +43,8 @@ class SynthesizeRequest(_message.Message):
     temperature: float
     top_k: int
     top_p: float
-    def __init__(self, request_id: _Optional[str] = ..., text: _Optional[str] = ..., voice: _Optional[str] = ..., sample_rate: _Optional[int] = ..., speed: _Optional[float] = ..., language: _Optional[str] = ..., ref_audio: _Optional[bytes] = ..., ref_text: _Optional[str] = ..., instruction: _Optional[str] = ..., codec: _Optional[str] = ..., include_alignment: bool = ..., alignment_granularity: _Optional[str] = ..., seed: _Optional[int] = ..., text_normalization: _Optional[str] = ..., temperature: _Optional[float] = ..., top_k: _Optional[int] = ..., top_p: _Optional[float] = ...) -> None: ...
+    voice_settings_json: str
+    def __init__(self, request_id: _Optional[str] = ..., text: _Optional[str] = ..., voice: _Optional[str] = ..., sample_rate: _Optional[int] = ..., speed: _Optional[float] = ..., language: _Optional[str] = ..., ref_audio: _Optional[bytes] = ..., ref_text: _Optional[str] = ..., instruction: _Optional[str] = ..., codec: _Optional[str] = ..., include_alignment: bool = ..., alignment_granularity: _Optional[str] = ..., seed: _Optional[int] = ..., text_normalization: _Optional[str] = ..., temperature: _Optional[float] = ..., top_k: _Optional[int] = ..., top_p: _Optional[float] = ..., voice_settings_json: _Optional[str] = ...) -> None: ...
 
 class AlignmentItem(_message.Message):
     __slots__ = ("text", "start_ms", "duration_ms")

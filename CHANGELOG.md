@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `DiarizationBackend` ABC and `PyAnnoteDiarizer` backend for speaker diarization via pyannote.audio (optional dependency, graceful degradation) (#sprint-E)
+- Diarization wiring in STT servicer: `TranscribeFile` runs post-transcription diarization when `diarize=True` (#sprint-E)
+- `SpeakerSegmentResponse` model and `speaker_segments` field on `VerboseTranscriptionResponse` (#sprint-E)
+- `verbose_json` response format now includes `speaker_segments` when diarization results are present (#sprint-E)
+- `WebhookDelivery` module with HMAC-SHA256 signing (`X-Macaw-Signature` header), exponential backoff retry, and fire-and-forget semantics for async transcription results (#sprint-F)
+- `WebhookConfig` Pydantic model for webhook URL, HMAC secret (min 16 chars), max retries, and retry delay (#sprint-F)
+- `AsyncJobManager` for bounded in-memory async job tracking (max 1000 jobs, FIFO eviction of completed/failed) with graceful shutdown (#sprint-F)
+- `webhook_url`, `webhook_secret`, `webhook_metadata` Form params on `POST /v1/audio/transcriptions` — when webhook_url is present, returns HTTP 202 and delivers result asynchronously (#sprint-F)
+- `WebhookAcceptedResponse` Pydantic model for 202 Accepted responses (request_id, job_id, status, message) (#sprint-F)
+- `WebhookSettings` configuration group: `MACAW_WEBHOOK_MAX_RETRIES`, `MACAW_WEBHOOK_RETRY_DELAY_S`, `MACAW_WEBHOOK_ALLOWED_SCHEMES` env vars (#sprint-F)
+- `VoiceSettings` Pydantic model matching ElevenLabs voice_settings schema (stability, similarity_boost, style, use_speaker_boost, speed) for engine-agnostic voice characteristics (#sprint-D)
+- `map_voice_settings()` non-abstract method on `TTSBackend` ABC for engine-specific parameter mapping (default: returns empty dict) (#sprint-D)
+- `supports_voice_settings` flag on `TTSEngineCapabilities` for runtime capability detection (#sprint-D)
+- Engine-specific voice_settings mapping: Kokoro (speed only, deterministic engine ignores stability/style), Qwen3-TTS (stability -> temperature inversion, speed), Chatterbox (speed only) (#sprint-D)
+- `voice_settings` field on `SpeechRequest` (REST) and `TTSSpeakCommand` (WebSocket) for client-provided voice characteristics (#sprint-D)
+- `voice_settings_json` proto field (field 18) on `SynthesizeRequest` for gRPC transport of voice settings (#sprint-D)
+- Servicer `_apply_voice_settings()` extracts voice_settings from options, calls backend mapping, and merges engine-specific params (speed, temperature) into synthesis call (#sprint-D)
 - `hot_words_mode` field on `EngineCapabilities`: differentiates none/prompt_injection/beam_bias/native (#sprint-C)
 - STT proto: diarization fields (diarize, max_speakers, SpeakerSegment, speaker_id) -- backward compatible (#sprint-C)
 - `SpeakerSegment` dataclass for diarization results (#sprint-C)

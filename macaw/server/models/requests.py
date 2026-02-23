@@ -28,3 +28,6 @@ class TranscribeRequest:
     task: str = "transcribe"
     diarize: bool = False
     max_speakers: int | None = None
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
+    webhook_metadata: dict[str, object] | None = None

@@ -30,6 +30,7 @@ def build_tts_proto_request(
     temperature: float | None = None,
     top_k: int | None = None,
     top_p: float | None = None,
+    voice_settings: dict[str, object] | None = None,
 ) -> SynthesizeRequest:
     """Build SynthesizeRequest proto from REST API parameters."""
     req = SynthesizeRequest(
@@ -65,4 +66,8 @@ def build_tts_proto_request(
         req.top_k = top_k
     if top_p is not None and top_p > 0:
         req.top_p = top_p
+    if voice_settings is not None:
+        import json
+
+        req.voice_settings_json = json.dumps(voice_settings)
     return req

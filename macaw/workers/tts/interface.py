@@ -162,6 +162,26 @@ class TTSBackend(ABC):
         async for audio_chunk in stream:
             yield _TTSChunkResult(audio=audio_chunk)
 
+    def map_voice_settings(self, settings: dict[str, object]) -> dict[str, object]:
+        """Map abstract voice_settings to engine-specific parameters.
+
+        Receives a dict representation of VoiceSettings (stability,
+        similarity_boost, style, use_speaker_boost, speed) and returns
+        a dict of engine-native parameters to merge into the synthesize
+        call.
+
+        Default: returns empty dict (engine ignores unknown settings).
+        Override per engine to map stability -> temperature, etc.
+
+        Args:
+            settings: Voice settings as a plain dict (serialized from
+                the server-layer VoiceSettings model).
+
+        Returns:
+            Dict of engine-specific parameters.
+        """
+        return {}
+
     async def post_load_hook(self) -> None:  # noqa: B027
         """Optional hook called after load() and before warmup.
 

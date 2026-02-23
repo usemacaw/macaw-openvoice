@@ -77,7 +77,33 @@ class KokoroBackend(TTSBackend):
             supports_top_p=False,
             supports_text_normalization=False,
             supports_speed=True,
+            supports_voice_settings=True,
         )
+
+    def map_voice_settings(self, settings: dict[str, object]) -> dict[str, object]:
+        """Map voice_settings to Kokoro-specific parameters.
+
+        Kokoro is a deterministic forward-pass engine, so stability,
+        similarity_boost, and style are ignored.  Only speed is
+        forwarded when it differs from the default (1.0).
+        """
+        result: dict[str, object] = {}
+
+        speed = settings.get("speed")
+        if speed is not None and float(str(speed)) != 1.0:
+            result["speed"] = float(str(speed))
+
+        # Log ignored fields for transparency
+        ignored = [k for k in ("stability", "similarity_boost", "style") if k in settings]
+        if ignored:
+            logger.info(
+                "voice_settings_fields_ignored",
+                engine="kokoro",
+                ignored_fields=ignored,
+                reason="deterministic engine",
+            )
+
+        return result
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if kokoro_lib is None:

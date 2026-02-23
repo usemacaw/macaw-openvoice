@@ -170,6 +170,7 @@ async def create_speech(
         temperature=body.temperature,
         top_k=body.top_k,
         top_p=body.top_p,
+        voice_settings=body.voice_settings.model_dump() if body.voice_settings else None,
     )
 
     # Get pooled TTS channel (reused across requests)

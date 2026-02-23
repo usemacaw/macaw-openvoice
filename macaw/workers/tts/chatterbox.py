@@ -68,7 +68,22 @@ class ChatterboxTurboBackend(TTSBackend):
             supports_top_p=True,
             supports_text_normalization=False,
             supports_speed=True,
+            supports_voice_settings=True,
         )
+
+    def map_voice_settings(self, settings: dict[str, object]) -> dict[str, object]:
+        """Map voice_settings to Chatterbox-specific parameters.
+
+        Only speed is forwarded when it differs from the default (1.0).
+        Other voice_settings fields are not applicable to Chatterbox.
+        """
+        result: dict[str, object] = {}
+
+        speed = settings.get("speed")
+        if speed is not None and float(str(speed)) != 1.0:
+            result["speed"] = float(str(speed))
+
+        return result
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         if _ChatterboxTurboTTS is None:

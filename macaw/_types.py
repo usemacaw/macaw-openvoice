@@ -213,6 +213,7 @@ class TTSEngineCapabilities:
     supports_top_p: bool = False
     supports_text_normalization: bool = False
     supports_speed: bool = True  # default True: most engines support speed
+    supports_voice_settings: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -565,6 +565,7 @@ async def _prepare_tts_request(
         temperature=cmd.temperature,
         top_k=cmd.top_k,
         top_p=cmd.top_p,
+        voice_settings=cmd.voice_settings,
     )
     return worker_address, proto_request
 

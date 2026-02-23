@@ -37,6 +37,8 @@ message SynthesizeRequest {
   float temperature = 15;               // Sampling temperature (0 = engine default)
   int32 top_k = 16;                     // Top-k sampling (0 = engine default)
   float top_p = 17;                     // Nucleus sampling threshold (0 = engine default)
+  // Voice settings (JSON-encoded dict of abstract voice characteristics)
+  string voice_settings_json = 18;     // Empty = not set; JSON object with stability, similarity_boost, etc.
 }
 
 // Alignment data for a single text element (character or word)

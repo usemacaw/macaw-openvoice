@@ -27,7 +27,7 @@ from macaw.workers.tts.interface import _resolve_stream
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from macaw._types import TTSChunkResult
+    from macaw._types import TTSChunkResult, TTSEngineCapabilities
     from macaw.alignment.interface import Aligner
     from macaw.codec.interface import CodecEncoder
     from macaw.proto.tts_worker_pb2 import (
@@ -105,6 +105,63 @@ class TTSWorkerServicer(_BaseServicer):
         self._engine = engine
         self._aligner: Aligner | None = None
         self._aligner_checked: bool = False
+
+    def _apply_voice_settings(
+        self,
+        params: SynthesizeParams,
+        caps: TTSEngineCapabilities,
+        request_id: str,
+    ) -> SynthesizeParams:
+        """Extract and apply voice_settings from options, returning updated params.
+
+        If voice_settings is present and the engine supports it, calls
+        ``map_voice_settings()`` on the backend and merges the mapped
+        params (speed, temperature, etc.) into a new SynthesizeParams.
+
+        If the engine does not support voice_settings, logs a warning
+        and returns params unchanged (fail-open).
+        """
+        if params.options is None or "voice_settings" not in params.options:
+            return params
+
+        voice_settings = params.options["voice_settings"]
+        if not isinstance(voice_settings, dict):
+            return params
+
+        if not caps.supports_voice_settings:
+            logger.warning(
+                "voice_settings_not_supported",
+                request_id=request_id,
+                engine=self._engine,
+            )
+            return params
+
+        mapped = self._backend.map_voice_settings(voice_settings)
+        if not mapped:
+            return params
+
+        # Merge mapped params into a new SynthesizeParams.
+        new_speed = params.speed
+        if "speed" in mapped:
+            new_speed = float(str(mapped["speed"]))
+
+        # Merge remaining mapped params into options (e.g., temperature).
+        new_options = dict(params.options) if params.options else {}
+        for key, value in mapped.items():
+            if key != "speed":
+                new_options[key] = value
+        # Remove voice_settings from options (already consumed).
+        new_options.pop("voice_settings", None)
+
+        return SynthesizeParams(
+            text=params.text,
+            voice=params.voice,
+            sample_rate=params.sample_rate,
+            speed=new_speed,
+            options=new_options if new_options else None,
+            include_alignment=params.include_alignment,
+            alignment_granularity=params.alignment_granularity,
+        )
 
     def _get_aligner(self) -> Aligner | None:
         """Get or create the forced alignment backend (lazy).
@@ -357,6 +414,9 @@ class TTSWorkerServicer(_BaseServicer):
             )
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, msg)
             return  # pragma: no cover
+
+        # Apply voice_settings mapping if present in options.
+        params = self._apply_voice_settings(params, caps, request_id)
 
         logger.info(
             "synthesize_start",

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from macaw.postprocessing.pipeline import PostProcessingPipeline
     from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
     from macaw.registry.registry import ModelRegistry
+    from macaw.scheduler.async_jobs import AsyncJobManager
     from macaw.scheduler.scheduler import Scheduler
     from macaw.server.voice_store import VoiceStore
     from macaw.workers.manager import WorkerManager
@@ -76,3 +77,8 @@ def get_worker_manager(request: Request) -> WorkerManager:
     if worker_manager is None:
         raise ServiceNotConfiguredError("WorkerManager")
     return worker_manager  # type: ignore[no-any-return]
+
+
+def get_async_job_manager(request: Request) -> AsyncJobManager | None:
+    """Return the AsyncJobManager from app state, or None if not configured."""
+    return getattr(request.app.state, "async_job_manager", None)
