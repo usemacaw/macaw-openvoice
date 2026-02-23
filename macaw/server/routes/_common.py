@@ -37,6 +37,8 @@ async def handle_audio_request(
     itn: bool = True,
     hot_words: str | None = None,
     timestamp_granularities: tuple[str, ...] = ("segment",),
+    diarize: bool = False,
+    max_speakers: int | None = None,
 ) -> Any:
     """Process audio request (transcription or translation).
 
@@ -56,6 +58,8 @@ async def handle_audio_request(
         postprocessing_pipeline: Text post-processing pipeline (optional).
         itn: If True (default), apply post-processing to the result.
         hot_words: Comma-separated list of hot words to boost recognition.
+        diarize: If True, request speaker diarization from the engine.
+        max_speakers: Maximum number of speakers for diarization (None = auto).
 
     Returns:
         Response formatted according to response_format.
@@ -116,6 +120,8 @@ async def handle_audio_request(
         initial_prompt=prompt,
         hot_words=parsed_hot_words,
         task=task,
+        diarize=diarize,
+        max_speakers=max_speakers,
     )
 
     result = await scheduler.transcribe(request)

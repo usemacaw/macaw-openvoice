@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `hot_words_mode` field on `EngineCapabilities`: differentiates none/prompt_injection/beam_bias/native (#sprint-C)
+- STT proto: diarization fields (diarize, max_speakers, SpeakerSegment, speaker_id) -- backward compatible (#sprint-C)
+- `SpeakerSegment` dataclass for diarization results (#sprint-C)
+- `diarize` and `max_speakers` params on `POST /v1/audio/transcriptions` (#sprint-C)
+- `diarization` field in `GET /v1/models` capabilities (#sprint-C)
+- `supports_diarization` field on `EngineCapabilities` (#sprint-C)
+- Incremental text TTS: `tts.append`, `tts.flush`, `tts.clear` WS commands for token-by-token LLM integration (#sprint-B)
+- `TTSTextBuffer` with configurable split strategies (sentence, paragraph, none) for incremental TTS text accumulation (#sprint-B)
+- `tts.buffer_flushed` server event for buffer flush notifications (manual, auto_split, auto_timeout, new_request_id triggers) (#sprint-B)
+- `tts_split_strategy` and `tts_flush_timeout_ms` fields in `session.configure` command for per-session buffer configuration (#sprint-B)
+- `GET /v1/models` now returns per-engine `capabilities` object with STT and TTS capability flags from the manifest (#task-A1)
+- TTS capability fields on `ModelCapabilities` manifest: `voice_cloning`, `instruct_mode`, `alignment`, `character_alignment`, `voice_design` (#task-A1)
+- `POST /v1/audio/align` endpoint exposing CTCAligner for forced alignment — accepts audio + text, returns word/character timing (#task-A2)
+- Dynamic TTS parameter validation against `TTSEngineCapabilities` — unsupported params rejected with 422/INVALID_ARGUMENT (#task-A3)
+- `supports_seed`, `supports_temperature`, `supports_top_k`, `supports_top_p`, `supports_text_normalization`, `supports_speed` flags on `TTSEngineCapabilities` (#task-A3)
 - `CodecError` and `CodecUnavailableError` exceptions for fail-fast codec validation (#gap-analysis-ws2)
 - `is_codec_available()` pre-flight check function in codec factory (#gap-analysis-ws2)
 - `hot_words` Form parameter in `POST /v1/audio/transcriptions` and `POST /v1/audio/translations` REST routes — hot words are parsed and forwarded to scheduler (#gap-analysis-ws4)

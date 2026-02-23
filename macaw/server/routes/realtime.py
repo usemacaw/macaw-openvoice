@@ -48,12 +48,17 @@ from macaw.server.models.events import (
     StreamingErrorEvent,
     TTSAlignmentEvent,
     TTSAlignmentItemEvent,
+    TTSAppendCommand,
+    TTSBufferFlushedEvent,
     TTSCancelCommand,
+    TTSClearCommand,
+    TTSFlushCommand,
     TTSSpeakCommand,
     TTSSpeakingEndEvent,
     TTSSpeakingStartEvent,
 )
 from macaw.server.tts_service import find_default_tts_model, resolve_tts_resources
+from macaw.server.tts_text_buffer import TTSTextBuffer
 from macaw.server.ws_protocol import (
     AudioFrameResult,
     CommandResult,
@@ -106,6 +111,9 @@ router = APIRouter(tags=["Realtime"])
                                     "input_audio_buffer.commit",
                                     "tts.speak",
                                     "tts.cancel",
+                                    "tts.append",
+                                    "tts.flush",
+                                    "tts.clear",
                                 ],
                             },
                             "server_to_client": {
@@ -122,6 +130,7 @@ router = APIRouter(tags=["Realtime"])
                                     "tts.speaking_start",
                                     "tts.alignment",
                                     "tts.speaking_end",
+                                    "tts.buffer_flushed",
                                     "error",
                                     "session.closed",
                                 ],
@@ -769,6 +778,7 @@ class SessionContext:
     tts_task: asyncio.Task[None] | None = None
     tts_cancel_event: asyncio.Event | None = None
     model_tts: str | None = None
+    tts_text_buffer: TTSTextBuffer | None = None
     backpressure: Any = field(default=None)
     closed_reason: str = "client_disconnect"
 
@@ -807,6 +817,10 @@ async def _handle_configure_command(
             ctx.session.update_session_timeouts(new_timeouts)
     if cmd.model_tts is not None:
         ctx.model_tts = cmd.model_tts
+    if cmd.tts_split_strategy is not None and ctx.tts_text_buffer is not None:
+        ctx.tts_text_buffer.split_strategy = cmd.tts_split_strategy
+    if cmd.tts_flush_timeout_ms is not None and ctx.tts_text_buffer is not None:
+        ctx.tts_text_buffer.flush_timeout_ms = cmd.tts_flush_timeout_ms
     return False
 
 
@@ -933,6 +947,127 @@ async def _handle_commit_command(
     return False
 
 
+async def _handle_tts_append_command(
+    ctx: SessionContext,
+    cmd: TTSAppendCommand,
+) -> bool:
+    """Handle tts.append. Returns False (never breaks loop).
+
+    Appends text to the incremental TTS buffer. If the buffer finds
+    complete segments (based on split strategy), they are dispatched
+    as synthetic ``tts.speak`` commands immediately.
+    """
+    if ctx.tts_text_buffer is None:
+        ctx.tts_text_buffer = TTSTextBuffer()
+
+    request_id = cmd.request_id or f"tts_{uuid.uuid4().hex[:8]}"
+
+    # Detect request_id change for auto-flush event.
+    previous_request_id = ctx.tts_text_buffer.request_id
+    request_id_changed = previous_request_id is not None and previous_request_id != request_id
+    previous_text = ctx.tts_text_buffer.pending_text.strip() if request_id_changed else None
+
+    segments = ctx.tts_text_buffer.append(cmd.text, request_id)
+
+    # Emit buffer_flushed for the auto-flushed previous request_id.
+    if request_id_changed and previous_text:
+        await ctx.send_event(
+            TTSBufferFlushedEvent(
+                request_id=previous_request_id,  # type: ignore[arg-type]
+                text=previous_text,
+                trigger="new_request_id",
+            )
+        )
+
+    # Determine if the first segment came from the request_id-change auto-flush.
+    start_idx = 0
+    if request_id_changed and previous_text and segments and segments[0] == previous_text:
+        # The first segment is the auto-flushed one; dispatch with old request_id.
+        speak_cmd = TTSSpeakCommand(
+            text=previous_text,
+            request_id=previous_request_id,
+        )
+        await _handle_tts_speak_command(ctx, speak_cmd)
+        start_idx = 1
+
+    # Dispatch remaining auto-split segments.
+    for segment in segments[start_idx:]:
+        await ctx.send_event(
+            TTSBufferFlushedEvent(
+                request_id=request_id,
+                text=segment,
+                trigger="auto_split",
+            )
+        )
+        speak_cmd = TTSSpeakCommand(
+            text=segment,
+            request_id=request_id,
+        )
+        await _handle_tts_speak_command(ctx, speak_cmd)
+
+    logger.debug(
+        "tts_append",
+        session_id=ctx.session_id,
+        request_id=request_id,
+        text_len=len(cmd.text),
+        segments_dispatched=len(segments),
+        pending_len=len(ctx.tts_text_buffer.pending_text),
+    )
+    return False
+
+
+async def _handle_tts_flush_command(
+    ctx: SessionContext,
+    cmd: TTSFlushCommand,
+) -> bool:
+    """Handle tts.flush. Returns False (never breaks loop).
+
+    Flushes remaining text in the TTS buffer, triggering synthesis.
+    """
+    if ctx.tts_text_buffer is None:
+        return False
+
+    request_id = cmd.request_id or ctx.tts_text_buffer.request_id
+    text = ctx.tts_text_buffer.flush()
+
+    if text is not None and request_id is not None:
+        await ctx.send_event(
+            TTSBufferFlushedEvent(
+                request_id=request_id,
+                text=text,
+                trigger="manual",
+            )
+        )
+        speak_cmd = TTSSpeakCommand(
+            text=text,
+            request_id=request_id,
+        )
+        await _handle_tts_speak_command(ctx, speak_cmd)
+
+    logger.debug(
+        "tts_flush",
+        session_id=ctx.session_id,
+        request_id=request_id,
+        flushed=text is not None,
+    )
+    return False
+
+
+async def _handle_tts_clear_command(
+    ctx: SessionContext,
+    cmd: TTSClearCommand,
+) -> bool:
+    """Handle tts.clear. Returns False (never breaks loop).
+
+    Clears the TTS text buffer without triggering synthesis.
+    """
+    if ctx.tts_text_buffer is not None:
+        ctx.tts_text_buffer.clear()
+
+    logger.debug("tts_clear", session_id=ctx.session_id)
+    return False
+
+
 # Dispatch table: command type -> handler function
 _COMMAND_HANDLERS: dict[
     type[Any],
@@ -941,6 +1076,9 @@ _COMMAND_HANDLERS: dict[
     SessionConfigureCommand: _handle_configure_command,
     TTSSpeakCommand: _handle_tts_speak_command,
     TTSCancelCommand: _handle_tts_cancel_command,
+    TTSAppendCommand: _handle_tts_append_command,
+    TTSFlushCommand: _handle_tts_flush_command,
+    TTSClearCommand: _handle_tts_clear_command,
     SessionCancelCommand: _handle_session_cancel_command,
     SessionCloseCommand: _handle_session_close_command,
     InputAudioBufferCommitCommand: _handle_commit_command,
@@ -1046,6 +1184,7 @@ async def realtime_endpoint(
         websocket=websocket,
         session=session,
         last_audio_time=time.monotonic(),
+        tts_text_buffer=TTSTextBuffer(),
         backpressure=BackpressureController(),
     )
 
@@ -1124,6 +1263,9 @@ async def realtime_endpoint(
             )
         )
     finally:
+        if ctx.tts_text_buffer is not None:
+            ctx.tts_text_buffer.clear()
+
         await _cancel_active_tts(ctx)
 
         if session is not None and not session.is_closed:

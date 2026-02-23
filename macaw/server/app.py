@@ -11,7 +11,15 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 import macaw
 from macaw.server.error_handlers import register_error_handlers
-from macaw.server.routes import health, realtime, speech, transcriptions, translations, voices
+from macaw.server.routes import (
+    alignment,
+    health,
+    realtime,
+    speech,
+    transcriptions,
+    translations,
+    voices,
+)
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -100,6 +108,7 @@ def create_app(
     app.include_router(transcriptions.router)
     app.include_router(translations.router)
     app.include_router(speech.router)
+    app.include_router(alignment.router)
     app.include_router(realtime.router)
     app.include_router(voices.router)
 

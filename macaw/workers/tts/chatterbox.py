@@ -62,6 +62,12 @@ class ChatterboxTurboBackend(TTSBackend):
         return TTSEngineCapabilities(
             supports_streaming=False,
             supports_voice_cloning=True,
+            supports_seed=False,
+            supports_temperature=True,
+            supports_top_k=True,
+            supports_top_p=True,
+            supports_text_normalization=False,
+            supports_speed=True,
         )
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:

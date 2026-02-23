@@ -26,3 +26,5 @@ class TranscribeRequest:
     initial_prompt: str | None = None
     hot_words: tuple[str, ...] | None = None
     task: str = "transcribe"
+    diarize: bool = False
+    max_speakers: int | None = None

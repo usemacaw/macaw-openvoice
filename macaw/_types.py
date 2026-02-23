@@ -118,6 +118,16 @@ class SegmentDetail:
 
 
 @dataclass(frozen=True, slots=True)
+class SpeakerSegment:
+    """Speaker-attributed segment from diarization."""
+
+    speaker_id: str
+    start: float
+    end: float
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
 class BatchResult:
     """Batch transcription result (full file)."""
 
@@ -126,6 +136,7 @@ class BatchResult:
     duration: float
     segments: tuple[SegmentDetail, ...]
     words: tuple[WordTimestamp, ...] | None = None
+    speaker_segments: tuple[SpeakerSegment, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,9 +148,11 @@ class EngineCapabilities:
     """
 
     supports_hot_words: bool = False
+    hot_words_mode: Literal["none", "prompt_injection", "beam_bias", "native"] = "none"
     supports_initial_prompt: bool = False
     supports_batch: bool = False
     supports_word_timestamps: bool = False
+    supports_diarization: bool = False
     max_concurrent_sessions: int = 1
 
 
@@ -190,6 +203,16 @@ class TTSEngineCapabilities:
     max_text_length: int | None = None
     supports_alignment: bool = False
     supports_character_alignment: bool = False
+
+    # Parameter support declarations for runtime validation.
+    # When False, the servicer rejects requests with INVALID_ARGUMENT
+    # if the client sends a non-default value for that parameter.
+    supports_seed: bool = False
+    supports_temperature: bool = False
+    supports_top_k: bool = False
+    supports_top_p: bool = False
+    supports_text_normalization: bool = False
+    supports_speed: bool = True  # default True: most engines support speed
 
 
 @dataclass(frozen=True, slots=True)

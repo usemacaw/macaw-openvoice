@@ -24,6 +24,7 @@ class ModelCapabilities(BaseModel, extra="forbid"):
     consume (e.g. ``supports_foo: true``).
     """
 
+    # STT capabilities
     streaming: bool = False
     architecture: STTArchitecture | None = None
     languages: list[str] = []
@@ -31,9 +32,17 @@ class ModelCapabilities(BaseModel, extra="forbid"):
     translation: bool = False
     partial_transcripts: bool = False
     hot_words: bool = False
+    hot_words_mode: str = "none"  # none, prompt_injection, beam_bias, native
     batch_inference: bool = False
+    diarization: bool = False
     language_detection: bool = False
     initial_prompt: bool = False
+    # TTS capabilities
+    voice_cloning: bool = False
+    instruct_mode: bool = False
+    alignment: bool = False
+    character_alignment: bool = False
+    voice_design: bool = False
 
 
 class ModelResources(BaseModel):

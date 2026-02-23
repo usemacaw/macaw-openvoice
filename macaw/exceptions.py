@@ -28,6 +28,7 @@ Hierarchy:
     +-- CodecError
     |   +-- CodecUnavailableError
     +-- InvalidRequestError
+    +-- ServiceUnavailableError
 """
 
 from __future__ import annotations
@@ -248,6 +249,22 @@ class TTSEngineError(TTSError):
         self.model_name = model_name
         self.reason = reason
         super().__init__(f"TTS engine error for model '{model_name}': {reason}")
+
+
+# --- Service Availability ---
+
+
+class ServiceUnavailableError(MacawError):
+    """A runtime capability is unavailable (missing optional dependency).
+
+    Raised when an endpoint requires a feature that depends on an
+    optional library that is not installed.  Maps to HTTP 503
+    (Service Unavailable) in error handlers.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
 
 
 # --- Codec ---

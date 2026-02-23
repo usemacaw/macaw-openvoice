@@ -14,6 +14,7 @@ from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2 import (
     ListVoicesResponse,
 )
+from macaw.workers.tts._validation import validate_params_against_capabilities
 from macaw.workers.tts.converters import (
     SynthesizeParams,
     audio_chunk_to_proto,
@@ -343,6 +344,20 @@ class TTSWorkerServicer(_BaseServicer):
             )
             return  # pragma: no cover
 
+        # Validate params against engine capabilities before synthesis.
+        caps = await self._backend.capabilities()
+        unsupported = validate_params_against_capabilities(params, caps)
+        if unsupported:
+            msg = f"Engine '{self._engine}' does not support: {', '.join(unsupported)}"
+            logger.warning(
+                "unsupported_params_rejected",
+                request_id=request_id,
+                engine=self._engine,
+                unsupported=unsupported,
+            )
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, msg)
+            return  # pragma: no cover
+
         logger.info(
             "synthesize_start",
             request_id=request_id,
@@ -367,8 +382,8 @@ class TTSWorkerServicer(_BaseServicer):
             chunk_count = 0
 
             # Select synthesis strategy.
+            # Reuse `caps` from the param validation above.
             if params.include_alignment:
-                caps = await self._backend.capabilities()
                 if not caps.supports_alignment:
                     strategy = self._synthesize_forced_alignment(
                         params,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from macaw._types import BatchResult, SegmentDetail, WordTimestamp
+from macaw._types import BatchResult, SegmentDetail, SpeakerSegment, WordTimestamp
 from macaw.proto import TranscribeFileRequest, TranscribeFileResponse
 
 if TYPE_CHECKING:
@@ -27,6 +27,8 @@ def build_proto_request(request: TranscribeRequest) -> TranscribeFileRequest:
         initial_prompt=request.initial_prompt or "",
         hot_words=request.hot_words if request.hot_words else [],
         task=request.task,
+        diarize=request.diarize,
+        max_speakers=request.max_speakers or 0,
     )
 
 
@@ -57,10 +59,23 @@ def proto_response_to_batch_result(response: TranscribeFileResponse) -> BatchRes
             for w in response.words
         )
 
+    speaker_segments: tuple[SpeakerSegment, ...] | None = None
+    if response.speaker_segments:
+        speaker_segments = tuple(
+            SpeakerSegment(
+                speaker_id=s.speaker_id,
+                start=s.start,
+                end=s.end,
+                text=s.text,
+            )
+            for s in response.speaker_segments
+        )
+
     return BatchResult(
         text=response.text,
         language=response.language,
         duration=response.duration,
         segments=segments,
         words=words,
+        speaker_segments=speaker_segments,
     )

@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import grpc
 import pytest
 
+from macaw._types import TTSEngineCapabilities
 from macaw.proto.tts_worker_pb2 import (
     HealthRequest,
     HealthResponse,
@@ -38,6 +39,12 @@ class MockTTSBackend:
         self._chunks = chunks or [b"\x00\x01" * 100, b"\x02\x03" * 100]
         self._loaded = True
         self._health_status = "ok"
+
+    async def capabilities(self) -> TTSEngineCapabilities:
+        return TTSEngineCapabilities(
+            supports_streaming=True,
+            supports_speed=True,
+        )
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:
         self._loaded = True

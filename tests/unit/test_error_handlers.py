@@ -16,6 +16,7 @@ from macaw.exceptions import (
     InvalidRequestError,
     MacawError,
     ModelNotFoundError,
+    ServiceUnavailableError,
     VoiceNotFoundError,
     WorkerCrashError,
     WorkerTimeoutError,
@@ -27,6 +28,7 @@ from macaw.server.error_handlers import (
     _handle_invalid_request,
     _handle_macaw_error,
     _handle_model_not_found,
+    _handle_service_unavailable,
     _handle_unexpected_error,
     _handle_voice_not_found,
     _handle_worker_crash,
@@ -124,6 +126,20 @@ class TestHandleAudioTooLarge:
         body = response.body.decode()
         assert "audio_too_large_error" in body
         assert "file_too_large" in body
+
+
+class TestHandleServiceUnavailable:
+    async def test_returns_503_with_retry_after(self) -> None:
+        request = _make_request()
+        exc = ServiceUnavailableError("Forced alignment requires torchaudio >= 2.1")
+
+        response = await _handle_service_unavailable(request, exc)
+
+        assert response.status_code == 503
+        assert response.headers.get("retry-after") == "5"
+        body = response.body.decode()
+        assert "service_unavailable_error" in body
+        assert "torchaudio" in body
 
 
 class TestHandleWorkerUnavailable:
@@ -224,6 +240,7 @@ class TestRegisterErrorHandlers:
         assert ModelNotFoundError in registered
         assert AudioFormatError in registered
         assert AudioTooLargeError in registered
+        assert ServiceUnavailableError in registered
         assert WorkerUnavailableError in registered
         assert WorkerTimeoutError in registered
         assert WorkerCrashError in registered
@@ -238,4 +255,4 @@ class TestRegisterErrorHandlers:
         register_error_handlers(app)
 
         added = len(app.exception_handlers) - default_count
-        assert added == 10
+        assert added == 11

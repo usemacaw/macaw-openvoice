@@ -15,6 +15,7 @@ from macaw.exceptions import (
     InvalidRequestError,
     MacawError,
     ModelNotFoundError,
+    ServiceUnavailableError,
     VoiceNotFoundError,
     WorkerCrashError,
     WorkerTimeoutError,
@@ -102,6 +103,23 @@ async def _handle_audio_too_large(request: Request, exc: AudioTooLargeError) -> 
     return _error_response(413, str(exc), "audio_too_large_error", "file_too_large")
 
 
+async def _handle_service_unavailable(
+    request: Request, exc: ServiceUnavailableError
+) -> JSONResponse:
+    logger.warning(
+        "service_unavailable",
+        detail=exc.detail,
+        request_id=_get_request_id(request),
+    )
+    return _error_response(
+        503,
+        str(exc),
+        "service_unavailable_error",
+        "service_unavailable",
+        headers={"Retry-After": RETRY_AFTER_SECONDS},
+    )
+
+
 async def _handle_worker_unavailable(
     request: Request, exc: WorkerUnavailableError
 ) -> JSONResponse:
@@ -179,6 +197,7 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ModelNotFoundError, _handle_model_not_found)
     app.add_exception_handler(AudioFormatError, _handle_audio_format_error)
     app.add_exception_handler(AudioTooLargeError, _handle_audio_too_large)
+    app.add_exception_handler(ServiceUnavailableError, _handle_service_unavailable)
     app.add_exception_handler(WorkerUnavailableError, _handle_worker_unavailable)
     app.add_exception_handler(WorkerTimeoutError, _handle_worker_timeout)
     app.add_exception_handler(WorkerCrashError, _handle_worker_crash)

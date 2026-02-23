@@ -19,7 +19,10 @@ from macaw.server.models.events import (
     SessionCloseCommand,
     SessionConfigureCommand,
     StreamingErrorEvent,
+    TTSAppendCommand,
     TTSCancelCommand,
+    TTSClearCommand,
+    TTSFlushCommand,
     TTSSpeakCommand,
 )
 
@@ -38,6 +41,9 @@ _COMMAND_TYPES: dict[str, type[ClientCommand]] = {
     "input_audio_buffer.commit": InputAudioBufferCommitCommand,
     "tts.speak": TTSSpeakCommand,
     "tts.cancel": TTSCancelCommand,
+    "tts.append": TTSAppendCommand,
+    "tts.flush": TTSFlushCommand,
+    "tts.clear": TTSClearCommand,
 }
 
 

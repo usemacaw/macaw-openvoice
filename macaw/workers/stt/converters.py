@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from macaw.proto import (
     HealthResponse,
     Segment,
+    SpeakerSegmentProto,
     TranscribeFileResponse,
     TranscriptEvent,
     Word,
@@ -18,7 +19,13 @@ from macaw.proto import (
 from macaw.workers.proto_utils import build_health_response
 
 if TYPE_CHECKING:
-    from macaw._types import BatchResult, SegmentDetail, TranscriptSegment, WordTimestamp
+    from macaw._types import (
+        BatchResult,
+        SegmentDetail,
+        SpeakerSegment,
+        TranscriptSegment,
+        WordTimestamp,
+    )
     from macaw.proto.stt_worker_pb2 import TranscribeFileRequest
 
 
@@ -36,6 +43,8 @@ class TranscribeFileParams:
     hot_words: list[str] | None
     temperature: float
     word_timestamps: bool
+    diarize: bool = False
+    max_speakers: int = 0
 
 
 def proto_request_to_transcribe_params(
@@ -57,6 +66,8 @@ def proto_request_to_transcribe_params(
         hot_words=hot_words,
         temperature=request.temperature,
         word_timestamps=word_timestamps,
+        diarize=request.diarize,
+        max_speakers=request.max_speakers,
     )
 
 
@@ -83,10 +94,39 @@ def word_timestamp_to_proto(word: WordTimestamp) -> Word:
     )
 
 
+def speaker_segment_to_proto(segment: SpeakerSegment) -> SpeakerSegmentProto:
+    """Convert Macaw SpeakerSegment to SpeakerSegment protobuf."""
+    return SpeakerSegmentProto(
+        speaker_id=segment.speaker_id,
+        start=segment.start,
+        end=segment.end,
+        text=segment.text,
+    )
+
+
+def speaker_segment_to_dataclass(
+    proto: SpeakerSegmentProto,
+) -> SpeakerSegment:
+    """Convert SpeakerSegment protobuf to Macaw SpeakerSegment dataclass."""
+    from macaw._types import SpeakerSegment as SpeakerSegmentDC
+
+    return SpeakerSegmentDC(
+        speaker_id=proto.speaker_id,
+        start=proto.start,
+        end=proto.end,
+        text=proto.text,
+    )
+
+
 def batch_result_to_proto_response(result: BatchResult) -> TranscribeFileResponse:
     """Convert Macaw BatchResult to TranscribeFileResponse protobuf."""
     segments = [segment_detail_to_proto(s) for s in result.segments]
     words = [word_timestamp_to_proto(w) for w in result.words] if result.words else []
+    speaker_segments = (
+        [speaker_segment_to_proto(s) for s in result.speaker_segments]
+        if result.speaker_segments
+        else []
+    )
 
     return TranscribeFileResponse(
         text=result.text,
@@ -94,6 +134,7 @@ def batch_result_to_proto_response(result: BatchResult) -> TranscribeFileRespons
         duration=result.duration,
         segments=segments,
         words=words,
+        speaker_segments=speaker_segments,
     )
 
 

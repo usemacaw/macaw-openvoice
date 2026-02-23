@@ -70,6 +70,13 @@ class KokoroBackend(TTSBackend):
             supports_streaming=True,
             supports_alignment=True,
             supports_character_alignment=True,
+            # Kokoro is deterministic (no seed effect), no sampling params
+            supports_seed=False,
+            supports_temperature=False,
+            supports_top_k=False,
+            supports_top_p=False,
+            supports_text_normalization=False,
+            supports_speed=True,
         )
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:

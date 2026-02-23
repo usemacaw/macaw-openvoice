@@ -86,6 +86,12 @@ class Qwen3TTSBackend(TTSBackend):
             supports_streaming=False,
             supports_voice_cloning=self._variant == "base",
             supports_instruct=self._variant in ("custom_voice", "voice_design"),
+            supports_seed=True,
+            supports_temperature=True,
+            supports_top_k=True,
+            supports_top_p=True,
+            supports_text_normalization=True,
+            supports_speed=True,
         )
 
     async def load(self, model_path: str, config: dict[str, object]) -> None:

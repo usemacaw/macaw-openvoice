@@ -7,7 +7,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class TranscribeFileRequest(_message.Message):
-    __slots__ = ("request_id", "audio_data", "language", "response_format", "temperature", "timestamp_granularities", "initial_prompt", "hot_words", "task")
+    __slots__ = ("request_id", "audio_data", "language", "response_format", "temperature", "timestamp_granularities", "initial_prompt", "hot_words", "task", "diarize", "max_speakers")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     AUDIO_DATA_FIELD_NUMBER: _ClassVar[int]
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
@@ -17,6 +17,8 @@ class TranscribeFileRequest(_message.Message):
     INITIAL_PROMPT_FIELD_NUMBER: _ClassVar[int]
     HOT_WORDS_FIELD_NUMBER: _ClassVar[int]
     TASK_FIELD_NUMBER: _ClassVar[int]
+    DIARIZE_FIELD_NUMBER: _ClassVar[int]
+    MAX_SPEAKERS_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     audio_data: bytes
     language: str
@@ -26,21 +28,25 @@ class TranscribeFileRequest(_message.Message):
     initial_prompt: str
     hot_words: _containers.RepeatedScalarFieldContainer[str]
     task: str
-    def __init__(self, request_id: _Optional[str] = ..., audio_data: _Optional[bytes] = ..., language: _Optional[str] = ..., response_format: _Optional[str] = ..., temperature: _Optional[float] = ..., timestamp_granularities: _Optional[_Iterable[str]] = ..., initial_prompt: _Optional[str] = ..., hot_words: _Optional[_Iterable[str]] = ..., task: _Optional[str] = ...) -> None: ...
+    diarize: bool
+    max_speakers: int
+    def __init__(self, request_id: _Optional[str] = ..., audio_data: _Optional[bytes] = ..., language: _Optional[str] = ..., response_format: _Optional[str] = ..., temperature: _Optional[float] = ..., timestamp_granularities: _Optional[_Iterable[str]] = ..., initial_prompt: _Optional[str] = ..., hot_words: _Optional[_Iterable[str]] = ..., task: _Optional[str] = ..., diarize: bool = ..., max_speakers: _Optional[int] = ...) -> None: ...
 
 class TranscribeFileResponse(_message.Message):
-    __slots__ = ("text", "language", "duration", "segments", "words")
+    __slots__ = ("text", "language", "duration", "segments", "words", "speaker_segments")
     TEXT_FIELD_NUMBER: _ClassVar[int]
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
     DURATION_FIELD_NUMBER: _ClassVar[int]
     SEGMENTS_FIELD_NUMBER: _ClassVar[int]
     WORDS_FIELD_NUMBER: _ClassVar[int]
+    SPEAKER_SEGMENTS_FIELD_NUMBER: _ClassVar[int]
     text: str
     language: str
     duration: float
     segments: _containers.RepeatedCompositeFieldContainer[Segment]
     words: _containers.RepeatedCompositeFieldContainer[Word]
-    def __init__(self, text: _Optional[str] = ..., language: _Optional[str] = ..., duration: _Optional[float] = ..., segments: _Optional[_Iterable[_Union[Segment, _Mapping]]] = ..., words: _Optional[_Iterable[_Union[Word, _Mapping]]] = ...) -> None: ...
+    speaker_segments: _containers.RepeatedCompositeFieldContainer[SpeakerSegment]
+    def __init__(self, text: _Optional[str] = ..., language: _Optional[str] = ..., duration: _Optional[float] = ..., segments: _Optional[_Iterable[_Union[Segment, _Mapping]]] = ..., words: _Optional[_Iterable[_Union[Word, _Mapping]]] = ..., speaker_segments: _Optional[_Iterable[_Union[SpeakerSegment, _Mapping]]] = ...) -> None: ...
 
 class AudioFrame(_message.Message):
     __slots__ = ("session_id", "data", "is_last", "initial_prompt", "hot_words", "language")
@@ -59,7 +65,7 @@ class AudioFrame(_message.Message):
     def __init__(self, session_id: _Optional[str] = ..., data: _Optional[bytes] = ..., is_last: bool = ..., initial_prompt: _Optional[str] = ..., hot_words: _Optional[_Iterable[str]] = ..., language: _Optional[str] = ...) -> None: ...
 
 class TranscriptEvent(_message.Message):
-    __slots__ = ("session_id", "event_type", "text", "segment_id", "start_ms", "end_ms", "language", "confidence", "words")
+    __slots__ = ("session_id", "event_type", "text", "segment_id", "start_ms", "end_ms", "language", "confidence", "words", "speaker_id")
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     EVENT_TYPE_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
@@ -69,6 +75,7 @@ class TranscriptEvent(_message.Message):
     LANGUAGE_FIELD_NUMBER: _ClassVar[int]
     CONFIDENCE_FIELD_NUMBER: _ClassVar[int]
     WORDS_FIELD_NUMBER: _ClassVar[int]
+    SPEAKER_ID_FIELD_NUMBER: _ClassVar[int]
     session_id: str
     event_type: str
     text: str
@@ -78,7 +85,8 @@ class TranscriptEvent(_message.Message):
     language: str
     confidence: float
     words: _containers.RepeatedCompositeFieldContainer[Word]
-    def __init__(self, session_id: _Optional[str] = ..., event_type: _Optional[str] = ..., text: _Optional[str] = ..., segment_id: _Optional[int] = ..., start_ms: _Optional[int] = ..., end_ms: _Optional[int] = ..., language: _Optional[str] = ..., confidence: _Optional[float] = ..., words: _Optional[_Iterable[_Union[Word, _Mapping]]] = ...) -> None: ...
+    speaker_id: str
+    def __init__(self, session_id: _Optional[str] = ..., event_type: _Optional[str] = ..., text: _Optional[str] = ..., segment_id: _Optional[int] = ..., start_ms: _Optional[int] = ..., end_ms: _Optional[int] = ..., language: _Optional[str] = ..., confidence: _Optional[float] = ..., words: _Optional[_Iterable[_Union[Word, _Mapping]]] = ..., speaker_id: _Optional[str] = ...) -> None: ...
 
 class Segment(_message.Message):
     __slots__ = ("id", "start", "end", "text", "avg_logprob", "no_speech_prob", "compression_ratio")
@@ -109,6 +117,18 @@ class Word(_message.Message):
     end: float
     probability: float
     def __init__(self, word: _Optional[str] = ..., start: _Optional[float] = ..., end: _Optional[float] = ..., probability: _Optional[float] = ...) -> None: ...
+
+class SpeakerSegment(_message.Message):
+    __slots__ = ("speaker_id", "start", "end", "text")
+    SPEAKER_ID_FIELD_NUMBER: _ClassVar[int]
+    START_FIELD_NUMBER: _ClassVar[int]
+    END_FIELD_NUMBER: _ClassVar[int]
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    speaker_id: str
+    start: float
+    end: float
+    text: str
+    def __init__(self, speaker_id: _Optional[str] = ..., start: _Optional[float] = ..., end: _Optional[float] = ..., text: _Optional[str] = ...) -> None: ...
 
 class CancelRequest(_message.Message):
     __slots__ = ("request_id", "session_id")

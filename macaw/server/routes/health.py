@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 import macaw
+from macaw.server.models.models import ModelCapabilitiesResponse, ModelInfo
 
 router = APIRouter(tags=["System"])
 
@@ -48,7 +49,8 @@ async def list_models(request: Request) -> dict[str, Any]:
     """List models loaded on the server.
 
     Returns OpenAI-compatible format with ``object: "list"`` and ``data`` array.
-    Used by the `macaw ps` command.
+    Each model entry includes a ``capabilities`` object with client-facing
+    capability flags from the manifest.  Used by the ``macaw ps`` command.
     """
     registry = getattr(request.app.state, "registry", None)
     if registry is None:
@@ -57,15 +59,29 @@ async def list_models(request: Request) -> dict[str, Any]:
     manifests = registry.list_models()
     data: list[dict[str, Any]] = []
     for m in manifests:
-        data.append(
-            {
-                "id": m.name,
-                "object": "model",
-                "owned_by": "macaw",
-                "created": 0,
-                "type": m.model_type.value,
-                "engine": m.engine,
-            }
+        caps = m.capabilities
+        capabilities = ModelCapabilitiesResponse(
+            streaming=caps.streaming,
+            languages=caps.languages,
+            word_timestamps=caps.word_timestamps,
+            translation=caps.translation,
+            hot_words=caps.hot_words,
+            hot_words_mode=caps.hot_words_mode,
+            batch_inference=caps.batch_inference,
+            diarization=caps.diarization,
+            language_detection=caps.language_detection,
+            voice_cloning=caps.voice_cloning,
+            instruct_mode=caps.instruct_mode,
+            alignment=caps.alignment,
+            character_alignment=caps.character_alignment,
+            voice_design=caps.voice_design,
         )
+        info = ModelInfo(
+            id=m.name,
+            type=m.model_type.value,
+            engine=m.engine,
+            capabilities=capabilities,
+        )
+        data.append(info.model_dump())
 
     return {"object": "list", "data": data}

@@ -7,6 +7,8 @@ from unittest.mock import MagicMock
 import httpx
 
 import macaw
+from macaw._types import ModelType
+from macaw.config.manifest import ModelCapabilities, ModelManifest, ModelResources
 from macaw.server.app import create_app
 
 
@@ -147,10 +149,22 @@ async def test_request_id_middleware_sets_request_state() -> None:
 async def test_list_models_returns_openai_format() -> None:
     """GET /v1/models returns OpenAI-compatible format with object: list."""
     registry = MagicMock()
-    m1 = MagicMock()
-    m1.name = "faster-whisper-tiny"
-    m2 = MagicMock()
-    m2.name = "kokoro-v1"
+    m1 = ModelManifest(
+        name="faster-whisper-tiny",
+        version="1.0.0",
+        engine="faster-whisper",
+        model_type=ModelType.STT,
+        capabilities=ModelCapabilities(streaming=True),
+        resources=ModelResources(memory_mb=512),
+    )
+    m2 = ModelManifest(
+        name="kokoro-v1",
+        version="1.0.0",
+        engine="kokoro",
+        model_type=ModelType.TTS,
+        capabilities=ModelCapabilities(alignment=True),
+        resources=ModelResources(memory_mb=1024),
+    )
     registry.list_models.return_value = [m1, m2]
 
     app = create_app(registry=registry)
@@ -168,6 +182,9 @@ async def test_list_models_returns_openai_format() -> None:
     assert body["data"][0]["object"] == "model"
     assert body["data"][0]["owned_by"] == "macaw"
     assert body["data"][1]["id"] == "kokoro-v1"
+    # Capabilities are now present
+    assert body["data"][0]["capabilities"]["streaming"] is True
+    assert body["data"][1]["capabilities"]["alignment"] is True
 
 
 async def test_list_models_empty_when_no_registry() -> None:

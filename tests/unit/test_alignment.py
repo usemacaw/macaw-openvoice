@@ -600,8 +600,9 @@ class TestServicerForcedAlignmentFallback:
         async for chunk_proto in servicer.Synthesize(request, context):
             chunks.append(chunk_proto)
 
-        # capabilities() should NOT have been called (no alignment requested)
-        backend.capabilities.assert_not_called()
+        # capabilities() is called once for param validation, but NOT for
+        # alignment path selection (include_alignment=False skips that).
+        backend.capabilities.assert_called_once()
         assert len(chunks) >= 2
 
 

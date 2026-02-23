@@ -255,6 +255,8 @@ class SessionConfigureCommand(BaseModel):
     preprocessing: PreprocessingOverrides | None = None
     input_sample_rate: int | None = Field(default=None, gt=0)
     model_tts: str | None = None
+    tts_split_strategy: Literal["sentence", "paragraph", "none"] | None = None
+    tts_flush_timeout_ms: int | None = Field(default=None, gt=0)
 
 
 class SessionCancelCommand(BaseModel):
@@ -328,6 +330,45 @@ class TTSCancelCommand(BaseModel):
     request_id: str | None = None
 
 
+class TTSAppendCommand(BaseModel):
+    """Append text chunk to the TTS buffer for incremental synthesis."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: Literal["tts.append"] = "tts.append"
+    text: str = Field(min_length=1, max_length=TTS_MAX_TEXT_LENGTH)
+    request_id: str | None = None
+
+
+class TTSFlushCommand(BaseModel):
+    """Flush the TTS text buffer, triggering synthesis of remaining text."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: Literal["tts.flush"] = "tts.flush"
+    request_id: str | None = None
+
+
+class TTSClearCommand(BaseModel):
+    """Clear the TTS text buffer without synthesizing."""
+
+    model_config = ConfigDict(frozen=True)
+
+    type: Literal["tts.clear"] = "tts.clear"
+    request_id: str | None = None
+
+
+class TTSBufferFlushedEvent(BaseModel):
+    """Emitted when the TTS buffer has been flushed (auto or manual)."""
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    type: Literal["tts.buffer_flushed"] = "tts.buffer_flushed"
+    request_id: str
+    text: str
+    trigger: Literal["manual", "auto_split", "auto_timeout", "new_request_id"]
+
+
 # ---------------------------------------------------------------------------
 # Union types for dispatch
 # ---------------------------------------------------------------------------
@@ -346,6 +387,7 @@ ServerEvent = (
     | TTSSpeakingStartEvent
     | TTSSpeakingEndEvent
     | TTSAlignmentEvent
+    | TTSBufferFlushedEvent
 )
 
 ClientCommand = (
@@ -355,4 +397,7 @@ ClientCommand = (
     | SessionCloseCommand
     | TTSSpeakCommand
     | TTSCancelCommand
+    | TTSAppendCommand
+    | TTSFlushCommand
+    | TTSClearCommand
 )

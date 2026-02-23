@@ -1,8 +1,8 @@
-"""Pydantic models for TTS alignment NDJSON response.
+"""Pydantic models for alignment responses.
 
-When include_alignment=true on POST /v1/audio/speech, the response
-switches from binary audio to NDJSON (application/x-ndjson). Each line
-is a JSON object: either an audio chunk with alignment or a done marker.
+Includes models for:
+- TTS alignment NDJSON streaming (POST /v1/audio/speech with include_alignment)
+- Forced alignment endpoint (POST /v1/audio/align)
 """
 
 from __future__ import annotations
@@ -48,3 +48,15 @@ class AlignmentStreamDone(BaseModel):
     type: Literal["done"] = "done"
     duration: float
     alignment_available: bool = True
+
+
+# --- Forced alignment endpoint (POST /v1/audio/align) ---
+
+
+class ForceAlignmentResponse(BaseModel):
+    """Response for POST /v1/audio/align."""
+
+    items: list[AlignmentItemResponse]
+    language: str
+    granularity: Literal["word", "character"]
+    audio_duration_ms: int

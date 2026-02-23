@@ -104,6 +104,7 @@ class FasterWhisperBackend(STTBackend):
     async def capabilities(self) -> EngineCapabilities:
         return EngineCapabilities(
             supports_hot_words=False,
+            hot_words_mode="prompt_injection",
             supports_initial_prompt=True,
             supports_batch=True,
             supports_word_timestamps=True,
