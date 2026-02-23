@@ -13,6 +13,7 @@ import grpc.aio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import Response, StreamingResponse
 
+from macaw.codec.output_format import OutputFormat, parse_output_format
 from macaw.exceptions import (
     InvalidRequestError,
     VoiceNotFoundError,
@@ -78,29 +79,31 @@ async def create_speech(
         voice=body.voice,
         text_length=len(body.input),
         response_format=body.response_format,
+        output_format=body.output_format,
     )
 
     # Validate non-empty text (whitespace-only not caught by min_length)
     if not body.input.strip():
         raise InvalidRequestError("The 'input' field cannot be empty.")
 
-    # Alignment forces NDJSON output — reject incompatible response_format
+    # Resolve output format: output_format takes precedence over response_format
+    output_fmt = _resolve_output_format(body)
+
+    # Alignment forces NDJSON output — reject incompatible formats
     # before opening any gRPC stream (fail-fast, avoid resource leaks).
-    if body.include_alignment and body.response_format not in ("wav", "pcm"):
+    if body.include_alignment and output_fmt.codec not in ("wav", "pcm"):
         raise InvalidRequestError(
-            f"include_alignment=true is not compatible with response_format='{body.response_format}'. "
-            "Use response_format='wav' or 'pcm' with alignment."
+            f"include_alignment=true is not compatible with output_format='{output_fmt.codec}'. "
+            "Use 'wav' or 'pcm' with alignment."
         )
 
-    # response_format validated by Pydantic Literal["wav", "pcm", "opus", "mp3", "mulaw", "alaw"]
-
     # Pre-flight: check codec availability before opening gRPC stream
-    if body.response_format not in ("wav", "pcm"):
+    if output_fmt.needs_encoding:
         from macaw.codec import is_codec_available
 
-        if not is_codec_available(body.response_format):
+        if not is_codec_available(output_fmt.codec):
             raise InvalidRequestError(
-                f"Codec '{body.response_format}' is not available. Install the required library."
+                f"Codec '{output_fmt.codec}' is not available. Install the required library."
             )
 
     # Resolve TTS model + worker
@@ -152,13 +155,54 @@ async def create_speech(
         # Use "default" as voice for the engine (saved voice provides params)
         voice = DEFAULT_VOICE_NAME
 
+    # Parse SSML tags if enabled (before pronunciation rules)
+    ssml_result = None
+    synthesis_text = body.input
+    if body.enable_ssml_parsing:
+        from macaw.postprocessing.ssml.parser import SSMLParseError, SSMLParser
+        from macaw.workers.tts.ssml_mapper import map_ssml_directives
+
+        try:
+            parse_result = SSMLParser().parse(body.input)
+        except SSMLParseError as exc:
+            raise InvalidRequestError(str(exc)) from exc
+
+        ssml_result = map_ssml_directives(
+            parse_result.text,
+            parse_result.directives,
+            sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+        )
+        synthesis_text = ssml_result.text
+    if body.pronunciation_dictionary_locators:
+        from macaw.server.pronunciation.applicator import apply_pronunciation_rules
+
+        pron_store = getattr(request.app.state, "pronunciation_store", None)
+        if pron_store is None:
+            raise InvalidRequestError("PronunciationStore not configured on this server.")
+
+        try:
+            synthesis_text = await apply_pronunciation_rules(
+                synthesis_text,
+                body.pronunciation_dictionary_locators,
+                pron_store,
+            )
+        except ValueError as exc:
+            raise InvalidRequestError(str(exc)) from exc
+        except KeyError as exc:
+            raise InvalidRequestError(str(exc)) from exc
+
+    # Apply SSML speed override (prosody/emphasis → speed multiplier)
+    effective_speed = body.speed
+    if ssml_result is not None and ssml_result.speed_override is not None:
+        effective_speed = ssml_result.speed_override
+
     # Build proto request
     proto_request = build_tts_proto_request(
         request_id=request_id,
-        text=body.input,
+        text=synthesis_text,
         voice=voice,
         sample_rate=TTS_DEFAULT_SAMPLE_RATE,
-        speed=body.speed,
+        speed=effective_speed,
         language=language,
         ref_audio=ref_audio_bytes,
         ref_text=ref_text,
@@ -171,6 +215,10 @@ async def create_speech(
         top_k=body.top_k,
         top_p=body.top_p,
         voice_settings=body.voice_settings.model_dump() if body.voice_settings else None,
+        previous_text=body.previous_text,
+        next_text=body.next_text,
+        previous_request_ids=body.previous_request_ids,
+        next_request_ids=body.next_request_ids,
     )
 
     # Get pooled TTS channel (reused across requests)
@@ -214,29 +262,17 @@ async def create_speech(
 
     # Standard mode: binary audio stream
     first_audio_chunk = first_chunk.audio_data if first_chunk else b""
-    fmt = body.response_format
-    media_types: dict[str, str] = {
-        "wav": "audio/wav",
-        "pcm": "audio/pcm",
-        "opus": "audio/opus",
-        "mp3": "audio/mpeg",
-        "mulaw": "audio/basic",
-        "alaw": "audio/basic",
-    }
-    media_type = media_types.get(fmt, "audio/pcm")
-    codec_name = fmt if fmt not in ("wav", "pcm") else None
 
     return StreamingResponse(
         _stream_tts_audio(
             response_stream=response_stream,
             first_audio_chunk=first_audio_chunk,
-            is_wav=(fmt == "wav"),
-            codec_name=codec_name,
-            sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+            output_fmt=output_fmt,
+            source_sample_rate=TTS_DEFAULT_SAMPLE_RATE,
             request_id=request_id,
             effect_chain=effect_chain,
         ),
-        media_type=media_type,
+        media_type=output_fmt.content_type,
     )
 
 
@@ -289,9 +325,8 @@ async def _stream_tts_audio(
     *,
     response_stream: grpc.aio.UnaryStreamCall[Any, Any],
     first_audio_chunk: bytes,
-    is_wav: bool,
-    codec_name: str | None = None,
-    sample_rate: int,
+    output_fmt: OutputFormat,
+    source_sample_rate: int,
     request_id: str,
     effect_chain: AudioEffectChain | None = None,
 ) -> AsyncIterator[bytes]:
@@ -299,31 +334,41 @@ async def _stream_tts_audio(
 
     For WAV format: yields a WAV header (with max data size placeholder)
     followed by raw PCM chunks. For encoded formats (opus, mp3, mulaw, alaw):
-    encodes PCM chunks via CodecEncoder. For PCM format: yields raw PCM directly.
+    resamples PCM to target sample rate (if needed) and encodes via
+    CodecEncoder. For PCM format: resamples and yields raw PCM directly.
 
     The gRPC channel is pooled and NOT closed here — it is reused across
     requests and closed on server shutdown via close_tts_channels().
     """
     from macaw.codec import create_encoder
-    from macaw.config.settings import get_settings
 
     encoder = None
-    if codec_name is not None:
-        bitrate = get_settings().codec.opus_bitrate
-        encoder = create_encoder(codec_name, sample_rate=sample_rate, bitrate=bitrate)
+    if output_fmt.needs_encoding:
+        encoder = create_encoder(
+            output_fmt.codec,
+            sample_rate=output_fmt.sample_rate,
+            bitrate=output_fmt.bitrate_bps,
+        )
+
+    # Determine if PCM resampling is needed before encoding
+    needs_resample = output_fmt.sample_rate != source_sample_rate
 
     total_audio_bytes = 0
     try:
         # WAV header with streaming-compatible max size placeholder
-        if is_wav:
-            yield _wav_streaming_header(sample_rate)
+        if output_fmt.codec == "wav":
+            yield _wav_streaming_header(output_fmt.sample_rate)
 
         # Yield pre-fetched first chunk
         if first_audio_chunk:
             audio_data = first_audio_chunk
             total_audio_bytes += len(audio_data)
             if effect_chain is not None:
-                audio_data = effect_chain.process_bytes(audio_data, sample_rate)
+                audio_data = effect_chain.process_bytes(audio_data, source_sample_rate)
+            if needs_resample:
+                audio_data = _resample_chunk(
+                    audio_data, source_sample_rate, output_fmt.sample_rate
+                )
             if encoder is not None:
                 encoded = encoder.encode(audio_data)
                 if encoded:
@@ -337,7 +382,11 @@ async def _stream_tts_audio(
                 audio_data = chunk.audio_data
                 total_audio_bytes += len(audio_data)
                 if effect_chain is not None:
-                    audio_data = effect_chain.process_bytes(audio_data, sample_rate)
+                    audio_data = effect_chain.process_bytes(audio_data, source_sample_rate)
+                if needs_resample:
+                    audio_data = _resample_chunk(
+                        audio_data, source_sample_rate, output_fmt.sample_rate
+                    )
                 if encoder is not None:
                     encoded = encoder.encode(audio_data)
                     if encoded:
@@ -544,3 +593,31 @@ def _wav_streaming_header(sample_rate: int) -> bytes:
     buf.write(struct.pack("<I", data_size))
 
     return buf.getvalue()
+
+
+def _resolve_output_format(body: SpeechRequest) -> OutputFormat:
+    """Resolve the output format from the request body.
+
+    ``output_format`` (compound string) takes precedence.
+    Falls back to ``response_format`` (simple codec name).
+
+    Raises:
+        InvalidRequestError: If the format string is invalid.
+    """
+    if body.output_format is not None:
+        try:
+            return parse_output_format(body.output_format)
+        except ValueError as exc:
+            raise InvalidRequestError(str(exc)) from exc
+    # Backward compat: simple response_format → OutputFormat with defaults
+    return parse_output_format(body.response_format)
+
+
+def _resample_chunk(pcm_data: bytes, from_rate: int, to_rate: int) -> bytes:
+    """Resample a PCM chunk from one sample rate to another.
+
+    Returns the data unchanged when rates match.
+    """
+    from macaw._dsp import resample_pcm_bytes
+
+    return resample_pcm_bytes(pcm_data, from_rate, to_rate)

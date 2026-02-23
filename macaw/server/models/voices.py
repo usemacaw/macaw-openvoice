@@ -36,4 +36,5 @@ class SavedVoiceResponse(BaseModel):
     ref_text: str | None = Field(default=None)
     instruction: str | None = Field(default=None)
     has_ref_audio: bool = Field(default=False, description="Whether reference audio is stored.")
+    shared: bool = Field(default=False, description="Whether this voice is publicly shared.")
     created_at: float = Field(description="Unix timestamp of creation.")

@@ -70,13 +70,14 @@ def test_models_capabilities_includes_all_sprint_fields():
 # ---------------------------------------------------------------------------
 
 
-def test_ws_protocol_dispatches_all_nine_commands():
-    """_COMMAND_TYPES dict has all 9 command types registered."""
+def test_ws_protocol_dispatches_all_ten_commands():
+    """_COMMAND_TYPES dict has all 10 command types registered."""
     expected = {
         "session.configure",
         "session.cancel",
         "session.close",
         "input_audio_buffer.commit",
+        "commit",
         "tts.speak",
         "tts.cancel",
         "tts.append",
@@ -93,10 +94,10 @@ def test_ws_protocol_dispatches_all_nine_commands():
 
 
 def test_client_command_union_complete():
-    """ClientCommand union type covers all 9 command models."""
+    """ClientCommand union type covers all 10 command models."""
     args = typing.get_args(ClientCommand)
 
-    assert len(args) == 9
+    assert len(args) == 10
 
 
 # ---------------------------------------------------------------------------

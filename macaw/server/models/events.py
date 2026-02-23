@@ -52,6 +52,7 @@ class SessionConfig(BaseModel):
     preprocessing: PreprocessingOverrides = PreprocessingOverrides()
     input_sample_rate: int | None = None
     model_tts: str | None = None
+    commit_strategy: Literal["vad", "manual"] = "vad"
 
 
 class WordEvent(BaseModel):
@@ -257,6 +258,7 @@ class SessionConfigureCommand(BaseModel):
     model_tts: str | None = None
     tts_split_strategy: Literal["sentence", "paragraph", "none"] | None = None
     tts_flush_timeout_ms: int | None = Field(default=None, gt=0)
+    commit_strategy: Literal["vad", "manual"] | None = None
 
 
 class SessionCancelCommand(BaseModel):
@@ -273,6 +275,14 @@ class InputAudioBufferCommitCommand(BaseModel):
     model_config = ConfigDict(frozen=True, protected_namespaces=())
 
     type: Literal["input_audio_buffer.commit"] = "input_audio_buffer.commit"
+
+
+class CommitCommand(BaseModel):
+    """Short alias for input_audio_buffer.commit (used with commit_strategy: manual)."""
+
+    model_config = ConfigDict(frozen=True, protected_namespaces=())
+
+    type: Literal["commit"] = "commit"
 
 
 class SessionCloseCommand(BaseModel):
@@ -303,6 +313,11 @@ class TTSSpeakCommand(BaseModel):
     instruction: str | None = None
     # Audio codec for TTS output; None = raw PCM
     codec: Literal["opus", "mp3", "mulaw", "alaw"] | None = None
+    # Output format string with optional sample rate and bitrate
+    # (e.g., "mp3_44100_128", "pcm_16000"). Takes precedence over codec.
+    output_format: str | None = None
+    # SSML parsing
+    enable_ssml_parsing: bool = False
     # Post-synthesis audio effects (applied server-side before transport)
     effects: AudioEffectsParams | None = None
     # Alignment options (opt-in per-word/character timing)
@@ -317,6 +332,13 @@ class TTSSpeakCommand(BaseModel):
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     # Voice settings (ElevenLabs-compatible, sent as plain dict from WS JSON)
     voice_settings: dict[str, object] | None = None
+    # Pronunciation dictionaries (up to 3, applied in order before synthesis)
+    pronunciation_dictionary_locators: list[dict[str, str]] | None = None
+    # Cross-generation continuity
+    previous_text: str | None = None
+    next_text: str | None = None
+    previous_request_ids: list[str] | None = None
+    next_request_ids: list[str] | None = None
 
 
 class TTSCancelCommand(BaseModel):
@@ -396,6 +418,7 @@ ClientCommand = (
     SessionConfigureCommand
     | SessionCancelCommand
     | InputAudioBufferCommitCommand
+    | CommitCommand
     | SessionCloseCommand
     | TTSSpeakCommand
     | TTSCancelCommand

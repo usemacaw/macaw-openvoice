@@ -10,12 +10,16 @@ from typing import TYPE_CHECKING
 from fastapi.responses import JSONResponse
 
 from macaw.exceptions import (
+    AudioDownloadError,
     AudioFormatError,
     AudioTooLargeError,
+    DubbingNotFoundError,
     InvalidRequestError,
     MacawError,
     ModelNotFoundError,
+    PronunciationDictionaryNotFoundError,
     ServiceUnavailableError,
+    TranscriptNotFoundError,
     VoiceNotFoundError,
     WorkerCrashError,
     WorkerTimeoutError,
@@ -57,6 +61,17 @@ def _get_request_id(request: Request) -> str | None:
     return getattr(request.state, "request_id", None)
 
 
+async def _handle_transcript_not_found(
+    request: Request, exc: TranscriptNotFoundError
+) -> JSONResponse:
+    logger.warning(
+        "transcript_not_found",
+        transcription_id=exc.transcription_id,
+        request_id=_get_request_id(request),
+    )
+    return _error_response(404, str(exc), "transcript_not_found_error", "transcript_not_found")
+
+
 async def _handle_voice_not_found(request: Request, exc: VoiceNotFoundError) -> JSONResponse:
     logger.warning(
         "voice_not_found",
@@ -64,6 +79,31 @@ async def _handle_voice_not_found(request: Request, exc: VoiceNotFoundError) -> 
         request_id=_get_request_id(request),
     )
     return _error_response(404, str(exc), "voice_not_found_error", "voice_not_found")
+
+
+async def _handle_pronunciation_dictionary_not_found(
+    request: Request, exc: PronunciationDictionaryNotFoundError
+) -> JSONResponse:
+    logger.warning(
+        "pronunciation_dictionary_not_found",
+        dictionary_id=exc.dictionary_id,
+        request_id=_get_request_id(request),
+    )
+    return _error_response(
+        404,
+        str(exc),
+        "pronunciation_dictionary_not_found_error",
+        "pronunciation_dictionary_not_found",
+    )
+
+
+async def _handle_dubbing_not_found(request: Request, exc: DubbingNotFoundError) -> JSONResponse:
+    logger.warning(
+        "dubbing_not_found",
+        dubbing_id=exc.dubbing_id,
+        request_id=_get_request_id(request),
+    )
+    return _error_response(404, str(exc), "dubbing_not_found_error", "dubbing_not_found")
 
 
 async def _handle_model_not_found(request: Request, exc: ModelNotFoundError) -> JSONResponse:
@@ -101,6 +141,15 @@ async def _handle_audio_too_large(request: Request, exc: AudioTooLargeError) -> 
         request_id=_get_request_id(request),
     )
     return _error_response(413, str(exc), "audio_too_large_error", "file_too_large")
+
+
+async def _handle_audio_download_error(request: Request, exc: AudioDownloadError) -> JSONResponse:
+    logger.warning(
+        "audio_download_error",
+        detail=exc.detail,
+        request_id=_get_request_id(request),
+    )
+    return _error_response(502, str(exc), "audio_download_error", "bad_gateway")
 
 
 async def _handle_service_unavailable(
@@ -193,10 +242,16 @@ async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResp
 def register_error_handlers(app: FastAPI) -> None:
     """Register all exception handlers on the FastAPI app."""
     app.add_exception_handler(InvalidRequestError, _handle_invalid_request)
+    app.add_exception_handler(TranscriptNotFoundError, _handle_transcript_not_found)
+    app.add_exception_handler(
+        PronunciationDictionaryNotFoundError, _handle_pronunciation_dictionary_not_found
+    )
+    app.add_exception_handler(DubbingNotFoundError, _handle_dubbing_not_found)
     app.add_exception_handler(VoiceNotFoundError, _handle_voice_not_found)
     app.add_exception_handler(ModelNotFoundError, _handle_model_not_found)
     app.add_exception_handler(AudioFormatError, _handle_audio_format_error)
     app.add_exception_handler(AudioTooLargeError, _handle_audio_too_large)
+    app.add_exception_handler(AudioDownloadError, _handle_audio_download_error)
     app.add_exception_handler(ServiceUnavailableError, _handle_service_unavailable)
     app.add_exception_handler(WorkerUnavailableError, _handle_worker_unavailable)
     app.add_exception_handler(WorkerTimeoutError, _handle_worker_timeout)

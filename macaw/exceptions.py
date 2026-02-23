@@ -16,12 +16,15 @@ Hierarchy:
     +-- AudioError
     |   +-- AudioFormatError
     |   +-- AudioTooLargeError
+    |   +-- AudioDownloadError
     +-- SessionError
     |   +-- SessionNotFoundError
     |   +-- SessionClosedError
     |   +-- InvalidTransitionError
     |   +-- BufferOverrunError
     +-- VoiceNotFoundError
+    +-- TranscriptNotFoundError
+    +-- PronunciationDictionaryNotFoundError
     +-- TTSError
     |   +-- TTSSynthesisError (client input errors -> INVALID_ARGUMENT)
     |   +-- TTSEngineError   (server engine errors -> INTERNAL)
@@ -164,6 +167,19 @@ class AudioTooLargeError(AudioError):
         super().__init__(f"Audio file ({size_mb:.1f}MB) exceeds the {max_mb:.1f}MB limit")
 
 
+class AudioDownloadError(AudioError):
+    """Failed to download audio from a remote URL.
+
+    Raised when ``cloud_storage_url`` download fails due to network errors,
+    timeouts, HTTP errors, or size limit violations.
+    Maps to HTTP 502 (Bad Gateway) in error handlers.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Audio download failed: {detail}")
+
+
 # --- Session ---
 
 
@@ -220,6 +236,30 @@ class VoiceNotFoundError(MacawError):
     def __init__(self, voice_id: str) -> None:
         self.voice_id = voice_id
         super().__init__(f"Saved voice '{voice_id}' not found")
+
+
+class TranscriptNotFoundError(MacawError):
+    """Stored transcript not found in TranscriptStore."""
+
+    def __init__(self, transcription_id: str) -> None:
+        self.transcription_id = transcription_id
+        super().__init__(f"Transcript '{transcription_id}' not found")
+
+
+class PronunciationDictionaryNotFoundError(MacawError):
+    """Pronunciation dictionary not found in PronunciationStore."""
+
+    def __init__(self, dictionary_id: str) -> None:
+        self.dictionary_id = dictionary_id
+        super().__init__(f"Pronunciation dictionary '{dictionary_id}' not found")
+
+
+class DubbingNotFoundError(MacawError):
+    """Dubbing job not found."""
+
+    def __init__(self, dubbing_id: str) -> None:
+        self.dubbing_id = dubbing_id
+        super().__init__(f"Dubbing job '{dubbing_id}' not found")
 
 
 class TTSError(MacawError):

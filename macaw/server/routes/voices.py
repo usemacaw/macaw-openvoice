@@ -24,7 +24,7 @@ from macaw.server.models.voices import (
 
 if TYPE_CHECKING:
     from macaw.registry.registry import ModelRegistry
-    from macaw.server.voice_store import VoiceStore
+    from macaw.server.voice_store import SavedVoice, VoiceStore
     from macaw.workers.manager import WorkerManager
 
 router = APIRouter(tags=["Voices"])
@@ -165,6 +165,11 @@ async def create_voice(
         has_ref_audio=ref_audio_bytes is not None,
     )
 
+    return _voice_to_response(saved)
+
+
+def _voice_to_response(saved: SavedVoice) -> SavedVoiceResponse:
+    """Convert a SavedVoice to its API response model."""
     return SavedVoiceResponse(
         voice_id=saved.voice_id,
         name=saved.name,
@@ -173,6 +178,7 @@ async def create_voice(
         ref_text=saved.ref_text,
         instruction=saved.instruction,
         has_ref_audio=saved.ref_audio_path is not None,
+        shared=saved.shared,
         created_at=saved.created_at,
     )
 
@@ -188,16 +194,7 @@ async def get_voice(
     if saved is None:
         raise VoiceNotFoundError(voice_id)
 
-    return SavedVoiceResponse(
-        voice_id=saved.voice_id,
-        name=saved.name,
-        voice_type=saved.voice_type,
-        language=saved.language,
-        ref_text=saved.ref_text,
-        instruction=saved.instruction,
-        has_ref_audio=saved.ref_audio_path is not None,
-        created_at=saved.created_at,
-    )
+    return _voice_to_response(saved)
 
 
 @router.delete("/v1/voices/{voice_id}", status_code=204)
@@ -240,13 +237,78 @@ async def update_voice(
 
     logger.info("voice_updated", voice_id=voice_id)
 
-    return SavedVoiceResponse(
-        voice_id=updated.voice_id,
-        name=updated.name,
-        voice_type=updated.voice_type,
-        language=updated.language,
-        ref_text=updated.ref_text,
-        instruction=updated.instruction,
-        has_ref_audio=updated.ref_audio_path is not None,
-        created_at=updated.created_at,
+    return _voice_to_response(updated)
+
+
+# ─── Voice Marketplace ───
+
+
+@router.post("/v1/voices/{voice_id}/share", response_model=SavedVoiceResponse)
+async def share_voice(
+    voice_id: str,
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
+) -> SavedVoiceResponse:
+    """Share a voice, making it publicly discoverable."""
+
+    updated = await voice_store.set_shared(voice_id, shared=True)
+    if updated is None:
+        raise VoiceNotFoundError(voice_id)
+
+    logger.info("voice_shared", voice_id=voice_id)
+    return _voice_to_response(updated)
+
+
+@router.delete("/v1/voices/{voice_id}/share", status_code=204)
+async def unshare_voice(
+    voice_id: str,
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
+) -> None:
+    """Unshare a voice, removing it from the public marketplace."""
+
+    updated = await voice_store.set_shared(voice_id, shared=False)
+    if updated is None:
+        raise VoiceNotFoundError(voice_id)
+
+    logger.info("voice_unshared", voice_id=voice_id)
+
+
+@router.get("/v1/shared-voices")
+async def list_shared_voices(
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
+) -> list[SavedVoiceResponse]:
+    """List all publicly shared voices."""
+
+    shared = await voice_store.list_shared()
+    return [_voice_to_response(v) for v in shared]
+
+
+@router.post("/v1/voices/add/{voice_id}", response_model=SavedVoiceResponse, status_code=201)
+async def copy_shared_voice(
+    voice_id: str,
+    voice_store: VoiceStore = Depends(require_voice_store),  # noqa: B008
+) -> SavedVoiceResponse:
+    """Copy a shared voice to your own collection.
+
+    The shared voice must exist and be shared. Creates a new voice
+    with a fresh ID, copying all metadata (without ref_audio).
+    """
+
+    source = await voice_store.get(voice_id)
+    if source is None:
+        raise VoiceNotFoundError(voice_id)
+
+    if not source.shared:
+        raise InvalidRequestError(f"Voice '{voice_id}' is not shared.")
+
+    new_id = str(uuid.uuid4())
+    copied = await voice_store.save(
+        voice_id=new_id,
+        name=source.name,
+        voice_type=source.voice_type,
+        language=source.language,
+        ref_text=source.ref_text,
+        instruction=source.instruction,
     )
+
+    logger.info("voice_copied", source_id=voice_id, new_id=new_id)
+    return _voice_to_response(copied)

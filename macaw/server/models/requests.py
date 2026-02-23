@@ -31,3 +31,6 @@ class TranscribeRequest:
     webhook_url: str | None = None
     webhook_secret: str | None = None
     webhook_metadata: dict[str, object] | None = None
+    entity_detection: list[str] | None = None
+    tag_audio_events: bool = True
+    use_multi_channel: bool = False

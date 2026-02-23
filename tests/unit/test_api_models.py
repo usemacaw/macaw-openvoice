@@ -65,7 +65,7 @@ class TestTranscriptionResponse:
 
     def test_json_format(self) -> None:
         resp = TranscriptionResponse(text="Ola mundo")
-        assert resp.model_dump() == {"text": "Ola mundo"}
+        assert resp.model_dump() == {"text": "Ola mundo", "transcription_id": None}
 
     def test_empty_text(self) -> None:
         resp = TranscriptionResponse(text="")

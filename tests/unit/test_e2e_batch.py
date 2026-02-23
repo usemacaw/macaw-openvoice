@@ -373,7 +373,7 @@ class TestRequestValidation:
             )
         assert response.status_code == 422
 
-    async def test_missing_file_returns_422(self) -> None:
+    async def test_missing_file_returns_400(self) -> None:
         app = _make_app()
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -382,4 +382,5 @@ class TestRequestValidation:
                 "/v1/audio/transcriptions",
                 data={"model": "faster-whisper-tiny"},
             )
-        assert response.status_code == 422
+        # file is optional (cloud_storage_url alternative) — missing both returns 400
+        assert response.status_code == 400

@@ -130,7 +130,8 @@ async def test_transcribe_requires_file() -> None:
             data={"model": "faster-whisper-tiny"},
         )
 
-    assert response.status_code == 422
+    # With cloud_storage_url support, file is optional — missing both returns 400
+    assert response.status_code == 400
 
 
 async def test_transcribe_file_too_large() -> None:

@@ -450,6 +450,52 @@ class EffectsSettings(BaseSettings):
     )
 
 
+class TranscriptStoreSettings(BaseSettings):
+    """Transcript storage settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(default=False, validation_alias="MACAW_TRANSCRIPT_STORE_ENABLED")
+    store_path: str = Field(
+        default="data/transcripts", validation_alias="MACAW_TRANSCRIPT_STORE_PATH"
+    )
+    ttl_seconds: int | None = Field(
+        default=None, ge=1, validation_alias="MACAW_TRANSCRIPT_STORE_TTL_SECONDS"
+    )
+
+
+class PronunciationSettings(BaseSettings):
+    """Pronunciation dictionary store settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    store_path: str = Field(
+        default="data/pronunciation",
+        validation_alias="MACAW_PRONUNCIATION_STORE_PATH",
+    )
+
+
+class STTDownloadSettings(BaseSettings):
+    """STT audio download settings for cloud_storage_url.
+
+    Controls size limits and timeout for downloading audio from remote URLs.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_size_bytes: int = Field(
+        default=2 * 1024 * 1024 * 1024,  # 2 GB
+        ge=1024,
+        validation_alias="MACAW_STT_MAX_DOWNLOAD_SIZE_BYTES",
+    )
+    timeout_s: float = Field(
+        default=120.0,
+        gt=0,
+        le=600,
+        validation_alias="MACAW_STT_DOWNLOAD_TIMEOUT_S",
+    )
+
+
 class WebhookSettings(BaseSettings):
     """Webhook delivery settings."""
 
@@ -458,6 +504,31 @@ class WebhookSettings(BaseSettings):
     max_retries: int = Field(default=3, ge=0, le=10, validation_alias="MACAW_WEBHOOK_MAX_RETRIES")
     retry_delay_s: float = Field(default=1.0, gt=0, validation_alias="MACAW_WEBHOOK_RETRY_DELAY_S")
     allowed_schemes: str = Field(default="https", validation_alias="MACAW_WEBHOOK_ALLOWED_SCHEMES")
+
+
+class MultiContextSettings(BaseSettings):
+    """Multi-context WebSocket TTS settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_contexts: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        validation_alias="MACAW_MULTI_CONTEXT_MAX_CONTEXTS",
+    )
+    inactivity_timeout_s: float = Field(
+        default=20.0,
+        gt=0,
+        le=300,
+        validation_alias="MACAW_MULTI_CONTEXT_INACTIVITY_TIMEOUT_S",
+    )
+    max_concurrent_tts: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        validation_alias="MACAW_MULTI_CONTEXT_MAX_CONCURRENT_TTS",
+    )
 
 
 class MacawSettings(BaseSettings):
@@ -485,7 +556,11 @@ class MacawSettings(BaseSettings):
     postprocessing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
     codec: CodecSettings = Field(default_factory=CodecSettings)
     effects: EffectsSettings = Field(default_factory=EffectsSettings)
+    pronunciation: PronunciationSettings = Field(default_factory=PronunciationSettings)
+    transcript_store: TranscriptStoreSettings = Field(default_factory=TranscriptStoreSettings)
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)
+    stt_download: STTDownloadSettings = Field(default_factory=STTDownloadSettings)
+    multi_context: MultiContextSettings = Field(default_factory=MultiContextSettings)
 
 
 @lru_cache(maxsize=1)

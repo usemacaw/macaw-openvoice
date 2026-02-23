@@ -11,6 +11,9 @@ from macaw.logging import get_logger
 
 if TYPE_CHECKING:
     import asyncio
+    from collections.abc import Awaitable
+
+    from macaw.server.webhooks.delivery import WebhookDelivery
 
 logger = get_logger("scheduler.async_jobs")
 
@@ -79,8 +82,8 @@ class AsyncJobManager:
     async def run_job(
         self,
         job_id: str,
-        coro: Any,  # coroutine that returns transcription result
-        delivery: Any,  # WebhookDelivery instance
+        coro: Awaitable[dict[str, Any]],
+        delivery: WebhookDelivery,
     ) -> None:
         """Run transcription and deliver result via webhook."""
         job = self._jobs.get(job_id)

@@ -14,6 +14,7 @@ import pydantic
 
 from macaw.logging import get_logger
 from macaw.server.models.events import (
+    CommitCommand,
     InputAudioBufferCommitCommand,
     SessionCancelCommand,
     SessionCloseCommand,
@@ -44,6 +45,8 @@ _COMMAND_TYPES: dict[str, type[ClientCommand]] = {
     "tts.append": TTSAppendCommand,
     "tts.flush": TTSFlushCommand,
     "tts.clear": TTSClearCommand,
+    # Short alias for input_audio_buffer.commit (used with commit_strategy: manual)
+    "commit": CommitCommand,
 }
 
 

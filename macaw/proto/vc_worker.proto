@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package macaw.vc;
+
+service VCWorker {
+  // Voice conversion (server-streaming: source audio in, converted audio chunks out)
+  rpc VoiceChange (VoiceChangeRequest) returns (stream VoiceChangeChunk);
+
+  // Health check (unary)
+  rpc Health (HealthRequest) returns (HealthResponse);
+}
+
+// --- VoiceChange messages ---
+
+message VoiceChangeRequest {
+  string request_id = 1;
+  bytes source_audio = 2;          // Source audio (PCM 16-bit 16kHz mono)
+  string voice = 3;                // Target voice identifier
+  int32 sample_rate = 4;           // Output audio sample rate
+  // Optional reference audio for target voice (voice cloning style)
+  bytes ref_audio = 5;             // Reference audio for target voice
+  string ref_text = 6;             // Transcript of reference audio
+  // Voice settings (JSON-encoded dict of abstract voice characteristics)
+  string voice_settings_json = 7;  // Empty = not set
+}
+
+message VoiceChangeChunk {
+  bytes audio_data = 1;            // 16-bit PCM audio chunk
+  bool is_last = 2;                // Signals last chunk of the stream
+  float duration = 3;              // Accumulated audio duration in seconds
+}
+
+// --- Health ---
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;               // "ok", "loading", "error"
+  string model_name = 2;
+  string engine = 3;
+}

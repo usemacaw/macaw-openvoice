@@ -23,6 +23,7 @@ __all__ = [
     "istft",
     "mel_filterbank",
     "resample_output",
+    "resample_pcm_bytes",
     "stft",
 ]
 
@@ -317,3 +318,30 @@ def resample_output(audio: np.ndarray, from_rate: int, to_rate: int) -> np.ndarr
 
     resampled = _resample_poly(audio, up, down)
     return np.asarray(resampled, dtype=np.float32)
+
+
+def resample_pcm_bytes(pcm_data: bytes, from_rate: int, to_rate: int) -> bytes:
+    """Resample raw 16-bit PCM bytes from one sample rate to another.
+
+    Converts to float32 internally, resamples via ``resample_output``,
+    and converts back to 16-bit PCM bytes.  Returns the input unchanged
+    when ``from_rate == to_rate``.
+
+    Args:
+        pcm_data: Raw 16-bit signed PCM audio bytes.
+        from_rate: Source sample rate in Hz.
+        to_rate: Target sample rate in Hz.
+
+    Returns:
+        Resampled 16-bit PCM bytes.
+    """
+    if from_rate == to_rate or not pcm_data:
+        return pcm_data
+
+    from macaw._audio_constants import PCM_INT16_SCALE
+
+    samples = np.frombuffer(pcm_data, dtype=np.int16)
+    audio_f32 = samples.astype(np.float32) / PCM_INT16_SCALE
+    resampled_f32 = resample_output(audio_f32, from_rate, to_rate)
+    resampled_i16 = np.clip(resampled_f32 * PCM_INT16_SCALE, -32768, 32767).astype(np.int16)
+    return resampled_i16.tobytes()

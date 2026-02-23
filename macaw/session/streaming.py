@@ -427,6 +427,12 @@ class StreamingSession:
         # Flag: hot words already sent for the current speech segment?
         self._hot_words_sent_for_segment = False
 
+        # Auto-commit: when True (default), VAD speech_end triggers
+        # automatic stream drain and segment boundary. When False
+        # (commit_strategy: "manual"), only explicit commit() closes
+        # segments — speech_end still emits the event but does not drain.
+        self._auto_commit = True
+
         # Timestamp of current speech segment start (ms)
         self._speech_start_ms: int | None = None
 
@@ -475,6 +481,16 @@ class StreamingSession:
     def unmute(self) -> None:
         """Resume STT after mute-on-speak. Decrements ref count (floored at 0)."""
         self._mute_controller.unmute()
+
+    def set_auto_commit(self, auto_commit: bool) -> None:
+        """Enable or disable VAD-triggered auto-commit.
+
+        When ``auto_commit=False`` (commit_strategy: "manual"), VAD
+        speech_end events still fire but do NOT drain the gRPC stream
+        or create segment boundaries. The client must send explicit
+        ``commit`` commands to finalize segments.
+        """
+        self._auto_commit = auto_commit
 
     @property
     def wal(self) -> SessionWAL:
@@ -883,6 +899,11 @@ class StreamingSession:
         Ensures that ALL transcript.final from the worker are emitted BEFORE
         vad.speech_end, respecting WebSocket protocol semantics
         (PRD section 9: transcript.final comes before vad.speech_end).
+
+        When ``_auto_commit`` is False (commit_strategy: "manual"), the
+        vad.speech_end event still fires but the gRPC stream is NOT drained
+        and the segment boundary is NOT created. The client must send an
+        explicit ``commit`` command to finalize the segment.
         """
         current_state = self._state_machine.state
 
@@ -890,6 +911,23 @@ class StreamingSession:
         if current_state != SessionState.ACTIVE:
             return
 
+        stt_vad_events_total.labels(event_type="speech_end").inc()
+
+        if not self._auto_commit:
+            # Manual commit mode: emit vad.speech_end but do NOT drain stream
+            # or create segment boundary. The stream stays open for more audio.
+            await self._on_event(
+                VADSpeechEndEvent(timestamp_ms=timestamp_ms),
+            )
+            logger.debug(
+                "speech_end_manual_mode",
+                session_id=self._session_id,
+                timestamp_ms=timestamp_ms,
+                segment_id=self._segment_id,
+            )
+            return
+
+        # Auto-commit mode (default): transition, drain, emit event
         # Transition to SILENCE
         try:
             self._state_machine.transition(SessionState.SILENCE)
@@ -901,8 +939,6 @@ class StreamingSession:
             )
 
         self._metrics.on_speech_end()
-
-        stt_vad_events_total.labels(event_type="speech_end").inc()
 
         # Drain stream: close gRPC send + await receiver task.
         # Guarantees transcript.final is emitted BEFORE vad.speech_end.

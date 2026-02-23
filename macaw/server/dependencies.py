@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from macaw.registry.registry import ModelRegistry
     from macaw.scheduler.async_jobs import AsyncJobManager
     from macaw.scheduler.scheduler import Scheduler
+    from macaw.server.pronunciation.store import PronunciationStore
+    from macaw.server.transcript_store.interface import TranscriptStore
     from macaw.server.voice_store import VoiceStore
     from macaw.workers.manager import WorkerManager
 
@@ -67,6 +69,21 @@ def require_voice_store(request: Request) -> VoiceStore:
     return store  # type: ignore[no-any-return]
 
 
+def get_pronunciation_store(request: Request) -> PronunciationStore | None:
+    """Return the PronunciationStore from app state, or None if not configured."""
+    return getattr(request.app.state, "pronunciation_store", None)
+
+
+def require_pronunciation_store(request: Request) -> PronunciationStore:
+    """Return the PronunciationStore, raising InvalidRequestError if not configured."""
+    from macaw.exceptions import InvalidRequestError
+
+    store = getattr(request.app.state, "pronunciation_store", None)
+    if store is None:
+        raise InvalidRequestError("PronunciationStore not configured on this server.")
+    return store  # type: ignore[no-any-return]
+
+
 def get_worker_manager(request: Request) -> WorkerManager:
     """Return the WorkerManager from app state.
 
@@ -77,6 +94,21 @@ def get_worker_manager(request: Request) -> WorkerManager:
     if worker_manager is None:
         raise ServiceNotConfiguredError("WorkerManager")
     return worker_manager  # type: ignore[no-any-return]
+
+
+def get_transcript_store(request: Request) -> TranscriptStore | None:
+    """Return the TranscriptStore from app state, or None if not configured."""
+    return getattr(request.app.state, "transcript_store", None)
+
+
+def require_transcript_store(request: Request) -> TranscriptStore:
+    """Return the TranscriptStore, raising InvalidRequestError if not configured."""
+    from macaw.exceptions import InvalidRequestError
+
+    store = getattr(request.app.state, "transcript_store", None)
+    if store is None:
+        raise InvalidRequestError("TranscriptStore not configured on this server.")
+    return store  # type: ignore[no-any-return]
 
 
 def get_async_job_manager(request: Request) -> AsyncJobManager | None:

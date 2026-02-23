@@ -75,6 +75,10 @@ def proto_request_to_synthesize_params(
         or request.top_k != 0
         or request.top_p != 0
         or (isinstance(request.voice_settings_json, str) and request.voice_settings_json != "")
+        or request.previous_text != ""
+        or request.next_text != ""
+        or len(request.previous_request_ids) > 0
+        or len(request.next_request_ids) > 0
     )
     if has_extended:
         options = {}
@@ -100,6 +104,15 @@ def proto_request_to_synthesize_params(
             import json
 
             options["voice_settings"] = json.loads(request.voice_settings_json)
+        # Cross-generation continuity
+        if request.previous_text:
+            options["previous_text"] = request.previous_text
+        if request.next_text:
+            options["next_text"] = request.next_text
+        if len(request.previous_request_ids) > 0:
+            options["previous_request_ids"] = list(request.previous_request_ids)
+        if len(request.next_request_ids) > 0:
+            options["next_request_ids"] = list(request.next_request_ids)
 
     include_alignment: bool = request.include_alignment
     raw_granularity = request.alignment_granularity or "word"

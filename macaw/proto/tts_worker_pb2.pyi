@@ -7,7 +7,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class SynthesizeRequest(_message.Message):
-    __slots__ = ("request_id", "text", "voice", "sample_rate", "speed", "language", "ref_audio", "ref_text", "instruction", "codec", "include_alignment", "alignment_granularity", "seed", "text_normalization", "temperature", "top_k", "top_p", "voice_settings_json")
+    __slots__ = ("request_id", "text", "voice", "sample_rate", "speed", "language", "ref_audio", "ref_text", "instruction", "codec", "include_alignment", "alignment_granularity", "seed", "text_normalization", "temperature", "top_k", "top_p", "voice_settings_json", "previous_text", "next_text", "previous_request_ids", "next_request_ids")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     VOICE_FIELD_NUMBER: _ClassVar[int]
@@ -26,6 +26,10 @@ class SynthesizeRequest(_message.Message):
     TOP_K_FIELD_NUMBER: _ClassVar[int]
     TOP_P_FIELD_NUMBER: _ClassVar[int]
     VOICE_SETTINGS_JSON_FIELD_NUMBER: _ClassVar[int]
+    PREVIOUS_TEXT_FIELD_NUMBER: _ClassVar[int]
+    NEXT_TEXT_FIELD_NUMBER: _ClassVar[int]
+    PREVIOUS_REQUEST_IDS_FIELD_NUMBER: _ClassVar[int]
+    NEXT_REQUEST_IDS_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     text: str
     voice: str
@@ -44,7 +48,11 @@ class SynthesizeRequest(_message.Message):
     top_k: int
     top_p: float
     voice_settings_json: str
-    def __init__(self, request_id: _Optional[str] = ..., text: _Optional[str] = ..., voice: _Optional[str] = ..., sample_rate: _Optional[int] = ..., speed: _Optional[float] = ..., language: _Optional[str] = ..., ref_audio: _Optional[bytes] = ..., ref_text: _Optional[str] = ..., instruction: _Optional[str] = ..., codec: _Optional[str] = ..., include_alignment: bool = ..., alignment_granularity: _Optional[str] = ..., seed: _Optional[int] = ..., text_normalization: _Optional[str] = ..., temperature: _Optional[float] = ..., top_k: _Optional[int] = ..., top_p: _Optional[float] = ..., voice_settings_json: _Optional[str] = ...) -> None: ...
+    previous_text: str
+    next_text: str
+    previous_request_ids: _containers.RepeatedScalarFieldContainer[str]
+    next_request_ids: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, request_id: _Optional[str] = ..., text: _Optional[str] = ..., voice: _Optional[str] = ..., sample_rate: _Optional[int] = ..., speed: _Optional[float] = ..., language: _Optional[str] = ..., ref_audio: _Optional[bytes] = ..., ref_text: _Optional[str] = ..., instruction: _Optional[str] = ..., codec: _Optional[str] = ..., include_alignment: bool = ..., alignment_granularity: _Optional[str] = ..., seed: _Optional[int] = ..., text_normalization: _Optional[str] = ..., temperature: _Optional[float] = ..., top_k: _Optional[int] = ..., top_p: _Optional[float] = ..., voice_settings_json: _Optional[str] = ..., previous_text: _Optional[str] = ..., next_text: _Optional[str] = ..., previous_request_ids: _Optional[_Iterable[str]] = ..., next_request_ids: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class AlignmentItem(_message.Message):
     __slots__ = ("text", "start_ms", "duration_ms")

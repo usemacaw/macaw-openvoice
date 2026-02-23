@@ -39,6 +39,11 @@ message SynthesizeRequest {
   float top_p = 17;                     // Nucleus sampling threshold (0 = engine default)
   // Voice settings (JSON-encoded dict of abstract voice characteristics)
   string voice_settings_json = 18;     // Empty = not set; JSON object with stability, similarity_boost, etc.
+  // Cross-generation continuity (ElevenLabs-compatible)
+  string previous_text = 19;           // Text from the previous TTS request for prosody continuity
+  string next_text = 20;               // Text of the next TTS request for anticipatory prosody
+  repeated string previous_request_ids = 21;  // Up to 3 previous request IDs for conditioning
+  repeated string next_request_ids = 22;      // Up to 3 next request IDs for conditioning
 }
 
 // Alignment data for a single text element (character or word)

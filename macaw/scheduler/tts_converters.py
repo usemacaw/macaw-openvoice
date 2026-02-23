@@ -31,6 +31,10 @@ def build_tts_proto_request(
     top_k: int | None = None,
     top_p: float | None = None,
     voice_settings: dict[str, object] | None = None,
+    previous_text: str | None = None,
+    next_text: str | None = None,
+    previous_request_ids: list[str] | None = None,
+    next_request_ids: list[str] | None = None,
 ) -> SynthesizeRequest:
     """Build SynthesizeRequest proto from REST API parameters."""
     req = SynthesizeRequest(
@@ -70,4 +74,13 @@ def build_tts_proto_request(
         import json
 
         req.voice_settings_json = json.dumps(voice_settings)
+    # Cross-generation continuity fields
+    if previous_text:
+        req.previous_text = previous_text
+    if next_text:
+        req.next_text = next_text
+    if previous_request_ids:
+        req.previous_request_ids.extend(previous_request_ids[:3])
+    if next_request_ids:
+        req.next_request_ids.extend(next_request_ids[:3])
     return req

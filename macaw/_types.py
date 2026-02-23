@@ -214,6 +214,27 @@ class TTSEngineCapabilities:
     supports_text_normalization: bool = False
     supports_speed: bool = True  # default True: most engines support speed
     supports_voice_settings: bool = False
+    supports_ssml: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class VoiceChangerCapabilities:
+    """Capabilities reported by the voice changer engine at runtime."""
+
+    supports_streaming: bool = False
+    supports_voice_reference: bool = False
+    max_audio_duration_s: float = 300.0  # 5 minutes default max
+    supported_sample_rates: tuple[int, ...] = (16000,)
+
+
+@dataclass(frozen=True, slots=True)
+class SoundEffectCapabilities:
+    """Capabilities reported by the sound effect engine at runtime."""
+
+    max_duration_s: float = 30.0
+    min_duration_s: float = 0.5
+    supports_loop: bool = False
+    supports_prompt_influence: bool = False
 
 
 @dataclass(frozen=True, slots=True)

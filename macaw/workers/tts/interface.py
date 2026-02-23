@@ -182,6 +182,44 @@ class TTSBackend(ABC):
         """
         return {}
 
+    def apply_ssml_directives(
+        self,
+        text: str,
+        directives: list[object],
+        *,
+        sample_rate: int = TTS_DEFAULT_SAMPLE_RATE,
+    ) -> tuple[str, list[tuple[int, bytes]]]:
+        """Apply SSML directives to synthesis text.
+
+        Processes engine-neutral SSML directives and returns:
+        - Modified text (with say-as hints, phoneme replacements, etc.)
+        - List of (position, silence_bytes) tuples for break directives
+
+        Default implementation handles break directives (silence insertion)
+        and prosody rate (returns speed hint). Engines can override for
+        engine-specific behavior.
+
+        Args:
+            text: Plain text extracted from SSML.
+            directives: List of SSMLDirective objects.
+            sample_rate: Audio sample rate for silence generation.
+
+        Returns:
+            Tuple of (processed_text, silence_insertions).
+            silence_insertions: list of (char_position, pcm_bytes) pairs.
+        """
+        from macaw.postprocessing.ssml.directives import BreakDirective
+
+        silence_insertions: list[tuple[int, bytes]] = []
+        for directive in directives:
+            if isinstance(directive, BreakDirective):
+                # Generate silence: 16-bit PCM, mono, at given sample rate
+                num_samples = int(sample_rate * directive.time_ms / 1000)
+                silence_bytes = b"\x00\x00" * num_samples
+                silence_insertions.append((directive.position, silence_bytes))
+
+        return text, silence_insertions
+
     async def post_load_hook(self) -> None:  # noqa: B027
         """Optional hook called after load() and before warmup.
 

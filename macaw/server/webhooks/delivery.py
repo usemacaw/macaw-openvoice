@@ -8,6 +8,7 @@ import hmac
 import json
 
 import httpx
+from httpx import HTTPError
 
 from macaw.logging import get_logger
 
@@ -64,7 +65,7 @@ class WebhookDelivery:
                         status=resp.status_code,
                         attempt=attempt,
                     )
-            except Exception as exc:
+            except (HTTPError, OSError) as exc:
                 logger.warning("webhook_error", url=url, error=str(exc), attempt=attempt)
 
             if attempt < self._max_retries:

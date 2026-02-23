@@ -14,6 +14,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 from macaw._types import STTArchitecture
+from macaw.codec.output_format import OutputFormat, parse_output_format
 from macaw.exceptions import ModelNotFoundError, WorkerUnavailableError
 from macaw.logging import get_logger
 from macaw.proto.tts_worker_pb2_grpc import TTSWorkerStub
@@ -36,6 +37,7 @@ from macaw.server.constants import (
 )
 from macaw.server.grpc_channels import get_or_create_tts_channel
 from macaw.server.models.events import (
+    CommitCommand,
     InputAudioBufferCommitCommand,
     SessionCancelCommand,
     SessionCloseCommand,
@@ -72,6 +74,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from macaw.audio_effects.chain import AudioEffectChain
+    from macaw.codec.interface import CodecEncoder
     from macaw.server.models.events import ServerEvent
     from macaw.session.streaming import StreamingSession
 
@@ -109,6 +112,7 @@ router = APIRouter(tags=["Realtime"])
                                     "session.cancel",
                                     "session.close",
                                     "input_audio_buffer.commit",
+                                    "commit",
                                     "tts.speak",
                                     "tts.cancel",
                                     "tts.append",
@@ -547,12 +551,68 @@ async def _prepare_tts_request(
             )
             return None
 
+    # Parse SSML tags if enabled (before pronunciation rules)
+    ssml_speed_override: float | None = None
+    synthesis_text = cmd.text
+    if cmd.enable_ssml_parsing:
+        from macaw.postprocessing.ssml.parser import SSMLParseError, SSMLParser
+        from macaw.workers.tts.ssml_mapper import map_ssml_directives
+
+        try:
+            parse_result = SSMLParser().parse(cmd.text)
+        except SSMLParseError as exc:
+            await send_event(
+                StreamingErrorEvent(
+                    code="invalid_request",
+                    message=str(exc),
+                    recoverable=True,
+                )
+            )
+            return None
+
+        ssml_result = map_ssml_directives(
+            parse_result.text,
+            parse_result.directives,
+            sample_rate=TTS_DEFAULT_SAMPLE_RATE,
+        )
+        synthesis_text = ssml_result.text
+        ssml_speed_override = ssml_result.speed_override
+
+    # Apply pronunciation dictionary rules to text before synthesis
+    if cmd.pronunciation_dictionary_locators:
+        from macaw.server.pronunciation.applicator import apply_pronunciation_rules
+        from macaw.server.pronunciation.models import PronDictLocator
+
+        pron_store = getattr(websocket.app.state, "pronunciation_store", None)
+        if pron_store is not None:
+            locators = [
+                PronDictLocator(**loc) if isinstance(loc, dict) else loc
+                for loc in cmd.pronunciation_dictionary_locators
+            ]
+            try:
+                synthesis_text = await apply_pronunciation_rules(
+                    synthesis_text,
+                    locators,
+                    pron_store,
+                )
+            except (ValueError, KeyError) as exc:
+                await send_event(
+                    StreamingErrorEvent(
+                        code="invalid_request",
+                        message=str(exc),
+                        recoverable=True,
+                    )
+                )
+                return None
+
+    effective_speed = ssml_speed_override if ssml_speed_override is not None else cmd.speed
+
     proto_request = build_tts_proto_request(
         request_id=request_id,
-        text=cmd.text,
+        text=synthesis_text,
         voice=cmd.voice,
         sample_rate=TTS_DEFAULT_SAMPLE_RATE,
-        speed=cmd.speed,
+        speed=effective_speed,
         language=cmd.language,
         ref_audio=ref_audio_bytes,
         ref_text=cmd.ref_text,
@@ -566,6 +626,10 @@ async def _prepare_tts_request(
         top_k=cmd.top_k,
         top_p=cmd.top_p,
         voice_settings=cmd.voice_settings,
+        previous_text=cmd.previous_text,
+        next_text=cmd.next_text,
+        previous_request_ids=cmd.previous_request_ids,
+        next_request_ids=cmd.next_request_ids,
     )
     return worker_address, proto_request
 
@@ -581,6 +645,7 @@ async def _tts_speak_task(
     send_event: Callable[[ServerEvent], Awaitable[None]],
     cancel_event: asyncio.Event,
     effect_chain: AudioEffectChain | None = None,
+    output_fmt: OutputFormat | None = None,
 ) -> None:
     """Background task that runs TTS synthesis and streams audio to the client.
 
@@ -618,7 +683,10 @@ async def _tts_speak_task(
         stub = TTSWorkerStub(channel)  # type: ignore[no-untyped-call]
         response_stream = stub.Synthesize(proto_request, timeout=TTS_GRPC_TIMEOUT)
 
-        # 3. Stream chunks to client
+        # 3. Create codec encoder for output format (if needed)
+        ws_encoder = _create_ws_encoder(output_fmt)
+
+        # 4. Stream chunks to client
         async for chunk in response_stream:
             if cancel_event.is_set():
                 cancelled = True
@@ -673,10 +741,12 @@ async def _tts_speak_task(
                 )
                 await send_event(alignment_event)
 
-            # Apply effects to PCM before sending
+            # Apply effects to PCM, resample if needed, then encode
             audio_data = chunk.audio_data
             if effect_chain is not None:
                 audio_data = effect_chain.process_bytes(audio_data, TTS_DEFAULT_SAMPLE_RATE)
+            if output_fmt is not None:
+                audio_data = _encode_ws_audio(audio_data, output_fmt, ws_encoder)
 
             # Send audio as binary frame
             if websocket.client_state == _WSState.CONNECTED:
@@ -684,6 +754,12 @@ async def _tts_speak_task(
 
             if chunk.is_last:
                 break
+
+        # Flush remaining encoder buffer
+        if ws_encoder is not None:
+            flushed = ws_encoder.flush()
+            if flushed and websocket.client_state == _WSState.CONNECTED:
+                await websocket.send_bytes(flushed)
 
     except asyncio.CancelledError:
         cancelled = True
@@ -782,6 +858,7 @@ class SessionContext:
     tts_text_buffer: TTSTextBuffer | None = None
     backpressure: Any = field(default=None)
     closed_reason: str = "client_disconnect"
+    commit_strategy: str = "vad"
 
     async def send_event(self, event: ServerEvent) -> None:
         """Send an event to the client WebSocket."""
@@ -822,6 +899,15 @@ async def _handle_configure_command(
         ctx.tts_text_buffer.split_strategy = cmd.tts_split_strategy
     if cmd.tts_flush_timeout_ms is not None and ctx.tts_text_buffer is not None:
         ctx.tts_text_buffer.flush_timeout_ms = cmd.tts_flush_timeout_ms
+    if cmd.commit_strategy is not None:
+        ctx.commit_strategy = cmd.commit_strategy
+        if ctx.session is not None:
+            ctx.session.set_auto_commit(cmd.commit_strategy == "vad")
+        logger.info(
+            "commit_strategy_changed",
+            session_id=ctx.session_id,
+            commit_strategy=cmd.commit_strategy,
+        )
     return False
 
 
@@ -839,15 +925,27 @@ async def _handle_tts_speak_command(
         text_len=len(cmd.text),
     )
 
-    # Pre-flight: validate codec availability before starting TTS task
-    if cmd.codec:
+    # Pre-flight: resolve and validate output format
+    output_fmt = _resolve_ws_output_format(cmd)
+    if isinstance(output_fmt, str):
+        # output_fmt is an error message
+        await ctx.send_event(
+            StreamingErrorEvent(
+                code="invalid_output_format",
+                message=output_fmt,
+                recoverable=True,
+            )
+        )
+        return False
+
+    if output_fmt is not None and output_fmt.needs_encoding:
         from macaw.codec import is_codec_available
 
-        if not is_codec_available(cmd.codec):
+        if not is_codec_available(output_fmt.codec):
             await ctx.send_event(
                 StreamingErrorEvent(
                     code="codec_unavailable",
-                    message=f"Codec '{cmd.codec}' is not available. Install the required library.",
+                    message=f"Codec '{output_fmt.codec}' is not available. Install the required library.",
                     recoverable=True,
                 )
             )
@@ -881,6 +979,7 @@ async def _handle_tts_speak_command(
             send_event=ctx.send_event,
             cancel_event=cancel_ev,
             effect_chain=effect_chain,
+            output_fmt=output_fmt,
         ),
     )
     return False
@@ -939,9 +1038,12 @@ async def _handle_session_close_command(
 
 async def _handle_commit_command(
     ctx: SessionContext,
-    cmd: InputAudioBufferCommitCommand,
+    cmd: InputAudioBufferCommitCommand | CommitCommand,
 ) -> bool:
-    """Handle input_audio_buffer.commit. Returns False (never breaks loop)."""
+    """Handle input_audio_buffer.commit (or short alias 'commit').
+
+    Returns False (never breaks loop).
+    """
     logger.info("input_audio_buffer_commit", session_id=ctx.session_id)
     if ctx.session is not None and not ctx.session.is_closed:
         await ctx.session.commit()
@@ -1083,6 +1185,7 @@ _COMMAND_HANDLERS: dict[
     SessionCancelCommand: _handle_session_cancel_command,
     SessionCloseCommand: _handle_session_close_command,
     InputAudioBufferCommitCommand: _handle_commit_command,
+    CommitCommand: _handle_commit_command,
 }
 
 
@@ -1292,3 +1395,64 @@ async def realtime_endpoint(
             )
 
         logger.info("session_closed", session_id=session_id, reason=ctx.closed_reason)
+
+
+# ---------------------------------------------------------------------------
+# Output format helpers (codec encoding + resampling for WS TTS)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_ws_output_format(cmd: TTSSpeakCommand) -> OutputFormat | str | None:
+    """Resolve output format from a tts.speak command.
+
+    Returns:
+        OutputFormat: Valid parsed format.
+        str: Error message (parse failure).
+        None: No codec/output_format requested (raw PCM).
+    """
+    if cmd.output_format is not None:
+        try:
+            return parse_output_format(cmd.output_format)
+        except ValueError as exc:
+            return str(exc)
+    if cmd.codec is not None:
+        # Backward compat: simple codec name
+        return parse_output_format(cmd.codec)
+    return None
+
+
+def _create_ws_encoder(output_fmt: OutputFormat | None) -> CodecEncoder | None:
+    """Create a codec encoder for the WS TTS path (or None if raw PCM)."""
+    if output_fmt is None or not output_fmt.needs_encoding:
+        return None
+    from macaw.codec import create_encoder
+
+    return create_encoder(
+        output_fmt.codec,
+        sample_rate=output_fmt.sample_rate,
+        bitrate=output_fmt.bitrate_bps,
+    )
+
+
+def _encode_ws_audio(
+    audio_data: bytes,
+    output_fmt: OutputFormat,
+    encoder: CodecEncoder | None,
+) -> bytes:
+    """Resample and encode audio for the WS TTS path.
+
+    Resamples PCM from TTS_DEFAULT_SAMPLE_RATE to the target rate,
+    then encodes via the codec encoder (if any).
+    """
+    from macaw._dsp import resample_pcm_bytes
+
+    # Resample if target rate differs from source
+    if output_fmt.sample_rate != TTS_DEFAULT_SAMPLE_RATE:
+        audio_data = resample_pcm_bytes(
+            audio_data, TTS_DEFAULT_SAMPLE_RATE, output_fmt.sample_rate
+        )
+
+    # Encode if codec is not raw PCM/WAV
+    if encoder is not None:
+        return encoder.encode(audio_data)
+    return audio_data

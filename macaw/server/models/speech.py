@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from macaw.server.constants import TTS_MAX_TEXT_LENGTH
 from macaw.server.models.effects import AudioEffectsParams
 from macaw.server.models.voice_settings import VoiceSettings
+from macaw.server.pronunciation.models import PronDictLocator
 
 
 class SpeechRequest(BaseModel):
@@ -27,7 +28,13 @@ class SpeechRequest(BaseModel):
     )
     response_format: Literal["wav", "pcm", "opus", "mp3", "mulaw", "alaw"] = Field(
         default="wav",
-        description="Output audio format.",
+        description="Output audio format (simple codec name).",
+    )
+    output_format: str | None = Field(
+        default=None,
+        description="Output format string with optional sample rate and bitrate "
+        "(e.g., 'mp3_44100_128', 'pcm_16000', 'opus_48000_64'). "
+        "Takes precedence over response_format when provided.",
     )
     speed: float = Field(
         default=1.0,
@@ -51,6 +58,13 @@ class SpeechRequest(BaseModel):
     instruction: str | None = Field(
         default=None,
         description="Style/voice instruction for voice design.",
+    )
+    # SSML parsing (parse SSML tags in input text before synthesis)
+    enable_ssml_parsing: bool = Field(
+        default=False,
+        description="When true, parse input text as SSML. Supported tags: "
+        "<break>, <prosody>, <emphasis>, <say-as>, <phoneme>. "
+        "Unsupported tags are stripped. Invalid SSML returns 422.",
     )
     # Post-synthesis audio effects (applied server-side before transport)
     effects: AudioEffectsParams | None = Field(
@@ -104,4 +118,33 @@ class SpeechRequest(BaseModel):
         default=None,
         description="Abstract voice characteristics (stability, similarity_boost, style, speed). "
         "Mapped to engine-specific parameters by the TTS backend.",
+    )
+    # Pronunciation dictionaries (up to 3, applied in order before synthesis)
+    pronunciation_dictionary_locators: list[PronDictLocator] | None = Field(
+        default=None,
+        max_length=3,
+        description="Ordered list of pronunciation dictionary references (max 3). "
+        "Alias rules perform text replacement before synthesis.",
+    )
+    # Cross-generation continuity (ElevenLabs-compatible)
+    previous_text: str | None = Field(
+        default=None,
+        description="Text generated in the previous TTS request. "
+        "Used by engines for prosody continuity across generations.",
+    )
+    next_text: str | None = Field(
+        default=None,
+        description="Text that will be generated in the next TTS request. "
+        "Used by engines for anticipatory prosody.",
+    )
+    previous_request_ids: list[str] | None = Field(
+        default=None,
+        max_length=3,
+        description="Request IDs of up to 3 previous TTS requests "
+        "for cross-generation conditioning.",
+    )
+    next_request_ids: list[str] | None = Field(
+        default=None,
+        max_length=3,
+        description="Request IDs of up to 3 next TTS requests for cross-generation conditioning.",
     )

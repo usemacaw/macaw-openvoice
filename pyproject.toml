@@ -54,7 +54,8 @@ dependencies = [
     "python-multipart>=0.0.18",
     "huggingface_hub>=0.20,<1.0",
     "opuslib>=3.0.0",
-    "nemo_text_processing>=1.1,<2.0"
+    "nemo_text_processing>=1.1,<2.0",
+    "defusedxml>=0.7,<1.0"
 ]
 
 [project.scripts]
@@ -225,6 +226,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "lameenc.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["defusedxml", "defusedxml.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

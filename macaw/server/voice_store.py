@@ -36,6 +36,7 @@ class SavedVoice:
     ref_text: str | None = None
     instruction: str | None = None
     ref_audio_path: str | None = None
+    shared: bool = False
     created_at: float = field(default_factory=time.time)
 
 
@@ -107,6 +108,19 @@ class VoiceStore(ABC):
         """
         ...
 
+    @abstractmethod
+    async def set_shared(self, voice_id: str, *, shared: bool) -> SavedVoice | None:
+        """Set the shared flag on a voice.
+
+        Returns the updated voice, or None if not found.
+        """
+        ...
+
+    @abstractmethod
+    async def list_shared(self) -> list[SavedVoice]:
+        """List all voices with shared=True."""
+        ...
+
 
 class FileSystemVoiceStore(VoiceStore):
     """Filesystem-based voice store.
@@ -157,6 +171,7 @@ class FileSystemVoiceStore(VoiceStore):
             "ref_text": ref_text,
             "instruction": instruction,
             "has_ref_audio": ref_audio is not None,
+            "shared": False,
             "created_at": created_at,
         }
 
@@ -220,6 +235,7 @@ class FileSystemVoiceStore(VoiceStore):
             ref_text=metadata.get("ref_text"),
             instruction=metadata.get("instruction"),
             ref_audio_path=ref_audio_path,
+            shared=metadata.get("shared", False),
             created_at=metadata.get("created_at", 0.0),
         )
 
@@ -284,22 +300,25 @@ class FileSystemVoiceStore(VoiceStore):
         if updated == existing:
             return existing
 
-        # Write updated metadata JSON to disk
+        self._write_metadata(voice_id, updated)
+        return updated
+
+    def _write_metadata(self, voice_id: str, voice: SavedVoice) -> None:
+        """Write voice metadata JSON to disk."""
         metadata = {
-            "voice_id": updated.voice_id,
-            "name": updated.name,
-            "voice_type": updated.voice_type,
-            "language": updated.language,
-            "ref_text": updated.ref_text,
-            "instruction": updated.instruction,
-            "has_ref_audio": updated.ref_audio_path is not None,
-            "created_at": updated.created_at,
+            "voice_id": voice.voice_id,
+            "name": voice.name,
+            "voice_type": voice.voice_type,
+            "language": voice.language,
+            "ref_text": voice.ref_text,
+            "instruction": voice.instruction,
+            "has_ref_audio": voice.ref_audio_path is not None,
+            "shared": voice.shared,
+            "created_at": voice.created_at,
         }
         metadata_path = os.path.join(self._voices_dir, voice_id, "metadata.json")
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
-
-        return updated
 
     async def update(
         self,
@@ -319,3 +338,31 @@ class FileSystemVoiceStore(VoiceStore):
             ref_text=ref_text,
             instruction=instruction,
         )
+
+    def _set_shared_sync(self, voice_id: str, *, shared: bool) -> SavedVoice | None:
+        existing = self._get_sync(voice_id)
+        if existing is None:
+            return None
+
+        updated = dataclasses.replace(existing, shared=shared)
+        if updated == existing:
+            return existing
+
+        self._write_metadata(voice_id, updated)
+        return updated
+
+    async def set_shared(self, voice_id: str, *, shared: bool) -> SavedVoice | None:
+        self._validate_voice_id(voice_id)
+        return await asyncio.to_thread(self._set_shared_sync, voice_id, shared=shared)
+
+    def _list_shared_sync(self) -> list[SavedVoice]:
+        entries = self._list_entries()
+        result: list[SavedVoice] = []
+        for entry in entries:
+            voice = self._get_sync(entry)
+            if voice is not None and voice.shared:
+                result.append(voice)
+        return result
+
+    async def list_shared(self) -> list[SavedVoice]:
+        return await asyncio.to_thread(self._list_shared_sync)
