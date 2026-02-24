@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `[server]` optional extra in pyproject.toml for API-only dependencies (fastapi, uvicorn, click, httpx, huggingface_hub, python-multipart, defusedxml) (#remote-workers)
+- `remote_endpoint` field on `WorkerHandle` for remote gRPC workers managed externally (#remote-workers)
+- `worker_address` property on `WorkerHandle` for unified address resolution (local vs remote) (#remote-workers)
+- `MACAW_REMOTE_WORKERS` env var (JSON dict) for engine-to-endpoint mapping (#remote-workers)
+- `register_remote_worker()` method on `WorkerManager` — registers remote workers without spawning subprocesses (#remote-workers)
+- `Dockerfile.worker` for per-engine worker containers with minimal deps (#remote-workers)
+
+### Changed
+- `VenvManager` centralized engine name validation via `_engine_dir()` — eliminates 7 redundant `_validate_engine_name` calls (#venv-review)
+- `_spawn_all_workers` refactored into `_spawn_or_register_worker` helper — DRY spawn logic for STT and TTS workers (#venv-review)
+- `serve.py` uses `get_worker_for_model()` public API instead of accessing `WorkerManager._workers` (#venv-review)
+- Health check caches extracted into `_TTLCache` generic helper — eliminates duplicated TTL cache pattern (#venv-review)
+- Core dependencies reduced from 18 to 9 packages — workers no longer carry API deps (#remote-workers)
+- `opuslib` and `nemo_text_processing` removed from core deps (already in `[codec]` and `[itn]` extras) (#remote-workers)
+- `docker-compose.yml` restructured for multi-service architecture (runtime + STT worker + TTS worker containers) (#remote-workers)
+- Scheduler uses `worker.worker_address` instead of global `worker_host` for gRPC channel creation (#remote-workers)
+- Dockerfile installs `[server,itn,codec]` extras and sets `MACAW_BACKEND_AUTO_PROVISION=false` (#remote-workers)
+- Dockerfile HEALTHCHECK start-period increased from 10s to 30s (#remote-workers)
+
+### Added
+- Venv-per-backend engine isolation: each ML engine gets its own Python venv at `~/.cache/macaw/venvs/{engine}/`, preventing dependency conflicts between engines (#venv-per-backend)
+- `macaw backends` CLI commands: `install`, `list`, `remove`, `status` for managing engine venvs (#venv-per-backend)
+- Auto-provisioning: venvs created automatically on `macaw serve` when missing, using `uv` for fast creation with hardlinks (#venv-per-backend)
+- `MACAW_VENV_DIR`, `MACAW_BACKEND_AUTO_PROVISION`, `MACAW_UV_PATH` environment variables for venv configuration (#venv-per-backend)
+- `/health` endpoint `backend_venvs` section with per-engine provisioning status (#venv-per-backend)
+- ADR-015: Venv-Per-Backend Engine Isolation architecture decision record (#venv-per-backend)
+- `/health` endpoint reports `optional_features` dict: alignment, diarization, opus, mp3, ITN availability (#dep-compat)
+- CI `compat` matrix job validates import guards for each optional dependency extra (#dep-compat)
 - Voice marketplace endpoints: `POST /v1/voices/{id}/share` (share voice), `DELETE /v1/voices/{id}/share` (unshare), `GET /v1/shared-voices` (list shared), `POST /v1/voices/add/{id}` (copy shared voice to own collection) — extends existing voice CRUD with sharing capabilities (#sprint-U)
 - `shared` field on `SavedVoice` dataclass and `SavedVoiceResponse` model — persisted in voice metadata JSON, defaults to `false` (#sprint-U)
 - `set_shared()` and `list_shared()` abstract methods on `VoiceStore` ABC with `FileSystemVoiceStore` implementation (#sprint-U)
@@ -119,6 +147,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `MuLawEncoder` and `ALawEncoder` (pure numpy) for G.711 telephony codecs (#gap-analysis-ws3)
 - `resample_output()` DSP primitive for sample rate conversion (#gap-analysis-ws3)
 - `response_format` options: `mp3`, `mulaw`, `alaw` in REST and WebSocket TTS endpoints (#gap-analysis-ws3)
+
+### Changed
+- `macaw pull` now provisions isolated venv instead of installing into parent process (#venv-per-backend)
+- Worker spawning resolves engine-specific Python interpreter via `resolve_python_for_engine()` (#venv-per-backend)
+
+### Security
+- Engine name validation in `VenvManager` prevents path traversal attacks via crafted engine names (e.g., `../../etc`) (#venv-security)
+- Package name validation before subprocess `import` commands prevents command injection in `is_engine_available()` and `is_engine_available_in_venv()` (#venv-security)
+- `VenvManager.remove()` validates resolved path stays inside base directory (#venv-security)
+- CLI `backends remove` and `backends status` now validate engine against `ENGINE_EXTRAS` before proceeding (#venv-security)
+- Extra name validation (`_validate_extra_name`) prevents injection in `uv pip install macaw-openvoice[{extra}]` commands (#venv-review)
+- `provision()` guards against being called from async context — raises `RuntimeError` instead of silently blocking the event loop for up to 720s (#venv-review)
+
+### Fixed
+- `create_aligner()` now catches all exceptions (not just `ImportError`) when torchaudio is incompatible — prevents TTS servicer crash (#dep-compat)
+- STT worker log corrected from "not installed" to "not available" when diarizer unavailable (#dep-compat)
+- `[all]` optional extra now includes all 12 optional dependency groups (#dep-compat)
+- `VenvManager.provision()` cleans up orphan directories when install step fails after venv creation (#venv-security)
+- `VenvManager.read_marker()` returns `None` for valid JSON that is not a dict, instead of type confusion (#venv-security)
+- `/health` endpoint `backend_venvs` section now uses 30s TTL cache to avoid repeated filesystem I/O on high-frequency health checks (#venv-security)
+- `is_engine_available_in_venv` now logs warning when availability check fails (timeout, file-not-found, OS error) instead of silently returning `False` (#venv-review)
+- `VenvManager.provision()` orphan cleanup now logs warning when `shutil.rmtree` fails instead of silently ignoring errors (#venv-review)
+- Weak assertion in `test_remote_worker_registered_for_configured_engine` replaced with explicit `call_args.kwargs["remote_endpoint"]` check (#venv-review)
+- `MACAW_REMOTE_WORKERS` in `docker-compose.yml` now properly quoted to prevent YAML parser misinterpretation (#venv-review)
+- Marker file now includes full `python_version` (e.g., `3.12.3`) for diagnostics of compiled extension incompatibilities (#venv-review)
 
 ### Changed
 - Pronunciation dictionary 404 responses now use typed `PronunciationDictionaryNotFoundError` exception with centralized error handler — replaces manual `JSONResponse` construction in routes, response format now matches OpenAI-compatible error structure (#code-review-fixups)

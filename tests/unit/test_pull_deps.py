@@ -2,61 +2,87 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from macaw.cli.pull import _install_engine_deps
 
+# Patch targets match lazy imports inside _install_engine_deps
+_VENV_MANAGER = "macaw.backends.venv_manager.VenvManager"
+_GET_SETTINGS = "macaw.config.settings.get_settings"
+
 
 class TestInstallEngineDeps:
-    def test_install_skipped_when_engine_available(self) -> None:
-        """Engine already installed → no subprocess call, returns True."""
-        with (
-            patch("macaw.cli.pull.is_engine_available", return_value=True) as mock_avail,
-            patch("macaw.cli.pull.subprocess.run") as mock_run,
-        ):
-            result = _install_engine_deps("faster-whisper")
+    @patch(_GET_SETTINGS)
+    @patch(_VENV_MANAGER)
+    def test_install_skipped_when_venv_exists(
+        self, mock_cls: MagicMock, mock_get: MagicMock
+    ) -> None:
+        """Engine venv already exists → returns True, no provisioning."""
+        mock_get.return_value.backend.venv_base_path = Path("/tmp/venvs")
+        mock_get.return_value.backend.uv_path = "uv"
+        mock_cls.return_value.exists.return_value = True
+
+        result = _install_engine_deps("faster-whisper")
 
         assert result is True
-        mock_avail.assert_called_once_with("faster-whisper")
-        mock_run.assert_not_called()
+        mock_cls.return_value.exists.assert_called_once_with("faster-whisper")
+        mock_cls.return_value.provision.assert_not_called()
 
-    def test_install_runs_pip_when_engine_missing(self) -> None:
-        """Engine not installed → runs pip install with correct extra."""
-        with (
-            patch("macaw.cli.pull.is_engine_available", return_value=False),
-            patch("macaw.cli.pull.subprocess.run") as mock_run,
-        ):
-            mock_run.return_value.returncode = 0
-            result = _install_engine_deps("kokoro")
+    @patch(_GET_SETTINGS)
+    @patch(_VENV_MANAGER)
+    def test_install_provisions_when_missing(
+        self, mock_cls: MagicMock, mock_get: MagicMock
+    ) -> None:
+        """Engine venv missing → provisions and returns True."""
+        mock_get.return_value.backend.venv_base_path = Path("/tmp/venvs")
+        mock_get.return_value.backend.uv_path = "uv"
+        mock_cls.return_value.exists.return_value = False
+        mock_cls.return_value.provision.return_value = Path("/tmp/venvs/kokoro/bin/python")
+
+        result = _install_engine_deps("kokoro")
 
         assert result is True
-        mock_run.assert_called_once()
-        cmd = mock_run.call_args[0][0]
-        assert "macaw-openvoice[kokoro]" in cmd[-1]
+        mock_cls.return_value.provision.assert_called_once_with("kokoro")
 
-    def test_install_returns_false_on_pip_failure(self) -> None:
-        """pip failure → returns False, does not raise."""
-        with (
-            patch("macaw.cli.pull.is_engine_available", return_value=False),
-            patch("macaw.cli.pull.subprocess.run") as mock_run,
-        ):
-            mock_run.return_value.returncode = 1
-            result = _install_engine_deps("faster-whisper")
+    @patch(_GET_SETTINGS)
+    @patch(_VENV_MANAGER)
+    def test_install_returns_false_on_provision_failure(
+        self, mock_cls: MagicMock, mock_get: MagicMock
+    ) -> None:
+        """Provisioning failure → returns False, does not raise."""
+        from macaw.exceptions import VenvProvisionError
+
+        mock_get.return_value.backend.venv_base_path = Path("/tmp/venvs")
+        mock_get.return_value.backend.uv_path = "uv"
+        mock_cls.return_value.exists.return_value = False
+        mock_cls.return_value.provision.side_effect = VenvProvisionError(
+            "faster-whisper", "uv not found"
+        )
+
+        result = _install_engine_deps("faster-whisper")
 
         assert result is False
 
-    def test_install_unknown_engine_skipped(self) -> None:
-        """Unknown engine → is_engine_available returns True, no subprocess."""
-        with patch("macaw.cli.pull.subprocess.run") as mock_run:
-            result = _install_engine_deps("some-future-engine")
+    @patch(_GET_SETTINGS)
+    @patch(_VENV_MANAGER)
+    def test_install_unknown_engine_provisions(
+        self, mock_cls: MagicMock, mock_get: MagicMock
+    ) -> None:
+        """Unknown engine → still attempts provision (VenvManager handles extras)."""
+        mock_get.return_value.backend.venv_base_path = Path("/tmp/venvs")
+        mock_get.return_value.backend.uv_path = "uv"
+        mock_cls.return_value.exists.return_value = False
+        mock_cls.return_value.provision.return_value = Path(
+            "/tmp/venvs/some-future-engine/bin/python"
+        )
+
+        result = _install_engine_deps("some-future-engine")
 
         assert result is True
-        mock_run.assert_not_called()
 
     def test_already_installed_model_still_installs_deps(self) -> None:
         """Model already downloaded but engine missing → installs deps."""
-        from unittest.mock import MagicMock
-
         from click.testing import CliRunner
 
         from macaw.cli.pull import pull

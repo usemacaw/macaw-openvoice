@@ -531,6 +531,33 @@ class MultiContextSettings(BaseSettings):
     )
 
 
+class BackendSettings(BaseSettings):
+    """Backend venv isolation and remote worker settings.
+
+    Controls per-engine venv provisioning for dependency isolation
+    and remote worker endpoint configuration for horizontal scaling.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    venv_dir: str = Field(default="~/.cache/macaw/venvs", validation_alias="MACAW_VENV_DIR")
+    auto_provision: bool = Field(default=True, validation_alias="MACAW_BACKEND_AUTO_PROVISION")
+    uv_path: str = Field(default="uv", validation_alias="MACAW_UV_PATH")
+    remote_workers: dict[str, str] = Field(
+        default_factory=dict,
+        validation_alias="MACAW_REMOTE_WORKERS",
+        description=(
+            "Engine-to-endpoint map for remote gRPC workers. "
+            'JSON: {"faster-whisper":"stt-worker:50051"}'
+        ),
+    )
+
+    @property
+    def venv_base_path(self) -> Path:
+        """Expanded venv base directory as a Path object."""
+        return Path(self.venv_dir).expanduser()
+
+
 class MacawSettings(BaseSettings):
     """Root settings — aggregates all subsystem settings.
 
@@ -561,6 +588,7 @@ class MacawSettings(BaseSettings):
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)
     stt_download: STTDownloadSettings = Field(default_factory=STTDownloadSettings)
     multi_context: MultiContextSettings = Field(default_factory=MultiContextSettings)
+    backend: BackendSettings = Field(default_factory=BackendSettings)
 
 
 @lru_cache(maxsize=1)

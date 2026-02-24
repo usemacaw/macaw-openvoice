@@ -36,8 +36,13 @@ macaw/
 ├── postprocessing/   # Text pipeline (ITN via NeMo, fail-open)
 ├── vad/              # Voice Activity Detection (energy pre-filter + Silero)
 ├── session/          # Session Manager (state machine, ring buffer, WAL, recovery, backpressure, mute, metrics)
+├── backends/         # Per-engine venv isolation (VenvManager, resolve_python_for_engine)
 ├── cli/              # CLI commands (click)
 └── proto/            # gRPC protobuf definitions (STT + TTS)
+
+Dockerfile              # Runtime container (API + scheduler, [server] extra)
+Dockerfile.worker       # Per-engine worker container (core deps + engine extra)
+docker-compose.yml      # Multi-service: runtime + STT worker + TTS worker
 ```
 
 Full details: @docs/ARCHITECTURE.md
@@ -56,6 +61,10 @@ PRD: @docs/PRD.md
 - **Full-duplex via mute-on-speak.** STT e TTS na mesma conexao WebSocket. Quando TTS esta ativo, STT descarta frames (mute). Unmute garantido via try/finally.
 - **TTS e stateless por request.** Nao reusar Session Manager para TTS. Cada `tts.speak` e independente.
 - **TTSBackend espelha STTBackend.** `synthesize()` retorna `AsyncIterator[bytes]` para streaming com baixo TTFB.
+
+- **Venv-per-backend isolation.** Each engine gets its own Python venv at `~/.cache/macaw/venvs/{engine}/`. Auto-provisioned on `macaw serve` using `uv`. Falls back to `sys.executable` when no venv. See ADR-015.
+- **Docker per-engine architecture.** In Docker/K8s, each engine runs in its own container (`Dockerfile.worker`) with only core deps (9 packages) + engine deps. The runtime container (API + scheduler) connects via gRPC. Configured via `MACAW_REMOTE_WORKERS` JSON env var.
+- **Core vs server deps.** Core deps (9 packages: pydantic, structlog, numpy, scipy, soundfile, grpcio, protobuf, pyyaml, pydantic-settings) are what workers need. Server deps (fastapi, uvicorn, click, httpx, huggingface_hub, python-multipart, defusedxml) are in `[server]` extra.
 
 ADRs completos: @docs/PRD.md (secao "Architecture Decision Records") + @docs/adrs/
 Como adicionar nova engine: @docs/ADDING_ENGINE.md
@@ -84,6 +93,9 @@ Como adicionar nova engine: @docs/ADDING_ENGINE.md
 
 ## Things That Will Bite You
 
+- **`remote_endpoint` on WorkerHandle.** When set, the worker is externally managed (Docker/K8s). `process` is `None`, `_monitor_worker()` returns immediately, `stop_worker()` skips SIGTERM/SIGKILL, `_attempt_restart()` only resumes health probing.
+- **`worker_address` property is the canonical address.** Always use `worker.worker_address` for gRPC channels, never construct `f"{host}:{port}"` manually. The property handles local vs remote transparently.
+- **`MACAW_REMOTE_WORKERS` is JSON.** The env var must be a JSON dict: `{"faster-whisper":"host:50051"}`. Pydantic parses it automatically. Empty dict `{}` means all workers are local (default behavior).
 - **gRPC streams sao o heartbeat.** Nao implemente health check polling separado para detectar crash de worker — o stream break do gRPC bidirecional e a detecao.
 - **Ring buffer tem read fence.** Nunca sobrescrever dados apos `last_committed_offset` — sao necessarios para recovery.
 - **ITN so em `transcript.final`.** Nunca aplicar ITN em `transcript.partial` — partials sao instaveis e ITN geraria output confuso.
@@ -112,6 +124,9 @@ Como adicionar nova engine: @docs/ADDING_ENGINE.md
 - **VoiceStore e opcional.** `app.state.voice_store` pode ser `None`. Rotas de CRUD de vozes retornam 400 se nao configurado. Dependency `get_voice_store()` retorna `None` nesse caso.
 - **Saved voice usa prefixo `voice_`.** Na rota speech, `voice` comecando com `voice_` e resolvido via VoiceStore. O prefixo e removido para lookup. Apos resolucao, `voice` vira `"default"` para a engine.
 - **Conflito ref_audio inline + saved voice.** Se o request traz `ref_audio` inline E o saved voice tem ref_audio, retorna 400 (InvalidRequestError). Nao sobreescreve silenciosamente.
+- **`venv_python` on WorkerHandle.** Crash recovery (`_attempt_restart`) reads `handle.venv_python` to restart with the same interpreter. If the field is lost, worker falls back to `sys.executable` (different deps).
+- **PYTHONPATH still required for venv workers.** Venv workers still need the repo root on PYTHONPATH to import `macaw.*`. `_spawn_worker_process()` handles this automatically.
+- **`uv` only at provision time.** Once a venv is created, `uv` is not needed to run workers. Only `VenvManager.provision()` calls `uv`. Workers use the venv's `bin/python` directly.
 
 ## Workflow
 

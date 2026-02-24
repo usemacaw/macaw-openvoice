@@ -443,6 +443,7 @@ class TestFix5TasksAwaitedAfterCancel:
                 {"device": "cpu"},
                 worker_type=WorkerType.STT,
                 python_package=None,
+                venv_python=None,
             )
 
             await manager.stop_all()

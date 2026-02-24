@@ -41,6 +41,43 @@ class TestCreateDiarizer:
         result = create_diarizer()
         assert result is None
 
+    def test_returns_none_on_version_incompatibility(self) -> None:
+        """Regression: torchaudio 2.9+ removed AudioMetaData, causing AttributeError
+        during `import pyannote.audio`. The worker must NOT crash — create_diarizer
+        should return None and log a WARNING with the specific error.
+        """
+        from macaw.workers.stt.diarization import create_diarizer
+
+        # Simulate pyannote.audio raising AttributeError during import
+        # (torchaudio.AudioMetaData removed in torchaudio >= 2.9)
+        with patch(
+            "macaw.workers.stt.diarization.pyannote_backend.PyAnnoteDiarizer",
+            side_effect=AttributeError("module 'torchaudio' has no attribute 'AudioMetaData'"),
+        ):
+            result = create_diarizer()
+
+        assert result is None
+
+    def test_logs_warning_on_init_failure(self) -> None:
+        """Verify the specific error is logged, not silently swallowed."""
+        from macaw.workers.stt.diarization import create_diarizer
+
+        with (
+            patch(
+                "macaw.workers.stt.diarization.pyannote_backend.PyAnnoteDiarizer",
+                side_effect=RuntimeError("some dependency broke"),
+            ),
+            patch("macaw.workers.stt.diarization.logger") as mock_logger,
+        ):
+            result = create_diarizer()
+
+        assert result is None
+        mock_logger.warning.assert_called_once()
+        call_kwargs = mock_logger.warning.call_args
+        assert call_kwargs[0][0] == "diarizer_init_failed"
+        assert "some dependency broke" in call_kwargs[1]["error"]
+        assert call_kwargs[1]["error_type"] == "RuntimeError"
+
     def test_returns_diarizer_when_pyannote_available(self) -> None:
         # Mock pyannote.audio so import succeeds
         mock_pyannote = ModuleType("pyannote")

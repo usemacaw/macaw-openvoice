@@ -30,6 +30,7 @@ Hierarchy:
     |   +-- TTSEngineError   (server engine errors -> INTERNAL)
     +-- CodecError
     |   +-- CodecUnavailableError
+    +-- VenvProvisionError
     +-- InvalidRequestError
     +-- ServiceUnavailableError
 """
@@ -325,3 +326,19 @@ class CodecUnavailableError(CodecError):
         self.codec_name = codec_name
         self.reason = reason
         super().__init__(f"Codec '{codec_name}' unavailable: {reason}")
+
+
+# --- Venv Provisioning ---
+
+
+class VenvProvisionError(MacawError):
+    """Backend venv provisioning failed.
+
+    Raised when creating or installing into an engine's isolated venv fails
+    (e.g. ``uv`` not found, dependency install failure, disk error).
+    """
+
+    def __init__(self, engine: str, reason: str) -> None:
+        self.engine = engine
+        self.reason = reason
+        super().__init__(f"Venv provisioning failed for engine '{engine}': {reason}")

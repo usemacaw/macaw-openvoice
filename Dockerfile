@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml README.md ./
 COPY macaw/ macaw/
 
-RUN uv pip install --system --no-cache ".[server,grpc,itn]"
+RUN uv pip install --system --no-cache ".[server,itn,codec]"
 
 # ── Stage 2: runtime ────────────────────────────────────────────
 FROM python:3.12-slim
@@ -29,12 +29,15 @@ COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app/macaw /app/macaw
 
+# Disable venv auto-provision — container IS the isolation
+ENV MACAW_BACKEND_AUTO_PROVISION=false
+
 # Models volume mount point
 VOLUME /root/.macaw/models
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 ENTRYPOINT ["macaw", "serve", "--host", "0.0.0.0"]

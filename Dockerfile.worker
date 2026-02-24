@@ -1,0 +1,39 @@
+# Macaw Worker — engine-specific container
+# Usage:
+#   docker build --build-arg ENGINE=faster-whisper -f Dockerfile.worker -t macaw-worker-stt .
+#   docker build --build-arg ENGINE=kokoro -f Dockerfile.worker -t macaw-worker-tts .
+ARG ENGINE=faster-whisper
+
+# -- Stage 1: build --------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml README.md ./
+COPY macaw/ macaw/
+
+ARG ENGINE
+RUN uv pip install --system --no-cache ".[$ENGINE]"
+
+# -- Stage 2: runtime ------------------------------------------------------
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /app/macaw /app/macaw
+
+VOLUME /models
+
+EXPOSE 50051
+
+# Default: STT worker. Override CMD for TTS:
+#   CMD ["macaw.workers.tts", "--port", "50051", "--engine", "kokoro", "--model-path", "/models/kokoro-v1"]
+ENTRYPOINT ["python", "-m"]
+CMD ["macaw.workers.stt", "--port", "50051", "--engine", "faster-whisper", "--model-path", "/models/large-v3"]

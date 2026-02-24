@@ -90,6 +90,79 @@ def serve(
     )
 
 
+async def _spawn_or_register_worker(
+    manifest: ModelManifest,
+    worker_type: str,
+    registry: ModelRegistry,
+    worker_manager: WorkerManager,
+    remote_workers: dict[str, str],
+    port: int,
+) -> bool:
+    """Spawn a local worker or register a remote one for *manifest*.
+
+    Returns ``True`` if a local worker was spawned (port consumed),
+    ``False`` if the worker was remote or the engine is unavailable.
+    """
+    from macaw.backends.venv_manager import resolve_python_for_engine
+
+    remote_ep = remote_workers.get(manifest.engine)
+    if remote_ep:
+        await worker_manager.register_remote_worker(
+            model_name=manifest.name,
+            engine=manifest.engine,
+            remote_endpoint=remote_ep,
+            worker_type=worker_type,
+        )
+        logger.info(
+            "remote_worker_registered",
+            model=manifest.name,
+            engine=manifest.engine,
+            remote_endpoint=remote_ep,
+            worker_type=worker_type,
+        )
+        return False
+
+    venv_python = resolve_python_for_engine(manifest.engine)
+    effective_venv = venv_python if venv_python != sys.executable else None
+    if not is_engine_available(
+        manifest.engine,
+        python_package=manifest.python_package,
+        venv_python=effective_venv,
+    ):
+        logger.warning(
+            "engine_not_installed",
+            model=manifest.name,
+            engine=manifest.engine,
+            hint=f"pip install macaw-openvoice[{manifest.engine}]",
+        )
+        return False
+
+    model_path = str(registry.get_model_path(manifest.name))
+    engine_config = manifest.engine_config.model_dump()
+    if worker_type == "tts":
+        engine_config["model_name"] = manifest.name
+
+    await worker_manager.spawn_worker(
+        model_name=manifest.name,
+        port=port,
+        engine=manifest.engine,
+        model_path=model_path,
+        engine_config=engine_config,
+        worker_type=worker_type,
+        python_package=manifest.python_package,
+        venv_python=venv_python,
+    )
+    logger.info(
+        "worker_spawned",
+        model=manifest.name,
+        engine=manifest.engine,
+        port=port,
+        worker_type=worker_type,
+        venv_python=venv_python,
+    )
+    return True
+
+
 async def _spawn_all_workers(
     registry: ModelRegistry,
     worker_manager: WorkerManager,
@@ -98,71 +171,43 @@ async def _spawn_all_workers(
 ) -> tuple[list[ModelManifest], list[ModelManifest]]:
     """Spawn gRPC workers for all discovered models.
 
+    Checks ``BackendSettings.remote_workers`` first — if an engine has a
+    remote endpoint configured, a remote worker handle is registered instead
+    of spawning a local subprocess. This enables horizontal scaling with
+    engine containers in Docker/K8s.
+
     Returns (stt_models, tts_models) manifests that were processed.
     """
     from macaw._types import ModelType
 
+    remote_workers = get_settings().backend.remote_workers
     port_counter = base_port
 
     stt_models = [m for m in models if m.model_type == ModelType.STT]
     for manifest in stt_models:
-        if not is_engine_available(manifest.engine, python_package=manifest.python_package):
-            logger.warning(
-                "engine_not_installed",
-                model=manifest.name,
-                engine=manifest.engine,
-                hint=f"pip install macaw-openvoice[{manifest.engine}]",
-            )
-            continue
-        model_path = str(registry.get_model_path(manifest.name))
-        await worker_manager.spawn_worker(
-            model_name=manifest.name,
-            port=port_counter,
-            engine=manifest.engine,
-            model_path=model_path,
-            engine_config=manifest.engine_config.model_dump(),
-            worker_type="stt",
-            python_package=manifest.python_package,
+        spawned = await _spawn_or_register_worker(
+            manifest,
+            "stt",
+            registry,
+            worker_manager,
+            remote_workers,
+            port_counter,
         )
-        logger.info(
-            "worker_spawned",
-            model=manifest.name,
-            engine=manifest.engine,
-            port=port_counter,
-            worker_type="stt",
-        )
-        port_counter += 1
+        if spawned:
+            port_counter += 1
 
     tts_models = [m for m in models if m.model_type == ModelType.TTS]
     for manifest in tts_models:
-        if not is_engine_available(manifest.engine, python_package=manifest.python_package):
-            logger.warning(
-                "engine_not_installed",
-                model=manifest.name,
-                engine=manifest.engine,
-                hint=f"pip install macaw-openvoice[{manifest.engine}]",
-            )
-            continue
-        model_path = str(registry.get_model_path(manifest.name))
-        tts_engine_config = manifest.engine_config.model_dump()
-        tts_engine_config["model_name"] = manifest.name
-        await worker_manager.spawn_worker(
-            model_name=manifest.name,
-            port=port_counter,
-            engine=manifest.engine,
-            model_path=model_path,
-            engine_config=tts_engine_config,
-            worker_type="tts",
-            python_package=manifest.python_package,
+        spawned = await _spawn_or_register_worker(
+            manifest,
+            "tts",
+            registry,
+            worker_manager,
+            remote_workers,
+            port_counter,
         )
-        logger.info(
-            "worker_spawned",
-            model=manifest.name,
-            engine=manifest.engine,
-            port=port_counter,
-            worker_type="tts",
-        )
-        port_counter += 1
+        if spawned:
+            port_counter += 1
 
     return stt_models, tts_models
 
@@ -287,17 +332,28 @@ async def _serve(
     # 4.5 Wire StreamingGRPCClient for WebSocket /v1/realtime
     # NOTE: Only the first STT model gets WebSocket streaming support
     stt_worker = worker_manager.get_ready_worker(stt_models[0].name) if stt_models else None
-    stt_worker_port = (
-        stt_worker.port if stt_worker else (DEFAULT_WORKER_BASE_PORT if stt_models else None)
-    )
-    if stt_worker_port is not None:
+    if stt_worker is None and stt_models:
+        # Worker may still be starting (e.g., remote worker health probing)
+        # Fall back to getting any worker handle for the first STT model
+        stt_worker = worker_manager.get_worker_for_model(stt_models[0].name)
+    if stt_worker is not None:
+        from macaw.scheduler.streaming import StreamingGRPCClient
+
+        streaming_address = stt_worker.worker_address
+        streaming_client = StreamingGRPCClient(streaming_address)
+        await streaming_client.connect()
+        app.state.streaming_grpc_client = streaming_client
+        logger.info("streaming_grpc_connected", worker_address=streaming_address)
+    elif stt_models:
+        # Fallback: use default port for backward compatibility
         from macaw.scheduler.streaming import StreamingGRPCClient
 
         worker_host = get_settings().worker.worker_host
-        streaming_client = StreamingGRPCClient(f"{worker_host}:{stt_worker_port}")
+        fallback_address = f"{worker_host}:{DEFAULT_WORKER_BASE_PORT}"
+        streaming_client = StreamingGRPCClient(fallback_address)
         await streaming_client.connect()
         app.state.streaming_grpc_client = streaming_client
-        logger.info("streaming_grpc_connected", worker_port=stt_worker_port)
+        logger.info("streaming_grpc_connected", worker_address=fallback_address)
 
     # 5. Setup shutdown
     shutdown_event = asyncio.Event()

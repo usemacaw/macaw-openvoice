@@ -24,6 +24,7 @@ class TestPullCommand:
         mock_entry = MagicMock()
         mock_entry.name = "faster-whisper-tiny"
         mock_entry.repo = "Systran/faster-whisper-tiny"
+        mock_entry.engine = "faster-whisper"
         mock_catalog.get.return_value = mock_entry
 
         mock_downloader = MagicMock()
@@ -57,6 +58,7 @@ class TestPullCommand:
         mock_catalog_cls.return_value = mock_catalog
         mock_entry = MagicMock()
         mock_entry.name = "faster-whisper-tiny"
+        mock_entry.engine = "faster-whisper"
         mock_catalog.get.return_value = mock_entry
 
         mock_downloader = MagicMock()
@@ -76,6 +78,7 @@ class TestPullCommand:
         mock_entry = MagicMock()
         mock_entry.name = "faster-whisper-tiny"
         mock_entry.repo = "Systran/faster-whisper-tiny"
+        mock_entry.engine = "faster-whisper"
         mock_catalog.get.return_value = mock_entry
 
         mock_downloader = MagicMock()

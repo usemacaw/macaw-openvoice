@@ -390,6 +390,58 @@ class TestCreateAligner:
 
             importlib.reload(alignment)
 
+    def test_returns_none_on_runtime_error(self) -> None:
+        """Regression: torchaudio installed but broken at import time (e.g. CUDA
+        driver mismatch, removed API). create_aligner must NOT crash — returns None.
+        """
+
+        class _BrokenTorchaudio:
+            @property
+            def functional(self) -> None:
+                raise RuntimeError("CUDA driver version mismatch")
+
+            __version__ = "2.9.0"
+
+        with patch.dict("sys.modules", {"torchaudio": _BrokenTorchaudio()}):
+            import importlib
+
+            from macaw import alignment
+
+            importlib.reload(alignment)
+            result = alignment.create_aligner()
+            assert result is None
+
+            importlib.reload(alignment)
+
+    def test_logs_warning_on_init_failure(self) -> None:
+        """Verify the specific error is logged at WARNING, not silently swallowed."""
+
+        class _BrokenTorchaudio:
+            @property
+            def functional(self) -> None:
+                raise RuntimeError("CUDA driver version mismatch")
+
+            __version__ = "2.9.0"
+
+        with patch.dict("sys.modules", {"torchaudio": _BrokenTorchaudio()}):
+            import importlib
+
+            from macaw import alignment
+
+            importlib.reload(alignment)
+
+            with patch.object(alignment, "logger") as mock_logger:
+                result = alignment.create_aligner()
+
+            assert result is None
+            mock_logger.warning.assert_called_once()
+            call_args = mock_logger.warning.call_args
+            assert call_args[0][0] == "aligner_init_failed"
+            assert "CUDA driver version mismatch" in call_args[1]["error"]
+            assert call_args[1]["error_type"] == "RuntimeError"
+
+            importlib.reload(alignment)
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Servicer forced alignment fallback

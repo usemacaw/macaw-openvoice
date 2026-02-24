@@ -109,7 +109,7 @@ async def serve(
     if diarizer is not None:
         logger.info("diarizer_available", backend="pyannote")
     else:
-        logger.info("diarizer_not_available", reason="pyannote.audio not installed")
+        logger.info("diarizer_not_available", reason="pyannote.audio not available")
 
     model_name = str(engine_config.get("model_size", "unknown"))
     worker_settings = get_settings().worker

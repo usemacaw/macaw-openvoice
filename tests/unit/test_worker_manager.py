@@ -455,3 +455,63 @@ class TestStopAll:
                 handle = manager.get_worker(wid)
                 assert handle is not None
                 assert handle.state == WorkerState.STOPPED
+
+
+class TestGetWorkerForModel:
+    """get_worker_for_model returns any worker regardless of state."""
+
+    def test_returns_none_for_unknown_model(self) -> None:
+        manager = WorkerManager()
+        assert manager.get_worker_for_model("nonexistent") is None
+
+    @patch("macaw.workers.manager.subprocess.Popen")
+    async def test_returns_starting_worker(self, mock_popen: MagicMock) -> None:
+        """Returns worker even when not yet READY (e.g., health probing)."""
+        mock_popen.return_value = _make_mock_process()
+        manager = WorkerManager()
+
+        with patch(
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+        ) as mock_health:
+            mock_health.side_effect = Exception("not ready yet")
+            await manager.spawn_worker(
+                model_name="test-model",
+                port=50075,
+                engine="faster-whisper",
+                model_path="/models/test",
+                engine_config={},
+            )
+
+            handle = manager.get_worker_for_model("test-model")
+            assert handle is not None
+            assert handle.model_name == "test-model"
+            assert handle.state == WorkerState.STARTING
+
+            # get_ready_worker should return None for same model
+            assert manager.get_ready_worker("test-model") is None
+
+            await manager.stop_all()
+
+    @patch("macaw.workers.manager.subprocess.Popen")
+    async def test_returns_ready_worker(self, mock_popen: MagicMock) -> None:
+        mock_popen.return_value = _make_mock_process()
+        manager = WorkerManager()
+
+        with patch(
+            "macaw.workers.manager._check_worker_health", new_callable=AsyncMock
+        ) as mock_health:
+            mock_health.return_value = {"status": "ok"}
+            await manager.spawn_worker(
+                model_name="test-model",
+                port=50076,
+                engine="faster-whisper",
+                model_path="/models/test",
+                engine_config={},
+            )
+
+            await asyncio.sleep(1.0)
+            handle = manager.get_worker_for_model("test-model")
+            assert handle is not None
+            assert handle.state == WorkerState.READY
+
+            await manager.stop_all()
