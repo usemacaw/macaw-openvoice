@@ -16,14 +16,11 @@ import shutil
 import subprocess
 import sys
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from macaw.engines import _SAFE_MODULE_RE, ENGINE_EXTRAS
 from macaw.exceptions import VenvProvisionError
 from macaw.logging import get_logger
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 logger = get_logger("backends.venv_manager")
 
@@ -212,8 +209,53 @@ class VenvManager:
 
         logger.info("venv_created", engine=engine, path=str(vdir))
 
+    @staticmethod
+    def _editable_source_dir() -> Path | None:
+        """Return the local source directory if macaw-openvoice is editable.
+
+        Uses ``importlib.metadata`` to read ``direct_url.json`` — the
+        standard PEP 610 mechanism for detecting direct-URL and editable
+        installs.  Returns ``None`` for regular PyPI installs.
+        """
+        import json as _json
+        from importlib.metadata import distribution
+
+        try:
+            dist = distribution("macaw-openvoice")
+        except Exception:  # PackageNotFoundError
+            return None
+
+        raw = dist.read_text("direct_url.json")
+        if raw is None:
+            return None
+
+        try:
+            data = _json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+
+        if not data.get("dir_info", {}).get("editable", False):
+            return None
+
+        url: str = data.get("url", "")
+        if url.startswith("file://"):
+            return Path(url.removeprefix("file://"))
+        return None
+
     def _run_install_deps(self, engine: str, python_path: Path, extra: str) -> None:
-        """Run ``uv pip install`` to install engine dependencies."""
+        """Run ``uv pip install`` to install engine dependencies.
+
+        When running from an editable (dev) install, installs from the
+        local source directory so that the venv matches the working tree.
+        Otherwise installs from PyPI.
+        """
+        editable_dir = self._editable_source_dir()
+        if editable_dir is not None:
+            install_spec = f"{editable_dir}[{extra}]"
+            logger.debug("venv_install_from_source", engine=engine, source=str(editable_dir))
+        else:
+            install_spec = f"macaw-openvoice[{extra}]"
+
         try:
             result = subprocess.run(
                 [
@@ -222,7 +264,7 @@ class VenvManager:
                     "install",
                     "--python",
                     str(python_path),
-                    f"macaw-openvoice[{extra}]",
+                    install_spec,
                 ],
                 capture_output=True,
                 text=True,

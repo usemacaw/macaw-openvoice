@@ -122,7 +122,9 @@ async def _spawn_or_register_worker(
         )
         return False
 
-    venv_python = resolve_python_for_engine(manifest.engine)
+    # Run in thread — resolve_python_for_engine() may call provision()
+    # which runs blocking subprocess commands (up to 600s).
+    venv_python = await asyncio.to_thread(resolve_python_for_engine, manifest.engine)
     effective_venv = venv_python if venv_python != sys.executable else None
     if not is_engine_available(
         manifest.engine,

@@ -47,6 +47,9 @@ dependencies = [
     "soundfile>=0.12,<1.0",
     "grpcio>=1.78,<2.0",
     "protobuf>=6.31,<7.0",
+    "click>=8.0,<9.0",
+    "httpx>=0.27,<1.0",
+    "huggingface_hub>=0.20,<1.0",
 ]
 
 [project.scripts]
@@ -57,9 +60,6 @@ server = [
     "fastapi>=0.115,<1.0",
     "uvicorn[standard]>=0.34,<1.0",
     "python-multipart>=0.0.18",
-    "click>=8.0,<9.0",
-    "httpx>=0.27,<1.0",
-    "huggingface_hub>=0.20,<1.0",
     "defusedxml>=0.7,<1.0",
 ]
 grpc = [

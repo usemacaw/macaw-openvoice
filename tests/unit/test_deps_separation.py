@@ -1,8 +1,8 @@
 """Tests verifying that worker modules don't import server-only packages.
 
-The core deps (9 packages) should be sufficient for workers. Server-only
-packages (fastapi, uvicorn, click, httpx, huggingface_hub, python-multipart,
-defusedxml) should NOT be imported by worker code paths.
+The core deps (12 packages) should be sufficient for workers. Server-only
+packages (fastapi, uvicorn, python-multipart, defusedxml) should NOT be
+imported by worker code paths.
 """
 
 from __future__ import annotations
@@ -15,9 +15,6 @@ _SERVER_PACKAGES = frozenset(
     {
         "fastapi",
         "uvicorn",
-        "click",
-        "httpx",
-        "huggingface_hub",
         "multipart",
         "defusedxml",
     }
@@ -67,7 +64,7 @@ class TestCoreDepsOnly:
         assert handle.remote_endpoint is None
 
     def test_pyproject_core_deps_count(self) -> None:
-        """Core dependencies should be exactly 9 packages."""
+        """Core dependencies should be exactly 12 packages."""
         import tomllib
         from pathlib import Path
 
@@ -76,10 +73,10 @@ class TestCoreDepsOnly:
             data = tomllib.load(f)
 
         core_deps = data["project"]["dependencies"]
-        assert len(core_deps) == 9, f"Expected 9 core deps, got {len(core_deps)}: {core_deps}"
+        assert len(core_deps) == 12, f"Expected 12 core deps, got {len(core_deps)}: {core_deps}"
 
     def test_server_extra_exists(self) -> None:
-        """[server] optional extra should exist with 7 packages."""
+        """[server] optional extra should exist with 4 packages."""
         import tomllib
         from pathlib import Path
 
@@ -90,8 +87,8 @@ class TestCoreDepsOnly:
         extras = data["project"]["optional-dependencies"]
         assert "server" in extras, "Missing [server] extra in pyproject.toml"
         server_deps = extras["server"]
-        assert len(server_deps) == 7, (
-            f"Expected 7 server deps, got {len(server_deps)}: {server_deps}"
+        assert len(server_deps) == 4, (
+            f"Expected 4 server deps, got {len(server_deps)}: {server_deps}"
         )
 
     def test_all_extra_includes_server(self) -> None:

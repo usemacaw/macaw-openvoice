@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `[server]` optional extra in pyproject.toml for API-only dependencies (fastapi, uvicorn, click, httpx, huggingface_hub, python-multipart, defusedxml) (#remote-workers)
+- `[server]` optional extra in pyproject.toml for API-only dependencies (fastapi, uvicorn, python-multipart, defusedxml) (#remote-workers)
 - `remote_endpoint` field on `WorkerHandle` for remote gRPC workers managed externally (#remote-workers)
 - `worker_address` property on `WorkerHandle` for unified address resolution (local vs remote) (#remote-workers)
 - `MACAW_REMOTE_WORKERS` env var (JSON dict) for engine-to-endpoint mapping (#remote-workers)
@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `_spawn_all_workers` refactored into `_spawn_or_register_worker` helper — DRY spawn logic for STT and TTS workers (#venv-review)
 - `serve.py` uses `get_worker_for_model()` public API instead of accessing `WorkerManager._workers` (#venv-review)
 - Health check caches extracted into `_TTLCache` generic helper — eliminates duplicated TTL cache pattern (#venv-review)
-- Core dependencies reduced from 18 to 9 packages — workers no longer carry API deps (#remote-workers)
+- Core dependencies restructured to 12 packages — `click`, `httpx`, `huggingface_hub` moved from `[server]` extra to core so `macaw` CLI works with bare `pip install macaw-openvoice` (#setup-simplification)
+- `_spawn_or_register_worker` runs `resolve_python_for_engine` in `asyncio.to_thread` — prevents blocking the event loop during auto-provisioning on `macaw serve` (#setup-simplification)
+- Venv provisioning installs from local source when running in editable (dev) mode — ensures venvs match working tree deps instead of stale PyPI version (#setup-simplification)
 - `opuslib` and `nemo_text_processing` removed from core deps (already in `[codec]` and `[itn]` extras) (#remote-workers)
 - `docker-compose.yml` restructured for multi-service architecture (runtime + STT worker + TTS worker containers) (#remote-workers)
 - Scheduler uses `worker.worker_address` instead of global `worker_host` for gRPC channel creation (#remote-workers)

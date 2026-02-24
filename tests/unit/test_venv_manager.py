@@ -183,7 +183,8 @@ class TestVenvManagerProvision:
         # Verify the install command used custom extra
         install_call = mock_run.call_args_list[1]
         cmd = install_call[0][0]
-        assert "macaw-openvoice[kokoro-gpu]" in cmd
+        install_spec = cmd[-1]  # Last arg is the install specifier
+        assert install_spec.endswith("[kokoro-gpu]")
 
     @patch("macaw.backends.venv_manager.subprocess.run")
     def test_provision_cleans_orphan_on_install_failure(
@@ -436,7 +437,8 @@ class TestProvisionExtraValidation:
         # Verify custom extra was used
         install_call = mock_run.call_args_list[1]
         cmd = install_call[0][0]
-        assert "macaw-openvoice[kokoro-gpu]" in cmd
+        install_spec = cmd[-1]  # Last arg is the install specifier
+        assert install_spec.endswith("[kokoro-gpu]")
 
 
 class TestProvisionMarkerPythonVersion:

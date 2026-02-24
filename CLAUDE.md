@@ -63,8 +63,8 @@ PRD: @docs/PRD.md
 - **TTSBackend espelha STTBackend.** `synthesize()` retorna `AsyncIterator[bytes]` para streaming com baixo TTFB.
 
 - **Venv-per-backend isolation.** Each engine gets its own Python venv at `~/.cache/macaw/venvs/{engine}/`. Auto-provisioned on `macaw serve` using `uv`. Falls back to `sys.executable` when no venv. See ADR-015.
-- **Docker per-engine architecture.** In Docker/K8s, each engine runs in its own container (`Dockerfile.worker`) with only core deps (9 packages) + engine deps. The runtime container (API + scheduler) connects via gRPC. Configured via `MACAW_REMOTE_WORKERS` JSON env var.
-- **Core vs server deps.** Core deps (9 packages: pydantic, structlog, numpy, scipy, soundfile, grpcio, protobuf, pyyaml, pydantic-settings) are what workers need. Server deps (fastapi, uvicorn, click, httpx, huggingface_hub, python-multipart, defusedxml) are in `[server]` extra.
+- **Docker per-engine architecture.** In Docker/K8s, each engine runs in its own container (`Dockerfile.worker`) with only core deps (12 packages) + engine deps. The runtime container (API + scheduler) connects via gRPC. Configured via `MACAW_REMOTE_WORKERS` JSON env var.
+- **Core vs server deps.** Core deps (12 packages: pydantic, structlog, numpy, scipy, soundfile, grpcio, protobuf, pyyaml, pydantic-settings, click, httpx, huggingface_hub) include CLI essentials so `macaw` works out of the box. Server deps (fastapi, uvicorn, python-multipart, defusedxml) are in `[server]` extra.
 
 ADRs completos: @docs/PRD.md (secao "Architecture Decision Records") + @docs/adrs/
 Como adicionar nova engine: @docs/ADDING_ENGINE.md
