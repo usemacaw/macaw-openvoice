@@ -240,10 +240,12 @@ def test_tts_validation_flags_unsupported_params():
     # Act
     unsupported = validate_params_against_capabilities(params, caps)
 
-    # Assert
+    # Assert — seed is intentionally NOT validated (deterministic engines
+    # satisfy reproducibility), so only speed and temperature are flagged.
     assert "speed" in unsupported
-    assert "seed" in unsupported
     assert "temperature" in unsupported
+    assert "seed" not in unsupported
+    assert len(unsupported) == 2
 
 
 # ---------------------------------------------------------------------------

@@ -131,12 +131,12 @@ class TestValidateAllSupported:
 class TestValidateSingleParam:
     """Each unsupported param is flagged individually."""
 
-    def test_seed_unsupported(self) -> None:
-        """Seed in options + supports_seed=False -> ['seed']."""
+    def test_seed_always_accepted(self) -> None:
+        """Seed is never rejected — deterministic engines satisfy reproducibility."""
         caps = TTSEngineCapabilities(supports_seed=False)
         params = _params(options={"seed": 42})
         result = validate_params_against_capabilities(params, caps)
-        assert result == ["seed"]
+        assert result == []
 
     def test_temperature_unsupported(self) -> None:
         """Temperature in options + supports_temperature=False -> ['temperature']."""
@@ -201,20 +201,18 @@ class TestValidateDefaultNotFlagged:
 class TestValidateMultipleUnsupported:
     """Multiple unsupported params are returned together."""
 
-    def test_multiple_unsupported(self) -> None:
-        """Seed + temperature both unsupported -> ['seed', 'temperature']."""
+    def test_multiple_unsupported_seed_excluded(self) -> None:
+        """Seed is accepted, only temperature flagged."""
         caps = TTSEngineCapabilities(
             supports_seed=False,
             supports_temperature=False,
         )
         params = _params(options={"seed": 42, "temperature": 0.8})
         result = validate_params_against_capabilities(params, caps)
-        assert "seed" in result
-        assert "temperature" in result
-        assert len(result) == 2
+        assert result == ["temperature"]
 
-    def test_all_unsupported(self) -> None:
-        """All params unsupported with all params set."""
+    def test_all_unsupported_except_seed(self) -> None:
+        """All params unsupported with all set — seed excluded from validation."""
         params = _params(
             speed=2.0,
             options={
@@ -226,10 +224,9 @@ class TestValidateMultipleUnsupported:
             },
         )
         result = validate_params_against_capabilities(params, _none_supported_caps())
-        assert len(result) == 6
+        assert len(result) == 5
         assert set(result) == {
             "speed",
-            "seed",
             "temperature",
             "top_k",
             "top_p",
@@ -251,14 +248,14 @@ class TestKokoroValidation:
         result = validate_params_against_capabilities(params, _kokoro_caps())
         assert result == ["temperature"]
 
-    def test_kokoro_rejects_seed(self) -> None:
-        """Kokoro does not support seed."""
+    def test_kokoro_accepts_seed(self) -> None:
+        """Kokoro accepts seed — deterministic engine satisfies reproducibility."""
         params = _params(options={"seed": 42})
         result = validate_params_against_capabilities(params, _kokoro_caps())
-        assert result == ["seed"]
+        assert result == []
 
-    def test_kokoro_rejects_all_sampling_params(self) -> None:
-        """Kokoro rejects all sampling params at once."""
+    def test_kokoro_rejects_all_sampling_params_except_seed(self) -> None:
+        """Kokoro rejects sampling params except seed."""
         params = _params(
             options={
                 "seed": 42,
@@ -270,7 +267,6 @@ class TestKokoroValidation:
         )
         result = validate_params_against_capabilities(params, _kokoro_caps())
         assert set(result) == {
-            "seed",
             "temperature",
             "top_k",
             "top_p",
@@ -306,11 +302,11 @@ class TestQwen3Validation:
 class TestChatterboxValidation:
     """Validation against Chatterbox capabilities."""
 
-    def test_chatterbox_rejects_seed(self) -> None:
-        """Chatterbox does not support seed."""
+    def test_chatterbox_accepts_seed(self) -> None:
+        """Chatterbox accepts seed — deterministic engines satisfy reproducibility."""
         params = _params(options={"seed": 42})
         result = validate_params_against_capabilities(params, _chatterbox_caps())
-        assert result == ["seed"]
+        assert result == []
 
     def test_chatterbox_rejects_text_normalization(self) -> None:
         """Chatterbox does not support text_normalization."""
@@ -424,8 +420,8 @@ class TestServicerRejectsUnsupportedParams:
             "Engine 'test-engine' does not support: temperature",
         )
 
-    async def test_synthesize_rejects_multiple_unsupported(self) -> None:
-        """Synthesize aborts listing all unsupported params."""
+    async def test_synthesize_rejects_temperature_accepts_seed(self) -> None:
+        """Synthesize aborts for temperature but not for seed."""
         from macaw.proto.tts_worker_pb2 import SynthesizeRequest
         from macaw.workers.tts.servicer import TTSWorkerServicer
 
@@ -463,8 +459,8 @@ class TestServicerRejectsUnsupportedParams:
         ctx.abort.assert_called_once()
         call_args = ctx.abort.call_args
         assert call_args[0][0] == grpc.StatusCode.INVALID_ARGUMENT
-        assert "seed" in call_args[0][1]
         assert "temperature" in call_args[0][1]
+        assert "seed" not in call_args[0][1]
 
     async def test_synthesize_passes_when_all_supported(self) -> None:
         """Synthesize proceeds normally when all params are supported."""

@@ -29,9 +29,11 @@ def validate_params_against_capabilities(
     if params.speed != 1.0 and not capabilities.supports_speed:
         unsupported.append("speed")
 
-    # Options-based params: check only if present in options dict
-    if "seed" in options and not capabilities.supports_seed:
-        unsupported.append("seed")
+    # Options-based params: check only if present in options dict.
+    # Note: ``seed`` is intentionally NOT validated here.  A deterministic
+    # engine inherently satisfies the "reproducible output" intent, so
+    # sending ``seed`` to it is never an error — the backend logs and
+    # ignores it (see kokoro.py ``seed_ignored_deterministic_engine``).
     if "temperature" in options and not capabilities.supports_temperature:
         unsupported.append("temperature")
     if "top_k" in options and not capabilities.supports_top_k:
