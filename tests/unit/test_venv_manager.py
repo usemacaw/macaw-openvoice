@@ -265,12 +265,16 @@ class TestVenvManagerAvailability:
 
 
 class TestResolvePythonForEngine:
+    @patch(
+        "macaw.backends.venv_manager.VenvManager.is_engine_available_in_venv", return_value=True
+    )
     @patch("macaw.backends.venv_manager.VenvManager.exists", return_value=True)
     @patch("macaw.backends.venv_manager.VenvManager.venv_python")
     def test_returns_existing_venv_python(
         self,
         mock_venv_python: MagicMock,
         mock_exists: MagicMock,
+        mock_available: MagicMock,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         from macaw.config.settings import get_settings
@@ -282,6 +286,106 @@ class TestResolvePythonForEngine:
         try:
             result = resolve_python_for_engine("kokoro")
             assert result == "/venvs/kokoro/bin/python"
+        finally:
+            get_settings.cache_clear()
+
+    @patch("macaw.backends.venv_manager.VenvManager.remove")
+    @patch("macaw.backends.venv_manager.VenvManager.provision")
+    @patch(
+        "macaw.backends.venv_manager.VenvManager.is_engine_available_in_venv", return_value=False
+    )
+    @patch("macaw.backends.venv_manager.VenvManager.exists", return_value=True)
+    @patch("macaw.backends.venv_manager.VenvManager.venv_python")
+    def test_stale_venv_detected_and_reprovisioned(
+        self,
+        mock_venv_python: MagicMock,
+        mock_exists: MagicMock,
+        mock_available: MagicMock,
+        mock_provision: MagicMock,
+        mock_remove: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Stale venv (marker exists but engine not importable) is removed and reprovisioned."""
+        from macaw.config.settings import get_settings
+
+        mock_venv_python.return_value = Path("/venvs/kokoro/bin/python")
+        mock_provision.return_value = Path("/venvs/kokoro/bin/python")
+        # After remove, exists returns False so provision path is taken
+        mock_exists.side_effect = [True, False]
+        monkeypatch.setenv("MACAW_VENV_DIR", "/venvs")
+        monkeypatch.setenv("MACAW_BACKEND_AUTO_PROVISION", "true")
+        get_settings.cache_clear()
+
+        try:
+            result = resolve_python_for_engine("kokoro")
+            mock_remove.assert_called_once_with("kokoro")
+            mock_provision.assert_called_once_with("kokoro")
+            assert result == "/venvs/kokoro/bin/python"
+        finally:
+            get_settings.cache_clear()
+
+    @patch("macaw.backends.venv_manager.VenvManager.remove")
+    @patch(
+        "macaw.backends.venv_manager.VenvManager.provision",
+        side_effect=VenvProvisionError("kokoro", "network error"),
+    )
+    @patch(
+        "macaw.backends.venv_manager.VenvManager.is_engine_available_in_venv", return_value=False
+    )
+    @patch("macaw.backends.venv_manager.VenvManager.exists", return_value=True)
+    @patch("macaw.backends.venv_manager.VenvManager.venv_python")
+    def test_stale_venv_fallback_when_reprovision_fails(
+        self,
+        mock_venv_python: MagicMock,
+        mock_exists: MagicMock,
+        mock_available: MagicMock,
+        mock_provision: MagicMock,
+        mock_remove: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Stale venv removed, reprovision fails — falls back to sys.executable."""
+        from macaw.config.settings import get_settings
+
+        mock_venv_python.return_value = Path("/venvs/kokoro/bin/python")
+        mock_exists.side_effect = [True, False]
+        monkeypatch.setenv("MACAW_VENV_DIR", "/venvs")
+        monkeypatch.setenv("MACAW_BACKEND_AUTO_PROVISION", "true")
+        get_settings.cache_clear()
+
+        try:
+            result = resolve_python_for_engine("kokoro")
+            assert result == sys.executable
+            mock_remove.assert_called_once_with("kokoro")
+        finally:
+            get_settings.cache_clear()
+
+    @patch(
+        "macaw.backends.venv_manager.VenvManager.remove",
+        side_effect=OSError("permission denied"),
+    )
+    @patch(
+        "macaw.backends.venv_manager.VenvManager.is_engine_available_in_venv", return_value=False
+    )
+    @patch("macaw.backends.venv_manager.VenvManager.exists", return_value=True)
+    @patch("macaw.backends.venv_manager.VenvManager.venv_python")
+    def test_stale_venv_removal_failure_falls_back(
+        self,
+        mock_venv_python: MagicMock,
+        mock_exists: MagicMock,
+        mock_available: MagicMock,
+        mock_remove: MagicMock,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Cannot remove stale venv — falls back to sys.executable."""
+        from macaw.config.settings import get_settings
+
+        mock_venv_python.return_value = Path("/venvs/kokoro/bin/python")
+        monkeypatch.setenv("MACAW_VENV_DIR", "/venvs")
+        get_settings.cache_clear()
+
+        try:
+            result = resolve_python_for_engine("kokoro")
+            assert result == sys.executable
         finally:
             get_settings.cache_clear()
 

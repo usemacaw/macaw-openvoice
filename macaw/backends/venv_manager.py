@@ -355,11 +355,24 @@ def resolve_python_for_engine(engine: str) -> str:
     settings = get_settings().backend
     manager = VenvManager(settings.venv_base_path, uv_path=settings.uv_path)
 
-    # 1. Venv already exists
+    # 1. Venv already exists — validate it's healthy
     if manager.exists(engine):
         python_path = str(manager.venv_python(engine))
-        logger.debug("venv_resolved_existing", engine=engine, python=python_path)
-        return python_path
+        if manager.is_engine_available_in_venv(engine):
+            logger.debug("venv_resolved_existing", engine=engine, python=python_path)
+            return python_path
+        # Stale venv: marker exists but engine is not importable.
+        # Remove and fall through to re-provision (or fallback).
+        logger.warning("venv_stale_detected", engine=engine, python=python_path)
+        try:
+            manager.remove(engine)
+        except OSError as exc:
+            logger.warning(
+                "venv_stale_removal_failed",
+                engine=engine,
+                error=str(exc),
+            )
+            return sys.executable
 
     # 2. Auto-provision if enabled
     if settings.auto_provision:

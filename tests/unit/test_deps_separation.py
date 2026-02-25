@@ -151,7 +151,7 @@ class TestSpawnAllWorkersRemoteDispatch:
             mock_settings.return_value.backend.remote_workers = {
                 "faster-whisper": "stt-host:50051",
             }
-            _stt_models, _tts_models = await _spawn_all_workers(
+            _stt_models, _tts_models, _stt_n, _tts_n = await _spawn_all_workers(
                 mock_registry, mock_manager, [mock_manifest], 50051
             )
 
@@ -175,7 +175,7 @@ class TestSpawnAllWorkersRemoteDispatch:
             ),
         ):
             mock_settings.return_value.backend.remote_workers = {}
-            _stt_models, _tts_models = await _spawn_all_workers(
+            _stt_models, _tts_models, _stt_n, _tts_n = await _spawn_all_workers(
                 mock_registry, mock_manager, [mock_manifest], 50051
             )
 
@@ -202,7 +202,7 @@ class TestSpawnAllWorkersRemoteDispatch:
                 "faster-whisper": "stt-host:50051",
                 # kokoro NOT in remote_workers → local spawn
             }
-            _stt_models, _tts_models = await _spawn_all_workers(
+            _stt_models, _tts_models, _stt_n, _tts_n = await _spawn_all_workers(
                 mock_registry, mock_manager, [stt_manifest, tts_manifest], 50051
             )
 
@@ -221,7 +221,7 @@ class TestSpawnAllWorkersRemoteDispatch:
             mock_settings.return_value.backend.remote_workers = {
                 "kokoro": "tts-host:50052",
             }
-            _stt_models, _tts_models = await _spawn_all_workers(
+            _stt_models, _tts_models, _stt_n, _tts_n = await _spawn_all_workers(
                 mock_registry, mock_manager, [tts_manifest], 50051
             )
 

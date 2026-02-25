@@ -131,13 +131,29 @@ async def _spawn_or_register_worker(
         python_package=manifest.python_package,
         venv_python=effective_venv,
     ):
-        logger.warning(
-            "engine_not_installed",
-            model=manifest.name,
-            engine=manifest.engine,
-            hint=f"pip install macaw-openvoice[{manifest.engine}]",
-        )
-        return False
+        # Venv check failed — try the main Python as ultimate fallback.
+        # This handles the case where the user installed deps in the main
+        # environment (e.g., ``pip install macaw-openvoice[kokoro]``) but
+        # the per-engine venv is stale, corrupt, or was never provisioned.
+        if effective_venv is not None and is_engine_available(
+            manifest.engine,
+            python_package=manifest.python_package,
+        ):
+            logger.warning(
+                "engine_available_in_main_python",
+                model=manifest.name,
+                engine=manifest.engine,
+            )
+            venv_python = sys.executable
+            effective_venv = None
+        else:
+            logger.warning(
+                "engine_not_installed",
+                model=manifest.name,
+                engine=manifest.engine,
+                hint=f"pip install macaw-openvoice[{manifest.engine}]",
+            )
+            return False
 
     model_path = str(registry.get_model_path(manifest.name))
     engine_config = manifest.engine_config.model_dump()
@@ -170,7 +186,7 @@ async def _spawn_all_workers(
     worker_manager: WorkerManager,
     models: list[ModelManifest],
     base_port: int,
-) -> tuple[list[ModelManifest], list[ModelManifest]]:
+) -> tuple[list[ModelManifest], list[ModelManifest], int, int]:
     """Spawn gRPC workers for all discovered models.
 
     Checks ``BackendSettings.remote_workers`` first — if an engine has a
@@ -178,13 +194,14 @@ async def _spawn_all_workers(
     of spawning a local subprocess. This enables horizontal scaling with
     engine containers in Docker/K8s.
 
-    Returns (stt_models, tts_models) manifests that were processed.
+    Returns (stt_models, tts_models, stt_spawned, tts_spawned).
     """
     from macaw._types import ModelType
 
     remote_workers = get_settings().backend.remote_workers
     port_counter = base_port
 
+    stt_spawned = 0
     stt_models = [m for m in models if m.model_type == ModelType.STT]
     for manifest in stt_models:
         spawned = await _spawn_or_register_worker(
@@ -197,7 +214,9 @@ async def _spawn_all_workers(
         )
         if spawned:
             port_counter += 1
+            stt_spawned += 1
 
+    tts_spawned = 0
     tts_models = [m for m in models if m.model_type == ModelType.TTS]
     for manifest in tts_models:
         spawned = await _spawn_or_register_worker(
@@ -210,8 +229,9 @@ async def _spawn_all_workers(
         )
         if spawned:
             port_counter += 1
+            tts_spawned += 1
 
-    return stt_models, tts_models
+    return stt_models, tts_models, stt_spawned, tts_spawned
 
 
 def _build_pipelines() -> tuple[AudioPreprocessingPipeline, PostProcessingPipeline]:
@@ -291,7 +311,7 @@ async def _serve(
 
     # 2. Spawn workers
     worker_manager = WorkerManager()
-    stt_models, tts_models = await _spawn_all_workers(
+    stt_models, tts_models, stt_spawned, tts_spawned = await _spawn_all_workers(
         registry, worker_manager, models, DEFAULT_WORKER_BASE_PORT
     )
 
@@ -303,8 +323,10 @@ async def _serve(
         host=host,
         port=port,
         models_count=len(models),
-        stt_workers=len(stt_models),
-        tts_workers=len(tts_models),
+        stt_models=len(stt_models),
+        tts_models=len(tts_models),
+        stt_workers_spawned=stt_spawned,
+        tts_workers_spawned=tts_spawned,
     )
 
     # 3. Build pipelines

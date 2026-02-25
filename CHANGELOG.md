@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `register_remote_worker()` method on `WorkerManager` — registers remote workers without spawning subprocesses (#remote-workers)
 - `Dockerfile.worker` for per-engine worker containers with minimal deps (#remote-workers)
 
+### Fixed
+- `resolve_python_for_engine` now validates venv health before trusting marker file — stale or corrupt venvs are detected, removed, and reprovisioned automatically (#stale-venv-fix)
+- `_spawn_or_register_worker` falls back to main Python when venv availability check fails but the engine is importable in sys.executable — fixes `engine_not_installed` when deps are pip-installed in the main environment (#stale-venv-fix)
+- `server_starting` log now reports actual spawned worker counts (`stt_workers_spawned`, `tts_workers_spawned`) instead of model counts which were misleading when engines were unavailable (#stale-venv-fix)
+
 ### Changed
 - `VenvManager` centralized engine name validation via `_engine_dir()` — eliminates 7 redundant `_validate_engine_name` calls (#venv-review)
 - `_spawn_all_workers` refactored into `_spawn_or_register_worker` helper — DRY spawn logic for STT and TTS workers (#venv-review)
