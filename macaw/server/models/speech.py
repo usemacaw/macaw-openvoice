@@ -105,6 +105,7 @@ class SpeechRequest(BaseModel):
     top_k: int | None = Field(
         default=None,
         ge=0,
+        le=1000,
         description="Top-k sampling for LLM-based TTS (0 = engine default).",
     )
     top_p: float | None = Field(

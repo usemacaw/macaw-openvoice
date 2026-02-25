@@ -205,12 +205,10 @@ class TTSEngineCapabilities:
     supports_character_alignment: bool = False
 
     # Parameter support declarations for runtime validation.
-    # When False, the servicer rejects requests with INVALID_ARGUMENT
-    # if the client sends a non-default value for that parameter.
+    # Engine-specific validation is driven by registered ParamValidator
+    # instances (see macaw.workers.tts._validation), not by these flags.
+    # Only ``supports_speed`` is checked by the default validators.
     supports_seed: bool = False
-    supports_temperature: bool = False
-    supports_top_k: bool = False
-    supports_top_p: bool = False
     supports_text_normalization: bool = False
     supports_speed: bool = True  # default True: most engines support speed
     supports_voice_settings: bool = False

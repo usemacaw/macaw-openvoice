@@ -5,7 +5,23 @@ from __future__ import annotations
 from macaw.codec.interface import CodecEncoder
 from macaw.exceptions import CodecUnavailableError
 
-__all__ = ["CodecEncoder", "create_encoder", "is_codec_available"]
+__all__ = ["CodecEncoder", "codec_unavailable_message", "create_encoder", "is_codec_available"]
+
+
+# Map codec names to their pyproject.toml extra names.
+_CODEC_EXTRA_NAMES: dict[str, str] = {
+    "opus": "codec",
+}
+
+
+def codec_unavailable_message(codec: str) -> str:
+    """Build a human-readable error message for a missing codec.
+
+    Centralises the codec → pyproject extra name mapping so that all
+    endpoints (REST + WS) use the same wording and install hint.
+    """
+    extra = _CODEC_EXTRA_NAMES.get(codec, codec)
+    return f"Codec '{codec}' is not available. Install with: pip install macaw-openvoice[{extra}]"
 
 
 def create_encoder(

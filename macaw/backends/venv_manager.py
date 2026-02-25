@@ -218,11 +218,11 @@ class VenvManager:
         installs.  Returns ``None`` for regular PyPI installs.
         """
         import json as _json
-        from importlib.metadata import distribution
+        from importlib.metadata import PackageNotFoundError, distribution
 
         try:
             dist = distribution("macaw-openvoice")
-        except Exception:  # PackageNotFoundError
+        except PackageNotFoundError:
             return None
 
         raw = dist.read_text("direct_url.json")
@@ -239,7 +239,9 @@ class VenvManager:
 
         url: str = data.get("url", "")
         if url.startswith("file://"):
-            return Path(url.removeprefix("file://"))
+            from urllib.parse import unquote, urlparse
+
+            return Path(unquote(urlparse(url).path))
         return None
 
     def _run_install_deps(self, engine: str, python_path: Path, extra: str) -> None:

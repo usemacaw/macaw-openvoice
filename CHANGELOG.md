@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ParamValidator` Protocol for composable TTS parameter validation — Strategy + Registry pattern enables per-engine validators without modifying existing code (#param-validator)
+- `CapabilityValidator` rejects feature-gated params at the gRPC boundary: `ref_audio`/`ref_text` when engine lacks voice cloning, `instruction` when engine lacks instruct support (#param-validator)
+- `SamplingBoundsValidator` enforces universal safety bounds at the gRPC boundary: `top_k <= 1000`, `temperature <= 2.0`, `top_p <= 1.0`, `speed` in `[0.25, 4.0]` (#param-validator)
+- `KokoroValidator` rejects sampling params (`temperature`, `top_k`, `top_p`) that have no effect on Kokoro's deterministic forward-pass engine (#param-validator)
+- `ChatterboxValidator` rejects `seed` on Chatterbox (not implemented, reproducibility not guaranteed) (#param-validator)
+- `Qwen3TTSValidator` rejects conflicting `instruction` + `text_normalization='off'` on Qwen3-TTS — custom instruction takes priority and normalization-off is silently lost (#param-validator)
 - `[server]` optional extra in pyproject.toml for API-only dependencies (fastapi, uvicorn, python-multipart, defusedxml) (#remote-workers)
 - `remote_endpoint` field on `WorkerHandle` for remote gRPC workers managed externally (#remote-workers)
 - `worker_address` property on `WorkerHandle` for unified address resolution (local vs remote) (#remote-workers)
@@ -15,12 +21,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `register_remote_worker()` method on `WorkerManager` — registers remote workers without spawning subprocesses (#remote-workers)
 - `Dockerfile.worker` for per-engine worker containers with minimal deps (#remote-workers)
 
+### Removed
+- Dead `supports_temperature`, `supports_top_k`, `supports_top_p` flags from `TTSEngineCapabilities` — engine-specific validation is now driven by registered `ParamValidator` instances, these flags were write-only (#code-review)
+
 ### Fixed
+- `top_k` missing upper bound on `SpeechRequest` and `TTSSpeakCommand` — added `le=1000` constraint to prevent unbounded sampling (DoS risk) (#param-validator)
+- `SamplingBoundsValidator` no longer reports confusing dual speed errors — when `supports_speed=False`, speed bounds check is skipped (SpeedValidator already handles the capability rejection) (#code-review)
+- `validate_params_against_capabilities` now accepts optional `engine` kwarg for engine-specific validators — matches servicer behavior exactly (#code-review)
+- `_is_numeric()` guard excludes `bool` from numeric checks — prevents `temperature=True` silently evaluating as `1` and passing bounds validation (#code-review)
+- Codec unavailability error messages consolidated into `codec_unavailable_message()` DRY utility — eliminates duplication across 5 route files (#code-review)
+- `VenvManager._editable_source_dir()` uses `urllib.parse.urlparse` for `file://` URL parsing — handles edge cases (encoded paths, query strings) correctly (#code-review)
+- `VenvManager._editable_source_dir()` narrows `except Exception` to `except PackageNotFoundError` — prevents swallowing unrelated errors (#code-review)
+- `register_engine_validators()` enables external engines to register custom validators at runtime without modifying built-in registry (OCP) (#code-review)
 - `resolve_python_for_engine` now validates venv health before trusting marker file — stale or corrupt venvs are detected, removed, and reprovisioned automatically (#stale-venv-fix)
 - `_spawn_or_register_worker` falls back to main Python when venv availability check fails but the engine is importable in sys.executable — fixes `engine_not_installed` when deps are pip-installed in the main environment (#stale-venv-fix)
 - `server_starting` log now reports actual spawned worker counts (`stt_workers_spawned`, `tts_workers_spawned`) instead of model counts which were misleading when engines were unavailable (#stale-venv-fix)
 - `seed` parameter no longer rejected by TTS validation for engines with `supports_seed=False` — deterministic engines inherently satisfy reproducibility, so sending `seed` is never an error (#seed-validation-fix)
 - `text_normalization` parameter no longer rejected by TTS validation for engines with `supports_text_normalization=False` — backends handle gracefully with best-effort logging (#text-norm-validation-fix)
+- Sampling parameters (`temperature`, `top_k`, `top_p`) no longer rejected globally for engines with `supports_*=False` — engines that need explicit rejection now use engine-specific validators (e.g., `KokoroValidator`) with clearer error messages (#sampling-params-validation-fix)
+- Codec unavailability error messages now include install command (e.g., `pip install macaw-openvoice[mp3]`) across all 5 endpoints (#codec-error-msg)
 
 ### Changed
 - `VenvManager` centralized engine name validation via `_engine_dir()` — eliminates 7 redundant `_validate_engine_name` calls (#venv-review)

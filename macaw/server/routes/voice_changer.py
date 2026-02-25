@@ -86,15 +86,10 @@ async def speech_to_speech(
 
     # Pre-flight: check codec availability
     if output_fmt.needs_encoding:
-        from macaw.codec import is_codec_available
+        from macaw.codec import codec_unavailable_message, is_codec_available
 
         if not is_codec_available(output_fmt.codec):
-            codec = output_fmt.codec
-            extra = "codec" if codec == "opus" else codec
-            raise InvalidRequestError(
-                f"Codec '{codec}' is not available. "
-                f"Install with: pip install macaw-openvoice[{extra}]"
-            )
+            raise InvalidRequestError(codec_unavailable_message(output_fmt.codec))
 
     # TODO: When VC worker integration is added (beyond MVP), this will
     # call the gRPC VoiceChange RPC. For now, we return 503 above since

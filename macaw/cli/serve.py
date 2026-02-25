@@ -123,7 +123,10 @@ async def _spawn_or_register_worker(
         return False
 
     # Run in thread — resolve_python_for_engine() may call provision()
-    # which runs blocking subprocess commands (up to 600s).
+    # which runs blocking subprocess calls (up to 600s).
+    # Thread-safety: get_settings() returns a frozen Pydantic model
+    # (immutable after initial load), and workers are spawned
+    # sequentially within this async loop — no concurrent mutation.
     venv_python = await asyncio.to_thread(resolve_python_for_engine, manifest.engine)
     effective_venv = venv_python if venv_python != sys.executable else None
     if not is_engine_available(

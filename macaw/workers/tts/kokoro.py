@@ -70,11 +70,9 @@ class KokoroBackend(TTSBackend):
             supports_streaming=True,
             supports_alignment=True,
             supports_character_alignment=True,
-            # Kokoro is deterministic (no seed effect), no sampling params
+            # Kokoro is deterministic (no seed effect, no sampling params).
+            # KokoroValidator rejects temperature/top_k/top_p explicitly.
             supports_seed=False,
-            supports_temperature=False,
-            supports_top_k=False,
-            supports_top_p=False,
             supports_text_normalization=False,
             supports_speed=True,
             supports_voice_settings=True,

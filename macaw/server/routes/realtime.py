@@ -939,17 +939,13 @@ async def _handle_tts_speak_command(
         return False
 
     if output_fmt is not None and output_fmt.needs_encoding:
-        from macaw.codec import is_codec_available
+        from macaw.codec import codec_unavailable_message, is_codec_available
 
         if not is_codec_available(output_fmt.codec):
             await ctx.send_event(
                 StreamingErrorEvent(
                     code="codec_unavailable",
-                    message=(
-                        f"Codec '{output_fmt.codec}' is not available. "
-                        f"Install with: pip install macaw-openvoice["
-                        f"{'codec' if output_fmt.codec == 'opus' else output_fmt.codec}]"
-                    ),
+                    message=codec_unavailable_message(output_fmt.codec),
                     recoverable=True,
                 )
             )

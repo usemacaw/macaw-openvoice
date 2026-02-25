@@ -160,13 +160,14 @@ def test_engine_capabilities_has_all_sprint_c_fields():
 
 
 def test_tts_engine_capabilities_has_all_sprint_a_fields():
-    """TTSEngineCapabilities has supports_seed, supports_temperature, etc from Sprint A."""
+    """TTSEngineCapabilities has supports_seed, supports_speed, etc from Sprint A.
+
+    Note: supports_temperature, supports_top_k, supports_top_p were removed
+    (dead flags — engine-specific validation uses ParamValidator instances).
+    """
     # Arrange & Act
     caps = TTSEngineCapabilities(
         supports_seed=True,
-        supports_temperature=True,
-        supports_top_k=True,
-        supports_top_p=True,
         supports_text_normalization=True,
         supports_speed=True,
         supports_alignment=True,
@@ -174,9 +175,6 @@ def test_tts_engine_capabilities_has_all_sprint_a_fields():
 
     # Assert
     assert caps.supports_seed is True
-    assert caps.supports_temperature is True
-    assert caps.supports_top_k is True
-    assert caps.supports_top_p is True
     assert caps.supports_text_normalization is True
     assert caps.supports_speed is True
     assert caps.supports_alignment is True
@@ -207,9 +205,6 @@ def test_tts_validation_with_full_capabilities():
     )
     caps = TTSEngineCapabilities(
         supports_seed=True,
-        supports_temperature=True,
-        supports_top_k=True,
-        supports_top_p=True,
         supports_text_normalization=True,
         supports_speed=True,
     )
@@ -233,19 +228,18 @@ def test_tts_validation_flags_unsupported_params():
     )
     caps = TTSEngineCapabilities(
         supports_seed=False,
-        supports_temperature=False,
         supports_speed=False,
     )
 
     # Act
     unsupported = validate_params_against_capabilities(params, caps)
 
-    # Assert — seed is intentionally NOT validated (deterministic engines
-    # satisfy reproducibility), so only speed and temperature are flagged.
-    assert "speed" in unsupported
-    assert "temperature" in unsupported
-    assert "seed" not in unsupported
-    assert len(unsupported) == 2
+    # Assert — speed is validated (wrong speed = genuinely wrong output).
+    # All options-based params (seed, temperature, etc.) are no-ops on
+    # deterministic engines, so they are intentionally NOT rejected.
+    assert any("speed" in e for e in unsupported)
+    assert not any("temperature" in e for e in unsupported)
+    assert not any("seed" in e for e in unsupported)
 
 
 # ---------------------------------------------------------------------------

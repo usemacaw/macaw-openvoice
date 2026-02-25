@@ -328,7 +328,7 @@ class TTSSpeakCommand(BaseModel):
     text_normalization: Literal["auto", "on", "off"] = "auto"
     # Sampling parameters (LLM-based TTS engines)
     temperature: float | None = Field(default=None, ge=0.0, le=2.0)
-    top_k: int | None = Field(default=None, ge=0)
+    top_k: int | None = Field(default=None, ge=0, le=1000)
     top_p: float | None = Field(default=None, ge=0.0, le=1.0)
     # Voice settings (ElevenLabs-compatible, sent as plain dict from WS JSON)
     voice_settings: dict[str, object] | None = None
