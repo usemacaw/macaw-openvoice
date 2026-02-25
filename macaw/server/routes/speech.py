@@ -102,8 +102,11 @@ async def create_speech(
         from macaw.codec import is_codec_available
 
         if not is_codec_available(output_fmt.codec):
+            codec = output_fmt.codec
+            extra = "codec" if codec == "opus" else codec
             raise InvalidRequestError(
-                f"Codec '{output_fmt.codec}' is not available. Install the required library."
+                f"Codec '{codec}' is not available. "
+                f"Install with: pip install macaw-openvoice[{extra}]"
             )
 
     # Resolve TTS model + worker
