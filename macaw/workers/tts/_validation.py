@@ -30,17 +30,23 @@ def validate_params_against_capabilities(
         unsupported.append("speed")
 
     # Options-based params: check only if present in options dict.
-    # Note: ``seed`` is intentionally NOT validated here.  A deterministic
-    # engine inherently satisfies the "reproducible output" intent, so
-    # sending ``seed`` to it is never an error — the backend logs and
-    # ignores it (see kokoro.py ``seed_ignored_deterministic_engine``).
+    #
+    # ``seed`` and ``text_normalization`` are intentionally NOT validated:
+    #
+    # - ``seed``: A deterministic engine inherently satisfies the
+    #   "reproducible output" intent, so sending ``seed`` is never an
+    #   error — the backend logs and ignores it (see kokoro.py
+    #   ``seed_ignored_deterministic_engine``).
+    #
+    # - ``text_normalization``: "on" is default behavior for all engines;
+    #   "off" is best-effort with clear logging (see kokoro.py
+    #   ``text_normalization_off_best_effort``).  Rejecting it blocks
+    #   graceful degradation already implemented in the backend.
     if "temperature" in options and not capabilities.supports_temperature:
         unsupported.append("temperature")
     if "top_k" in options and not capabilities.supports_top_k:
         unsupported.append("top_k")
     if "top_p" in options and not capabilities.supports_top_p:
         unsupported.append("top_p")
-    if "text_normalization" in options and not capabilities.supports_text_normalization:
-        unsupported.append("text_normalization")
 
     return unsupported

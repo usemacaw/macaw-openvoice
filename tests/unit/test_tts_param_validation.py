@@ -159,12 +159,12 @@ class TestValidateSingleParam:
         result = validate_params_against_capabilities(params, caps)
         assert result == ["top_p"]
 
-    def test_text_normalization_unsupported(self) -> None:
-        """Text_normalization in options + supports_text_normalization=False."""
+    def test_text_normalization_always_accepted(self) -> None:
+        """Text normalization is never rejected — backends handle gracefully."""
         caps = TTSEngineCapabilities(supports_text_normalization=False)
         params = _params(options={"text_normalization": "off"})
         result = validate_params_against_capabilities(params, caps)
-        assert result == ["text_normalization"]
+        assert result == []
 
     def test_speed_unsupported(self) -> None:
         """Speed != 1.0 + supports_speed=False -> ['speed']."""
@@ -211,8 +211,8 @@ class TestValidateMultipleUnsupported:
         result = validate_params_against_capabilities(params, caps)
         assert result == ["temperature"]
 
-    def test_all_unsupported_except_seed(self) -> None:
-        """All params unsupported with all set — seed excluded from validation."""
+    def test_all_unsupported_except_seed_and_text_norm(self) -> None:
+        """All params unsupported — seed and text_normalization excluded."""
         params = _params(
             speed=2.0,
             options={
@@ -224,13 +224,12 @@ class TestValidateMultipleUnsupported:
             },
         )
         result = validate_params_against_capabilities(params, _none_supported_caps())
-        assert len(result) == 5
+        assert len(result) == 4
         assert set(result) == {
             "speed",
             "temperature",
             "top_k",
             "top_p",
-            "text_normalization",
         }
 
 
@@ -254,8 +253,8 @@ class TestKokoroValidation:
         result = validate_params_against_capabilities(params, _kokoro_caps())
         assert result == []
 
-    def test_kokoro_rejects_all_sampling_params_except_seed(self) -> None:
-        """Kokoro rejects sampling params except seed."""
+    def test_kokoro_rejects_sampling_params_only(self) -> None:
+        """Kokoro rejects temperature/top_k/top_p but accepts seed and text_normalization."""
         params = _params(
             options={
                 "seed": 42,
@@ -270,7 +269,6 @@ class TestKokoroValidation:
             "temperature",
             "top_k",
             "top_p",
-            "text_normalization",
         }
 
     def test_kokoro_accepts_speed(self) -> None:
@@ -308,11 +306,11 @@ class TestChatterboxValidation:
         result = validate_params_against_capabilities(params, _chatterbox_caps())
         assert result == []
 
-    def test_chatterbox_rejects_text_normalization(self) -> None:
-        """Chatterbox does not support text_normalization."""
+    def test_chatterbox_accepts_text_normalization(self) -> None:
+        """Chatterbox accepts text_normalization — backend handles gracefully."""
         params = _params(options={"text_normalization": "off"})
         result = validate_params_against_capabilities(params, _chatterbox_caps())
-        assert result == ["text_normalization"]
+        assert result == []
 
     def test_chatterbox_accepts_temperature(self) -> None:
         """Chatterbox supports temperature."""

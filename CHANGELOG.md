@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `_spawn_or_register_worker` falls back to main Python when venv availability check fails but the engine is importable in sys.executable — fixes `engine_not_installed` when deps are pip-installed in the main environment (#stale-venv-fix)
 - `server_starting` log now reports actual spawned worker counts (`stt_workers_spawned`, `tts_workers_spawned`) instead of model counts which were misleading when engines were unavailable (#stale-venv-fix)
 - `seed` parameter no longer rejected by TTS validation for engines with `supports_seed=False` — deterministic engines inherently satisfy reproducibility, so sending `seed` is never an error (#seed-validation-fix)
+- `text_normalization` parameter no longer rejected by TTS validation for engines with `supports_text_normalization=False` — backends handle gracefully with best-effort logging (#text-norm-validation-fix)
 
 ### Changed
 - `VenvManager` centralized engine name validation via `_engine_dir()` — eliminates 7 redundant `_validate_engine_name` calls (#venv-review)
