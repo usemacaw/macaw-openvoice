@@ -1,4 +1,4 @@
-"""Estruturas auxiliares para acompanhar jobs no demo."""
+"""Auxiliary structures for tracking jobs in the demo."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class DemoJob:
-    """Representa uma transcricao submetida pelo demo."""
+    """Represents a transcription job submitted by the demo."""
 
     request_id: str
     model_name: str
@@ -44,7 +44,7 @@ class DemoJob:
 
 
 class DemoJobStore:
-    """Armazena jobs de forma thread-safe com asyncio.Lock."""
+    """Thread-safe job store using asyncio.Lock."""
 
     def __init__(self) -> None:
         self._jobs: dict[str, DemoJob] = {}

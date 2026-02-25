@@ -35,7 +35,14 @@ async def handle_audio_request(
     preprocessing_pipeline: AudioPreprocessingPipeline | None = None,
     postprocessing_pipeline: PostProcessingPipeline | None = None,
     itn: bool = True,
+    hot_words: str | None = None,
     timestamp_granularities: tuple[str, ...] = ("segment",),
+    diarize: bool = False,
+    max_speakers: int | None = None,
+    entity_detection: list[str] | None = None,
+    additional_formats: list[dict[str, str]] | None = None,
+    tag_audio_events: bool = True,
+    use_multi_channel: bool = False,
 ) -> Any:
     """Process audio request (transcription or translation).
 
@@ -54,6 +61,11 @@ async def handle_audio_request(
         preprocessing_pipeline: Audio preprocessing pipeline (optional).
         postprocessing_pipeline: Text post-processing pipeline (optional).
         itn: If True (default), apply post-processing to the result.
+        hot_words: Comma-separated list of hot words to boost recognition.
+        diarize: If True, request speaker diarization from the engine.
+        max_speakers: Maximum number of speakers for diarization (None = auto).
+        entity_detection: Category filter for entity detection (None = disabled).
+        additional_formats: List of export format requests (None = disabled).
 
     Returns:
         Response formatted according to response_format.
@@ -99,6 +111,10 @@ async def handle_audio_request(
     if preprocessing_pipeline is not None:
         audio_data = preprocessing_pipeline.process(audio_data)
 
+    parsed_hot_words: tuple[str, ...] | None = None
+    if hot_words is not None:
+        parsed_hot_words = tuple(w.strip() for w in hot_words.split(",") if w.strip())
+
     request = TranscribeRequest(
         request_id=request_id,
         model_name=model,
@@ -108,7 +124,12 @@ async def handle_audio_request(
         temperature=temperature,
         timestamp_granularities=timestamp_granularities,
         initial_prompt=prompt,
+        hot_words=parsed_hot_words,
         task=task,
+        diarize=diarize,
+        max_speakers=max_speakers,
+        tag_audio_events=tag_audio_events,
+        use_multi_channel=use_multi_channel,
     )
 
     result = await scheduler.transcribe(request)
@@ -117,4 +138,10 @@ async def handle_audio_request(
     if postprocessing_pipeline is not None and itn:
         result = postprocessing_pipeline.process_result(result)
 
-    return format_response(result, fmt, task=task)
+    return format_response(
+        result,
+        fmt,
+        task=task,
+        entity_detection=entity_detection,
+        additional_formats=additional_formats,
+    )

@@ -39,12 +39,23 @@ if TYPE_CHECKING:
 logger = get_logger("worker.tts.main")
 
 
-def _create_backend(engine: str) -> TTSBackend:
+def _create_backend(engine: str, *, python_package: str | None = None) -> TTSBackend:
     """Create a TTSBackend instance based on the engine name.
 
+    If *python_package* is provided (from the manifest's ``python_package``
+    field), the backend is loaded dynamically via importlib instead of the
+    built-in registry.  This is the extension path for external engines.
+
     Raises:
-        ValueError: If the engine is not supported.
+        ValueError: If the engine is not supported (built-in path).
+        ModelLoadError: If the external package cannot be loaded.
     """
+    if python_package:
+        from macaw.workers._engine_loader import load_external_backend
+        from macaw.workers.tts.interface import TTSBackend as _TTSBackend
+
+        return load_external_backend(python_package, _TTSBackend)  # type: ignore[type-abstract]
+
     if engine == "kokoro":
         from macaw.workers.tts.kokoro import KokoroBackend
 
@@ -55,6 +66,11 @@ def _create_backend(engine: str) -> TTSBackend:
 
         return Qwen3TTSBackend()
 
+    if engine == "chatterbox":
+        from macaw.workers.tts.chatterbox import ChatterboxTurboBackend
+
+        return ChatterboxTurboBackend()
+
     msg = f"Unsupported TTS engine: {engine}"
     raise ValueError(msg)
 
@@ -64,6 +80,8 @@ async def serve(
     engine: str,
     model_path: str,
     engine_config: dict[str, object],
+    *,
+    python_package: str | None = None,
 ) -> None:
     """Start the gRPC server for the TTS worker.
 
@@ -72,10 +90,11 @@ async def serve(
         engine: Engine name (e.g., "kokoro").
         model_path: Path to model files.
         engine_config: Engine configuration (device, etc).
+        python_package: Dotted module path for external engines (optional).
     """
     configure_torch_inference()
 
-    backend = _create_backend(engine)
+    backend = _create_backend(engine, python_package=python_package)
 
     logger.info("loading_model", engine=engine, model_path=model_path)
     await backend.load(model_path, engine_config)
@@ -206,6 +225,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="{}",
         help="Engine config as JSON string",
     )
+    parser.add_argument(
+        "--python-package",
+        type=str,
+        default=None,
+        help="Dotted module path for external engine (from manifest python_package)",
+    )
     return parser.parse_args(argv)
 
 
@@ -225,6 +250,7 @@ def main(argv: list[str] | None = None) -> None:
                 engine=args.engine,
                 model_path=args.model_path,
                 engine_config=engine_config,
+                python_package=args.python_package,
             )
         )
     except KeyboardInterrupt:

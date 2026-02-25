@@ -1,4 +1,4 @@
-"""Testes do endpoint WebSocket /v1/realtime."""
+"""Tests for the WebSocket /v1/realtime endpoint."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from macaw.server.app import create_app
 
 
 def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:
-    """Cria mock do ModelRegistry que conhece os modelos em known_models."""
+    """Create mock ModelRegistry that knows the models in known_models."""
     if known_models is None:
         known_models = ["faster-whisper-tiny"]
 
@@ -33,7 +33,7 @@ def _make_mock_registry(*, known_models: list[str] | None = None) -> MagicMock:
 
 
 def test_successful_handshake_emits_session_created() -> None:
-    """Conexao com modelo valido emite session.created."""
+    """Connection with valid model emits session.created."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -47,7 +47,7 @@ def test_successful_handshake_emits_session_created() -> None:
 
 
 def test_session_created_includes_default_config() -> None:
-    """session.created inclui config com defaults."""
+    """session.created includes config with defaults."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -64,7 +64,7 @@ def test_session_created_includes_default_config() -> None:
 
 
 def test_session_created_includes_language_when_provided() -> None:
-    """session.created config inclui language quando especificado no handshake."""
+    """session.created config includes language when specified in handshake."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -75,7 +75,7 @@ def test_session_created_includes_language_when_provided() -> None:
 
 
 def test_missing_model_closes_with_error() -> None:
-    """Conexao sem model param recebe erro e fecha com 1008."""
+    """Connection without model param receives error and closes with 1008."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -88,7 +88,7 @@ def test_missing_model_closes_with_error() -> None:
 
 
 def test_invalid_model_closes_with_error() -> None:
-    """Conexao com modelo inexistente recebe erro e fecha com 1008."""
+    """Connection with nonexistent model receives error and closes with 1008."""
     app = create_app(registry=_make_mock_registry(known_models=["faster-whisper-tiny"]))
     client = TestClient(app)
 
@@ -101,7 +101,7 @@ def test_invalid_model_closes_with_error() -> None:
 
 
 def test_no_registry_closes_with_error() -> None:
-    """Conexao quando registry e None recebe erro e fecha com 1008."""
+    """Connection when registry is None receives error and closes with 1008."""
     app = create_app(registry=None)
     client = TestClient(app)
 
@@ -114,7 +114,7 @@ def test_no_registry_closes_with_error() -> None:
 
 
 def test_multiple_connections_have_unique_session_ids() -> None:
-    """Cada conexao recebe session_id unico."""
+    """Each connection receives a unique session_id."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -124,11 +124,11 @@ def test_multiple_connections_have_unique_session_ids() -> None:
             event = ws.receive_json()
             session_ids.append(event["session_id"])
 
-    assert len(set(session_ids)) == 3, f"Session IDs nao sao unicos: {session_ids}"
+    assert len(set(session_ids)) == 3, f"Session IDs are not unique: {session_ids}"
 
 
 def test_client_disconnect_emits_session_closed() -> None:
-    """Desconexao do cliente emite session.closed."""
+    """Client disconnect emits session.closed."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -136,15 +136,15 @@ def test_client_disconnect_emits_session_closed() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar um frame de texto para manter a sessao ativa
+        # Send a text frame to keep the session active
         ws.send_text('{"type": "session.close"}')
 
-        # O proximo evento deve ser session.closed
-        # (o handler fecha apos receber session.close no finally)
+        # The next event should be session.closed
+        # (the handler closes after receiving session.close in finally)
 
 
 def test_binary_frame_accepted() -> None:
-    """Frames binarios (audio) sao aceitos sem erro."""
+    """Binary frames (audio) are accepted without error."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -152,12 +152,12 @@ def test_binary_frame_accepted() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar frame binario (audio fake)
+        # Send binary frame (fake audio)
         ws.send_bytes(b"\x00\x01\x02\x03" * 100)
 
 
 def test_text_command_accepted() -> None:
-    """Comandos JSON sao aceitos sem erro."""
+    """JSON commands are accepted without error."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -165,12 +165,12 @@ def test_text_command_accepted() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar comando JSON
+        # Send JSON command
         ws.send_json({"type": "session.configure", "language": "pt"})
 
 
 def test_session_id_format() -> None:
-    """Session ID segue formato sess_ + 12 chars hex."""
+    """Session ID follows format sess_ + 12 hex chars."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -181,7 +181,7 @@ def test_session_id_format() -> None:
     assert session_id.startswith("sess_")
     hex_part = session_id[5:]
     assert len(hex_part) == 12
-    # Verificar que e hexadecimal valido
+    # Verify it is valid hexadecimal
     int(hex_part, 16)
 
 
@@ -191,7 +191,7 @@ def test_session_id_format() -> None:
 
 
 def test_session_close_command_closes_connection() -> None:
-    """session.close emite session.closed com reason=client_request e fecha."""
+    """session.close emits session.closed with reason=client_request and closes."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -201,14 +201,14 @@ def test_session_close_command_closes_connection() -> None:
 
         ws.send_json({"type": "session.close"})
 
-        # Deve receber session.closed com reason=client_request
+        # Should receive session.closed with reason=client_request
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "client_request"
 
 
 def test_session_cancel_command_closes_connection() -> None:
-    """session.cancel emite session.closed com reason=cancelled e fecha."""
+    """session.cancel emits session.closed with reason=cancelled and closes."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -218,14 +218,14 @@ def test_session_cancel_command_closes_connection() -> None:
 
         ws.send_json({"type": "session.cancel"})
 
-        # Deve receber session.closed com reason=cancelled
+        # Should receive session.closed with reason=cancelled
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
         assert closed["reason"] == "cancelled"
 
 
 def test_malformed_json_returns_error_and_keeps_connection() -> None:
-    """JSON malformado retorna erro recuperavel sem fechar conexao."""
+    """Malformed JSON returns recoverable error without closing connection."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -233,16 +233,16 @@ def test_malformed_json_returns_error_and_keeps_connection() -> None:
         created = ws.receive_json()
         assert created["type"] == "session.created"
 
-        # Enviar JSON invalido
+        # Send invalid JSON
         ws.send_text("this is not json {{{")
 
-        # Deve receber erro recuperavel
+        # Should receive recoverable error
         error = ws.receive_json()
         assert error["type"] == "error"
         assert error["code"] == "malformed_json"
         assert error["recoverable"] is True
 
-        # Conexao ainda esta ativa -- podemos enviar outro comando
+        # Connection is still alive -- we can send another command
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -250,7 +250,7 @@ def test_malformed_json_returns_error_and_keeps_connection() -> None:
 
 
 def test_unknown_command_returns_error_and_keeps_connection() -> None:
-    """Tipo de comando desconhecido retorna erro recuperavel sem fechar conexao."""
+    """Unknown command type returns recoverable error without closing connection."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -265,14 +265,14 @@ def test_unknown_command_returns_error_and_keeps_connection() -> None:
         assert error["code"] == "unknown_command"
         assert error["recoverable"] is True
 
-        # Conexao ainda funciona
+        # Connection still works
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
 
 
 def test_session_configure_accepted_without_closing() -> None:
-    """session.configure e aceito e nao fecha a conexao."""
+    """session.configure is accepted and does not close the connection."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -288,8 +288,8 @@ def test_session_configure_accepted_without_closing() -> None:
             }
         )
 
-        # session.configure nao emite resposta ainda (placeholder)
-        # Mas a conexao deve estar ativa para continuar
+        # session.configure does not emit response yet (placeholder)
+        # But the connection should be active to continue
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -297,7 +297,7 @@ def test_session_configure_accepted_without_closing() -> None:
 
 
 def test_input_audio_buffer_commit_accepted_without_closing() -> None:
-    """input_audio_buffer.commit e aceito e nao fecha a conexao."""
+    """input_audio_buffer.commit is accepted and does not close the connection."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app)
 
@@ -307,7 +307,7 @@ def test_input_audio_buffer_commit_accepted_without_closing() -> None:
 
         ws.send_json({"type": "input_audio_buffer.commit"})
 
-        # Nao emite resposta, conexao deve estar ativa
+        # Does not emit response, connection should be active
         ws.send_json({"type": "session.close"})
         closed = ws.receive_json()
         assert closed["type"] == "session.closed"
@@ -320,7 +320,7 @@ def test_input_audio_buffer_commit_accepted_without_closing() -> None:
 
 
 def test_http_get_returns_426_upgrade_required() -> None:
-    """GET /v1/realtime retorna 426 Upgrade Required com hint de WebSocket."""
+    """GET /v1/realtime returns 426 Upgrade Required with WebSocket hint."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app, raise_server_exceptions=False)
 
@@ -333,7 +333,7 @@ def test_http_get_returns_426_upgrade_required() -> None:
 
 
 def test_http_get_includes_upgrade_header() -> None:
-    """GET /v1/realtime inclui header Upgrade: websocket na resposta."""
+    """GET /v1/realtime includes Upgrade: websocket header in response."""
     app = create_app(registry=_make_mock_registry())
     client = TestClient(app, raise_server_exceptions=False)
 

@@ -14,7 +14,7 @@ from macaw.registry.downloader import ModelDownloader
 
 @pytest.fixture
 def models_dir(tmp_path: Path) -> Path:
-    """Diretorio temporario para modelos."""
+    """Temporary directory for models."""
     d = tmp_path / "models"
     d.mkdir()
     return d
@@ -22,7 +22,7 @@ def models_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def sample_entry() -> CatalogEntry:
-    """Entrada de catalogo de exemplo."""
+    """Sample catalog entry."""
     return CatalogEntry(
         name="faster-whisper-tiny",
         repo="Systran/faster-whisper-tiny",
@@ -55,7 +55,7 @@ def sample_entry() -> CatalogEntry:
 
 @pytest.fixture
 def entry_without_manifest() -> CatalogEntry:
-    """Entrada de catalogo sem manifesto."""
+    """Catalog entry without manifest."""
     return CatalogEntry(
         name="no-manifest",
         repo="test/no-manifest",
@@ -117,7 +117,7 @@ class TestDownload:
     def test_download_without_manifest_raises(
         self, models_dir: Path, entry_without_manifest: CatalogEntry
     ) -> None:
-        """Download falha se catalogo nao tem manifesto."""
+        """Download fails if catalog has no manifest."""
         mock_snapshot = MagicMock(return_value=str(models_dir / "no-manifest"))
         with patch(
             "macaw.registry.downloader.snapshot_download",

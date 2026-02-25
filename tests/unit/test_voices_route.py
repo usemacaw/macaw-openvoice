@@ -1,13 +1,14 @@
 """Tests for the /v1/voices endpoints.
 
 Validates:
-- GET /v1/voices — returns voices from loaded TTS workers via gRPC
-- GET /v1/voices — empty list when no TTS models loaded
-- GET /v1/voices — handles worker unavailable gracefully
-- GET /v1/voices — handles gRPC errors gracefully
-- POST /v1/voices — create saved voice (designed + cloned)
-- GET /v1/voices/{id} — get saved voice
-- DELETE /v1/voices/{id} — delete saved voice
+- GET /v1/voices -- returns voices from loaded TTS workers via gRPC
+- GET /v1/voices -- empty list when no TTS models loaded
+- GET /v1/voices -- handles worker unavailable gracefully
+- GET /v1/voices -- handles gRPC errors gracefully
+- POST /v1/voices -- create saved voice (designed + cloned)
+- GET /v1/voices/{id} -- get saved voice
+- DELETE /v1/voices/{id} -- delete saved voice
+- PUT /v1/voices/{id} -- update saved voice
 - Validation errors for invalid voice creation
 """
 
@@ -22,7 +23,7 @@ from macaw._types import ModelType
 from macaw.server.app import create_app
 from macaw.server.voice_store import FileSystemVoiceStore
 
-# ─── Helpers ───
+# --- Helpers ---
 
 
 def _make_manifest(*, name: str = "kokoro-v1", model_type: ModelType = ModelType.TTS) -> MagicMock:
@@ -67,7 +68,7 @@ def _make_list_voices_response(voices: list[dict[str, str]]) -> MagicMock:
     return response
 
 
-# ─── GET /v1/voices (preset voices from workers) ───
+# --- GET /v1/voices (preset voices from workers) ---
 
 
 class TestListVoicesReturnsVoices:
@@ -243,7 +244,7 @@ class TestVoicesConverters:
         assert response.voices[0].gender == ""
 
 
-# ─── POST /v1/voices (create saved voice) ───
+# --- POST /v1/voices (create saved voice) ---
 
 
 class TestCreateVoice:
@@ -405,7 +406,7 @@ class TestCreateVoice:
         assert "VoiceStore" in resp.json()["error"]["message"]
 
 
-# ─── GET /v1/voices/{id} (get saved voice) ───
+# --- GET /v1/voices/{id} (get saved voice) ---
 
 
 class TestGetVoice:
@@ -462,7 +463,7 @@ class TestGetVoice:
         assert "voice_not_found" in resp.json()["error"]["code"]
 
 
-# ─── DELETE /v1/voices/{id} ───
+# --- DELETE /v1/voices/{id} ---
 
 
 class TestDeleteVoice:
@@ -516,3 +517,152 @@ class TestDeleteVoice:
             resp = await client.delete("/v1/voices/nonexistent")
 
         assert resp.status_code == 404
+
+
+# --- PUT /v1/voices/{id} (update saved voice) ---
+
+
+class TestUpdateVoice:
+    """PUT /v1/voices/{id} updates a saved voice's metadata."""
+
+    async def test_update_voice_name(self, tmp_path: object) -> None:
+        voice_store = FileSystemVoiceStore(str(tmp_path))
+        saved = await voice_store.save(
+            voice_id="upd-1",
+            name="Old Name",
+            voice_type="designed",
+            instruction="test instruction",
+        )
+
+        registry = _make_mock_registry()
+        manager = _make_mock_worker_manager()
+
+        app = create_app(
+            registry=registry,
+            worker_manager=manager,
+            voice_store=voice_store,
+        )
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.put(
+                f"/v1/voices/{saved.voice_id}",
+                data={"name": "New Name"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "New Name"
+        assert body["instruction"] == "test instruction"
+        assert body["voice_id"] == "upd-1"
+
+    async def test_update_voice_multiple_fields(self, tmp_path: object) -> None:
+        voice_store = FileSystemVoiceStore(str(tmp_path))
+        saved = await voice_store.save(
+            voice_id="upd-2",
+            name="Original",
+            voice_type="designed",
+            instruction="old instruction",
+            language="en",
+        )
+
+        registry = _make_mock_registry()
+        manager = _make_mock_worker_manager()
+
+        app = create_app(
+            registry=registry,
+            worker_manager=manager,
+            voice_store=voice_store,
+        )
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.put(
+                f"/v1/voices/{saved.voice_id}",
+                data={"name": "Updated", "language": "pt"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["name"] == "Updated"
+        assert body["language"] == "pt"
+        assert body["instruction"] == "old instruction"
+
+    async def test_update_nonexistent_returns_404(self, tmp_path: object) -> None:
+        voice_store = FileSystemVoiceStore(str(tmp_path))
+        registry = _make_mock_registry()
+        manager = _make_mock_worker_manager()
+
+        app = create_app(
+            registry=registry,
+            worker_manager=manager,
+            voice_store=voice_store,
+        )
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            resp = await client.put(
+                "/v1/voices/nonexistent",
+                data={"name": "New"},
+            )
+
+        assert resp.status_code == 404
+        assert "voice_not_found" in resp.json()["error"]["code"]
+
+    async def test_update_voice_no_store_returns_400(self) -> None:
+        registry = _make_mock_registry()
+        manager = _make_mock_worker_manager()
+
+        app = create_app(registry=registry, worker_manager=manager)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
+            resp = await client.put(
+                "/v1/voices/some-id",
+                data={"name": "Test"},
+            )
+
+        assert resp.status_code == 400
+        assert "VoiceStore" in resp.json()["error"]["message"]
+
+    async def test_update_preserves_has_ref_audio(self, tmp_path: object) -> None:
+        voice_store = FileSystemVoiceStore(str(tmp_path))
+        await voice_store.save(
+            voice_id="upd-3",
+            name="Clone",
+            voice_type="cloned",
+            ref_audio=b"\x00" * 100,
+            ref_text="Original text",
+        )
+
+        registry = _make_mock_registry()
+        manager = _make_mock_worker_manager()
+
+        app = create_app(
+            registry=registry,
+            worker_manager=manager,
+            voice_store=voice_store,
+        )
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.put(
+                "/v1/voices/upd-3",
+                data={"name": "Updated Clone"},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["has_ref_audio"] is True
+        assert body["name"] == "Updated Clone"
+        assert body["ref_text"] == "Original text"

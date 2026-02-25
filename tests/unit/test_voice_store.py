@@ -9,6 +9,7 @@ Validates:
 - Delete voice removes from disk
 - Delete non-existent returns False
 - Path traversal prevention (C-02)
+- Update voice metadata fields
 """
 
 from __future__ import annotations
@@ -194,7 +195,7 @@ class TestFileSystemVoiceStoreDelete:
         assert result is None
 
 
-# ─── Path Traversal Prevention (C-02) ───
+# --- Path Traversal Prevention (C-02) ---
 
 
 class TestVoiceStorePathTraversal:
@@ -262,3 +263,156 @@ class TestVoiceStorePathTraversal:
                 instruction="test",
             )
             assert saved.voice_id == valid_id
+
+
+# --- Update ---
+
+
+class TestFileSystemVoiceStoreUpdate:
+    """VoiceStore.update modifies metadata of existing voices."""
+
+    async def test_update_name(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Old Name",
+            voice_type="designed",
+            instruction="test",
+        )
+
+        result = await store.update("v1", name="New Name")
+
+        assert result is not None
+        assert result.name == "New Name"
+        assert result.instruction == "test"
+
+    async def test_update_language(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Voice",
+            voice_type="designed",
+            instruction="test",
+            language="en",
+        )
+
+        result = await store.update("v1", language="pt")
+
+        assert result is not None
+        assert result.language == "pt"
+        assert result.name == "Voice"
+
+    async def test_update_ref_text(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Voice",
+            voice_type="cloned",
+            ref_audio=b"\x00" * 100,
+            ref_text="Old text",
+        )
+
+        result = await store.update("v1", ref_text="New text")
+
+        assert result is not None
+        assert result.ref_text == "New text"
+
+    async def test_update_instruction(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Voice",
+            voice_type="designed",
+            instruction="Old instruction",
+        )
+
+        result = await store.update("v1", instruction="New instruction")
+
+        assert result is not None
+        assert result.instruction == "New instruction"
+
+    async def test_update_nonexistent_returns_none(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+
+        result = await store.update("nonexistent", name="New Name")
+
+        assert result is None
+
+    async def test_update_preserves_unmodified_fields(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Original",
+            voice_type="designed",
+            instruction="Keep this",
+            language="en",
+        )
+
+        result = await store.update("v1", name="Updated")
+
+        assert result is not None
+        assert result.name == "Updated"
+        assert result.instruction == "Keep this"
+        assert result.language == "en"
+        assert result.voice_type == "designed"
+
+    async def test_update_persists_to_disk(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Old",
+            voice_type="designed",
+            instruction="test",
+        )
+
+        await store.update("v1", name="New")
+
+        # Read from disk with a new store instance
+        fresh_store = FileSystemVoiceStore(str(tmp_path))
+        result = await fresh_store.get("v1")
+        assert result is not None
+        assert result.name == "New"
+
+    async def test_update_multiple_fields_at_once(self, tmp_path: object) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Old",
+            voice_type="designed",
+            instruction="old instruction",
+            language="en",
+        )
+
+        result = await store.update("v1", name="New", language="pt", instruction="new instruction")
+
+        assert result is not None
+        assert result.name == "New"
+        assert result.language == "pt"
+        assert result.instruction == "new instruction"
+
+    async def test_update_no_fields_returns_existing(self, tmp_path: object) -> None:
+        """Calling update without any non-None fields returns existing voice unchanged."""
+        store = FileSystemVoiceStore(str(tmp_path))
+        await store.save(
+            voice_id="v1",
+            name="Existing",
+            voice_type="designed",
+            instruction="test",
+        )
+
+        result = await store.update("v1")
+
+        assert result is not None
+        assert result.name == "Existing"
+
+    @pytest.mark.parametrize(
+        "malicious_id",
+        ["../secret", "../../etc/passwd", "voice/../data"],
+    )
+    async def test_update_rejects_malicious_voice_id(
+        self, tmp_path: object, malicious_id: str
+    ) -> None:
+        store = FileSystemVoiceStore(str(tmp_path))
+
+        with pytest.raises(InvalidRequestError, match="Invalid voice_id"):
+            await store.update(malicious_id, name="Evil")

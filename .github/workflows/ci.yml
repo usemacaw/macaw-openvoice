@@ -61,6 +61,38 @@ jobs:
           pip install pip-audit
           pip-audit --desc --format=markdown
 
+  compat:
+    runs-on: ubuntu-latest
+    needs: quality
+    strategy:
+      matrix:
+        include:
+          - extra: alignment
+            smoke: "from macaw.alignment import create_aligner; a = create_aligner(); assert a is not None, 'alignment extra installed but create_aligner returned None'"
+          - extra: diarization
+            smoke: "from macaw.workers.stt.diarization import create_diarizer; d = create_diarizer(); assert d is not None, 'diarization extra installed but create_diarizer returned None'"
+          - extra: codec
+            smoke: "from macaw.codec import is_codec_available; assert is_codec_available('opus'), 'codec extra installed but opus not available'"
+          - extra: mp3
+            smoke: "from macaw.codec import is_codec_available; assert is_codec_available('mp3'), 'mp3 extra installed but mp3 not available'"
+          - extra: itn
+            smoke: "from macaw.postprocessing.text import ITNStage; s = ITNStage(); assert s is not None, 'itn extra installed but ITNStage failed'"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+          cache-dependency-path: 'pyproject.toml'
+
+      - name: Install with ${{ matrix.extra }} extra
+        run: pip install -e ".[dev,grpc,${{ matrix.extra }}]"
+
+      - name: Verify import guard (${{ matrix.extra }})
+        run: python -c "${{ matrix.smoke }}"
+
   integration:
     runs-on: ubuntu-latest
     needs: quality

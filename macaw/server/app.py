@@ -11,7 +11,23 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 import macaw
 from macaw.server.error_handlers import register_error_handlers
-from macaw.server.routes import health, realtime, speech, transcriptions, translations, voices
+from macaw.server.routes import (
+    alignment,
+    dialogue,
+    dubbing,
+    health,
+    multi_context_tts,
+    pronunciation,
+    realtime,
+    sound_effects,
+    speech,
+    transcriptions,
+    transcripts,
+    translations,
+    voice_changer,
+    voice_training,
+    voices,
+)
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
@@ -29,6 +45,7 @@ if TYPE_CHECKING:
     from macaw.preprocessing.pipeline import AudioPreprocessingPipeline
     from macaw.registry.registry import ModelRegistry
     from macaw.scheduler.scheduler import Scheduler
+    from macaw.server.transcript_store.interface import TranscriptStore
     from macaw.server.voice_store import VoiceStore
     from macaw.workers.manager import WorkerManager
 
@@ -40,6 +57,7 @@ def create_app(
     postprocessing_pipeline: PostProcessingPipeline | None = None,
     worker_manager: WorkerManager | None = None,
     voice_store: VoiceStore | None = None,
+    transcript_store: TranscriptStore | None = None,
     cors_origins: list[str] | None = None,
 ) -> FastAPI:
     """Create the FastAPI application.
@@ -66,6 +84,11 @@ def create_app(
 
             await close_tts_channels(tts_channels)
 
+        # Shutdown: cancel pending async jobs
+        job_manager = getattr(app.state, "async_job_manager", None)
+        if job_manager:
+            await job_manager.shutdown()
+
     app = FastAPI(
         title="Macaw OpenVoice",
         version=macaw.__version__,
@@ -79,7 +102,19 @@ def create_app(
     app.state.postprocessing_pipeline = postprocessing_pipeline
     app.state.worker_manager = worker_manager
     app.state.voice_store = voice_store
+    app.state.transcript_store = transcript_store
     app.state.tts_channels = {}
+
+    # Initialize pronunciation store from settings
+    from macaw.config.settings import get_settings
+    from macaw.server.pronunciation.store import FileSystemPronunciationStore
+
+    pron_settings = get_settings().pronunciation
+    app.state.pronunciation_store = FileSystemPronunciationStore(pron_settings.store_path)
+
+    from macaw.scheduler.async_jobs import AsyncJobManager
+
+    app.state.async_job_manager = AsyncJobManager()
 
     if cors_origins:
         from fastapi.middleware.cors import CORSMiddleware
@@ -98,9 +133,18 @@ def create_app(
 
     app.include_router(health.router)
     app.include_router(transcriptions.router)
+    app.include_router(transcripts.router)
     app.include_router(translations.router)
     app.include_router(speech.router)
+    app.include_router(alignment.router)
     app.include_router(realtime.router)
     app.include_router(voices.router)
+    app.include_router(pronunciation.router)
+    app.include_router(multi_context_tts.router)
+    app.include_router(dialogue.router)
+    app.include_router(voice_changer.router)
+    app.include_router(sound_effects.router)
+    app.include_router(dubbing.router)
+    app.include_router(voice_training.router)
 
     return app

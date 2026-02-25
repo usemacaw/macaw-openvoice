@@ -1,4 +1,4 @@
-"""Testes para o modulo de logging estruturado."""
+"""Tests for the structured logging module."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import macaw.logging as macaw_logging
 
 
 def _reset_logging() -> None:
-    """Reset do estado global de logging para isolamento entre testes."""
+    """Resets global logging state for test isolation."""
     macaw_logging._configured = False
     structlog.reset_defaults()
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from macaw.codec.interface import CodecEncoder
+from macaw.exceptions import CodecUnavailableError
 from macaw.logging import get_logger
 
 logger = get_logger("codec.opus")
@@ -47,44 +48,53 @@ class OpusEncoder(CodecEncoder):
 
         # Lazy-load opuslib encoder
         self._encoder: Any | None = None
-        self._available: bool | None = None
+        self._init_attempted: bool = False
+        self._init_error: str | None = None
 
-    def _ensure_encoder(self) -> bool:
-        """Lazily create the Opus encoder."""
-        if self._available is not None:
-            return self._available
+    def _ensure_encoder(self) -> None:
+        """Lazily create the Opus encoder.
+
+        Raises:
+            CodecUnavailableError: If opuslib is not installed or encoder
+                initialization fails. The error is cached so subsequent
+                calls raise immediately without retrying.
+        """
+        if self._encoder is not None:
+            return
+        if self._init_error is not None:
+            raise CodecUnavailableError("opus", self._init_error)
+        if self._init_attempted:
+            return
+        self._init_attempted = True
         try:
             import opuslib
 
             self._encoder = opuslib.Encoder(
                 self._sample_rate, self._channels, OPUS_APPLICATION_AUDIO
             )
-            self._available = True
             logger.info(
                 "opus_encoder_ready",
                 sample_rate=self._sample_rate,
                 bitrate=self._bitrate,
             )
-        except ImportError:
-            logger.warning(
-                "opuslib_not_available",
-                msg="opuslib not installed, Opus encoding disabled",
-            )
-            self._available = False
-        except Exception:
-            logger.warning("opus_encoder_init_failed", exc_info=True)
-            self._available = False
-        return self._available
+        except ImportError as exc:
+            self._init_error = "opuslib not installed. Install with: pip install opuslib"
+            raise CodecUnavailableError("opus", self._init_error) from exc
+        except Exception as exc:
+            self._init_error = str(exc)
+            raise CodecUnavailableError("opus", self._init_error) from exc
 
     @property
     def codec_name(self) -> str:
         return "opus"
 
     def encode(self, pcm_data: bytes) -> bytes:
-        """Encode PCM data, buffering for frame alignment."""
-        if not self._ensure_encoder():
-            return pcm_data  # Pass-through if encoder unavailable
+        """Encode PCM data, buffering for frame alignment.
 
+        Raises:
+            CodecUnavailableError: If opuslib is not installed.
+        """
+        self._ensure_encoder()
         assert self._encoder is not None  # Guaranteed by _ensure_encoder()
         self._buffer.extend(pcm_data)
 
@@ -97,12 +107,16 @@ class OpusEncoder(CodecEncoder):
         return b"".join(encoded_parts)
 
     def flush(self) -> bytes:
-        """Encode remaining buffered data (zero-padded to frame boundary)."""
-        if not self._ensure_encoder() or not self._buffer:
-            result = bytes(self._buffer)
-            self._buffer.clear()
-            return result
+        """Encode remaining buffered data (zero-padded to frame boundary).
 
+        Raises:
+            CodecUnavailableError: If opuslib is not installed and buffer
+                has data to flush.
+        """
+        if not self._buffer:
+            return b""
+
+        self._ensure_encoder()
         assert self._encoder is not None  # Guaranteed by _ensure_encoder()
 
         # Pad to frame boundary

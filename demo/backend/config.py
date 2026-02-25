@@ -1,4 +1,4 @@
-"""Configuracoes para o demo backend."""
+"""Configuration for the demo backend."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def _parse_origins(raw: str | None) -> list[str]:
 
 @dataclass(slots=True)
 class DemoConfig:
-    """Configura parametros carregados de variaveis de ambiente."""
+    """Configuration parameters loaded from environment variables."""
 
     models_dir: Path = field(
         default_factory=lambda: Path(os.getenv("DEMO_MODELS_DIR", "~/.macaw/models")).expanduser(),

@@ -1,4 +1,4 @@
-"""Testes unitarios do protocol handler WebSocket."""
+"""Unit tests for the WebSocket protocol handler."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ from macaw.server.ws_protocol import (
 
 
 class TestBinaryFrameDispatch:
-    """Dispatch de frames binarios (audio)."""
+    """Dispatch of binary frames (audio)."""
 
     def test_binary_message_returns_audio_frame_result(self) -> None:
-        """Mensagem com bytes retorna AudioFrameResult com os dados."""
+        """Message with bytes returns AudioFrameResult with the data."""
         audio_data = b"\x00\x01\x02\x03" * 100
         result = dispatch_message({"bytes": audio_data})
 
@@ -24,7 +24,7 @@ class TestBinaryFrameDispatch:
         assert result.data == audio_data
 
     def test_empty_bytes_returns_audio_frame_result(self) -> None:
-        """Bytes vazios ainda sao um frame valido."""
+        """Empty bytes are still a valid frame."""
         result = dispatch_message({"bytes": b""})
 
         assert isinstance(result, AudioFrameResult)
@@ -32,10 +32,10 @@ class TestBinaryFrameDispatch:
 
 
 class TestCommandDispatch:
-    """Dispatch de comandos JSON."""
+    """Dispatch of JSON commands."""
 
     def test_session_configure_parses_correctly(self) -> None:
-        """session.configure e parseado para SessionConfigureCommand."""
+        """session.configure is parsed to SessionConfigureCommand."""
         msg = {"text": json.dumps({"type": "session.configure", "language": "pt"})}
         result = dispatch_message(msg)
 
@@ -44,7 +44,7 @@ class TestCommandDispatch:
         assert result.command.language == "pt"  # type: ignore[union-attr]
 
     def test_session_configure_with_vad_sensitivity(self) -> None:
-        """session.configure aceita vad_sensitivity."""
+        """session.configure accepts vad_sensitivity."""
         msg = {
             "text": json.dumps(
                 {
@@ -61,7 +61,7 @@ class TestCommandDispatch:
         assert result.command.vad_sensitivity.value == "high"  # type: ignore[union-attr]
 
     def test_session_cancel_parses_correctly(self) -> None:
-        """session.cancel e parseado para SessionCancelCommand."""
+        """session.cancel is parsed to SessionCancelCommand."""
         msg = {"text": json.dumps({"type": "session.cancel"})}
         result = dispatch_message(msg)
 
@@ -69,7 +69,7 @@ class TestCommandDispatch:
         assert result.command.type == "session.cancel"
 
     def test_session_close_parses_correctly(self) -> None:
-        """session.close e parseado para SessionCloseCommand."""
+        """session.close is parsed to SessionCloseCommand."""
         msg = {"text": json.dumps({"type": "session.close"})}
         result = dispatch_message(msg)
 
@@ -77,7 +77,7 @@ class TestCommandDispatch:
         assert result.command.type == "session.close"
 
     def test_input_audio_buffer_commit_parses_correctly(self) -> None:
-        """input_audio_buffer.commit e parseado para InputAudioBufferCommitCommand."""
+        """input_audio_buffer.commit is parsed to InputAudioBufferCommitCommand."""
         msg = {"text": json.dumps({"type": "input_audio_buffer.commit"})}
         result = dispatch_message(msg)
 
@@ -86,10 +86,10 @@ class TestCommandDispatch:
 
 
 class TestErrorHandling:
-    """Erros de parsing e validacao."""
+    """Parsing and validation errors."""
 
     def test_malformed_json_returns_error_result(self) -> None:
-        """JSON invalido retorna ErrorResult com recoverable=True."""
+        """Invalid JSON returns ErrorResult with recoverable=True."""
         msg = {"text": "this is not json {{{"}
         result = dispatch_message(msg)
 
@@ -98,7 +98,7 @@ class TestErrorHandling:
         assert result.event.recoverable is True
 
     def test_json_array_returns_error_result(self) -> None:
-        """JSON que nao e objeto retorna ErrorResult."""
+        """JSON that is not an object returns ErrorResult."""
         msg = {"text": "[1, 2, 3]"}
         result = dispatch_message(msg)
 
@@ -107,7 +107,7 @@ class TestErrorHandling:
         assert result.event.recoverable is True
 
     def test_unknown_command_type_returns_error_result(self) -> None:
-        """Tipo de comando desconhecido retorna ErrorResult com recoverable=True."""
+        """Unknown command type returns ErrorResult with recoverable=True."""
         msg = {"text": json.dumps({"type": "unknown.command"})}
         result = dispatch_message(msg)
 
@@ -117,7 +117,7 @@ class TestErrorHandling:
         assert result.event.recoverable is True
 
     def test_missing_type_field_returns_error_result(self) -> None:
-        """JSON sem campo type retorna ErrorResult com recoverable=True."""
+        """JSON without type field returns ErrorResult with recoverable=True."""
         msg = {"text": json.dumps({"language": "pt"})}
         result = dispatch_message(msg)
 
@@ -127,9 +127,9 @@ class TestErrorHandling:
         assert result.event.recoverable is True
 
     def test_validation_error_returns_error_result(self) -> None:
-        """Campo com valor invalido retorna ErrorResult com recoverable=True."""
-        # VADSensitivity e um enum com valores validos: high, normal, low.
-        # Um valor fora do enum causa ValidationError no Pydantic.
+        """Field with invalid value returns ErrorResult with recoverable=True."""
+        # VADSensitivity is an enum with valid values: high, normal, low.
+        # A value outside the enum causes a Pydantic ValidationError.
         msg = {
             "text": json.dumps(
                 {
@@ -146,25 +146,25 @@ class TestErrorHandling:
 
 
 class TestEdgeCases:
-    """Casos especiais de dispatch."""
+    """Special dispatch cases."""
 
     def test_message_with_neither_bytes_nor_text_returns_none(self) -> None:
-        """Mensagem sem bytes nem text retorna None."""
+        """Message with neither bytes nor text returns None."""
         result = dispatch_message({"type": "websocket.disconnect"})
         assert result is None
 
     def test_message_with_none_bytes_and_none_text(self) -> None:
-        """Mensagem com bytes=None e text=None retorna None."""
+        """Message with bytes=None and text=None returns None."""
         result = dispatch_message({"bytes": None, "text": None})
         assert result is None
 
     def test_empty_dict_returns_none(self) -> None:
-        """Dict vazio retorna None."""
+        """Empty dict returns None."""
         result = dispatch_message({})
         assert result is None
 
     def test_bytes_takes_priority_over_text(self) -> None:
-        """Se mensagem tem bytes e text, bytes tem prioridade."""
+        """If message has both bytes and text, bytes takes priority."""
         audio_data = b"\x00\x01"
         result = dispatch_message(
             {

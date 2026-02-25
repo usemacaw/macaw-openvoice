@@ -150,10 +150,10 @@ class _FakeClock:
 
 
 class TestEventModelEdgeCases:
-    """Edge cases para modelos Pydantic de eventos WebSocket."""
+    """Edge cases for WebSocket event Pydantic models."""
 
     def test_transcript_final_empty_text(self) -> None:
-        """Final transcript com texto vazio e valido."""
+        """Final transcript with empty text is valid."""
         event = TranscriptFinalEvent(
             text="",
             segment_id=0,
@@ -165,7 +165,7 @@ class TestEventModelEdgeCases:
         assert data["text"] == ""
 
     def test_transcript_partial_empty_text(self) -> None:
-        """Partial transcript com texto vazio e valido."""
+        """Partial transcript with empty text is valid."""
         event = TranscriptPartialEvent(
             text="",
             segment_id=0,
@@ -174,7 +174,7 @@ class TestEventModelEdgeCases:
         assert event.text == ""
 
     def test_transcript_final_negative_timestamps(self) -> None:
-        """Timestamps negativos nao sao rejeitados pelo modelo (sem validacao)."""
+        """Negative timestamps are not rejected by the model (no validation)."""
         event = TranscriptFinalEvent(
             text="test",
             segment_id=0,
@@ -184,7 +184,7 @@ class TestEventModelEdgeCases:
         assert event.start_ms == -100
 
     def test_session_created_roundtrip_with_all_config_fields(self) -> None:
-        """Round-trip de SessionCreatedEvent com todos os campos de config."""
+        """Round-trip of SessionCreatedEvent with all config fields."""
         config = SessionConfig(
             vad_sensitivity=VADSensitivity.HIGH,
             silence_timeout_ms=500,
@@ -208,7 +208,7 @@ class TestEventModelEdgeCases:
         assert restored.config.preprocessing.denoise_engine == "nsnet2"
 
     def test_streaming_error_event_empty_code(self) -> None:
-        """Codigo de erro vazio e aceito."""
+        """Empty error code is accepted."""
         event = StreamingErrorEvent(
             code="",
             message="something happened",
@@ -217,7 +217,7 @@ class TestEventModelEdgeCases:
         assert event.code == ""
 
     def test_session_closed_zero_duration_and_segments(self) -> None:
-        """SessionClosedEvent com zero duration e zero segments e valido."""
+        """SessionClosedEvent with zero duration and zero segments is valid."""
         event = SessionClosedEvent(
             reason="timeout",
             total_duration_ms=0,
@@ -226,19 +226,19 @@ class TestEventModelEdgeCases:
         assert event.total_duration_ms == 0
 
     def test_word_event_zero_timestamps(self) -> None:
-        """WordEvent com start=0 e end=0 e valido."""
+        """WordEvent with start=0 and end=0 is valid."""
         word = WordEvent(word="", start=0.0, end=0.0)
         assert word.word == ""
         assert word.start == 0.0
 
     def test_session_config_frozen_immutability(self) -> None:
-        """SessionConfig e imutavel (frozen=True)."""
+        """SessionConfig is immutable (frozen=True)."""
         config = SessionConfig()
         with pytest.raises(ValidationError):
             config.vad_sensitivity = VADSensitivity.HIGH
 
     def test_transcript_final_with_empty_words_list(self) -> None:
-        """TranscriptFinalEvent com lista de words vazia e valido."""
+        """TranscriptFinalEvent with empty words list is valid."""
         event = TranscriptFinalEvent(
             text="hello",
             segment_id=0,
@@ -249,7 +249,7 @@ class TestEventModelEdgeCases:
         assert event.words == []
 
     def test_session_configure_with_extra_fields_ignored(self) -> None:
-        """Campos extras no JSON sao ignorados pelo Pydantic (default behavior)."""
+        """Extra fields in JSON are ignored by Pydantic (default behavior)."""
         raw = {
             "type": "session.configure",
             "language": "pt",
@@ -259,7 +259,7 @@ class TestEventModelEdgeCases:
         assert cmd.language == "pt"
 
     def test_session_hold_event_zero_timeout(self) -> None:
-        """SessionHoldEvent com timeout zero e valido."""
+        """SessionHoldEvent with zero timeout is valid."""
         event = SessionHoldEvent(timestamp_ms=0, hold_timeout_ms=0)
         assert event.hold_timeout_ms == 0
 
@@ -270,105 +270,105 @@ class TestEventModelEdgeCases:
 
 
 class TestProtocolDispatchEdgeCases:
-    """Edge cases para dispatch_message()."""
+    """Edge cases for dispatch_message()."""
 
     def test_empty_json_string_returns_error(self) -> None:
-        """String vazia retorna ErrorResult."""
+        """Empty string returns ErrorResult."""
         result = dispatch_message({"text": ""})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "malformed_json"
 
     def test_json_string_literal_returns_error(self) -> None:
-        """String JSON literal (nao objeto) retorna ErrorResult."""
+        """JSON literal string (not object) returns ErrorResult."""
         result = dispatch_message({"text": '"just a string"'})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "malformed_json"
 
     def test_json_number_returns_error(self) -> None:
-        """Numero JSON retorna ErrorResult."""
+        """JSON number returns ErrorResult."""
         result = dispatch_message({"text": "42"})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "malformed_json"
 
     def test_json_null_returns_error(self) -> None:
-        """JSON null retorna ErrorResult."""
+        """JSON null returns ErrorResult."""
         result = dispatch_message({"text": "null"})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "malformed_json"
 
     def test_json_boolean_returns_error(self) -> None:
-        """JSON boolean retorna ErrorResult."""
+        """JSON boolean returns ErrorResult."""
         result = dispatch_message({"text": "true"})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "malformed_json"
 
     def test_type_field_as_integer_returns_error(self) -> None:
-        """Campo type como inteiro retorna ErrorResult."""
+        """Type field as integer returns ErrorResult."""
         result = dispatch_message({"text": json.dumps({"type": 123})})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "unknown_command"
 
     def test_type_field_as_null_returns_error(self) -> None:
-        """Campo type como null retorna ErrorResult."""
+        """Type field as null returns ErrorResult."""
         result = dispatch_message({"text": json.dumps({"type": None})})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "unknown_command"
 
     def test_type_field_empty_string_returns_unknown_command(self) -> None:
-        """Campo type vazio retorna ErrorResult unknown_command."""
+        """Empty type field returns ErrorResult unknown_command."""
         result = dispatch_message({"text": json.dumps({"type": ""})})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "unknown_command"
 
     def test_very_long_json_string_handled(self) -> None:
-        """String JSON muito longa (>10KB) retorna erro ou resultado sem crash."""
+        """Very long JSON string (>10KB) returns error or result without crash."""
         long_text = "a" * 10_000
         result = dispatch_message({"text": long_text})
-        # Deve retornar ErrorResult (JSON invalido), nao crashar
+        # Should return ErrorResult (invalid JSON), not crash
         assert isinstance(result, ErrorResult)
 
     def test_deeply_nested_json_handled(self) -> None:
-        """JSON com aninhamento profundo retorna ErrorResult (tipo desconhecido)."""
+        """Deeply nested JSON returns ErrorResult (unknown type)."""
         nested = {"type": "session.configure", "language": "pt", "nested": {"a": {"b": {"c": 1}}}}
         result = dispatch_message({"text": json.dumps(nested)})
         # Extra fields are ignored by Pydantic, so this parses OK
         assert isinstance(result, CommandResult)
 
     def test_session_configure_with_negative_timeout(self) -> None:
-        """session.configure com timeout negativo e rejeitado com validation_error."""
+        """session.configure with negative timeout is rejected with validation_error."""
         msg = {"text": json.dumps({"type": "session.configure", "silence_timeout_ms": -100})}
         result = dispatch_message(msg)
         assert isinstance(result, ErrorResult)
         assert result.event.code == "validation_error"
 
     def test_session_configure_with_zero_timeout(self) -> None:
-        """session.configure com timeout zero e rejeitado (gt=0)."""
+        """session.configure with zero timeout is rejected (gt=0)."""
         msg = {"text": json.dumps({"type": "session.configure", "silence_timeout_ms": 0})}
         result = dispatch_message(msg)
         assert isinstance(result, ErrorResult)
         assert result.event.code == "validation_error"
 
     def test_session_configure_with_valid_timeout(self) -> None:
-        """session.configure com timeout positivo e aceito."""
+        """session.configure with positive timeout is accepted."""
         msg = {"text": json.dumps({"type": "session.configure", "silence_timeout_ms": 500})}
         result = dispatch_message(msg)
         assert isinstance(result, CommandResult)
         assert result.command.silence_timeout_ms == 500  # type: ignore[union-attr]
 
     def test_bytes_not_bytes_type_returns_error(self) -> None:
-        """bytes field com tipo string (nao bytes) retorna ErrorResult."""
+        """bytes field with string type (not bytes) returns ErrorResult."""
         result = dispatch_message({"bytes": "not actual bytes"})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "invalid_frame"
 
     def test_session_configure_with_all_none_fields_valid(self) -> None:
-        """session.configure sem nenhum campo opcional e valido."""
+        """session.configure with no optional fields is valid."""
         msg = {"text": json.dumps({"type": "session.configure"})}
         result = dispatch_message(msg)
         assert isinstance(result, CommandResult)
 
     def test_unicode_json_command(self) -> None:
-        """Comando JSON com caracteres unicode e tratado corretamente."""
+        """JSON command with unicode characters is handled correctly."""
         msg = {"text": json.dumps({"type": "session.configure", "language": "pt-BR"})}
         result = dispatch_message(msg)
         assert isinstance(result, CommandResult)
@@ -380,10 +380,10 @@ class TestProtocolDispatchEdgeCases:
 
 
 class TestStreamingSessionEdgeCases:
-    """Edge cases do StreamingSession."""
+    """Edge cases for StreamingSession."""
 
     async def test_process_empty_frame_zero_bytes(self) -> None:
-        """Frame vazio (0 bytes) e processado sem erro."""
+        """Empty frame (0 bytes) is processed without error."""
         preprocessor = make_preprocessor_mock()
         preprocessor.process_frame.return_value = np.array([], dtype=np.float32)
         vad = make_vad_mock()
@@ -397,20 +397,20 @@ class TestStreamingSessionEdgeCases:
             on_event=_make_on_event(),
         )
 
-        # Act: processar frame vazio
+        # Act: process empty frame
         await session.process_frame(b"")
 
-        # Assert: preprocessor chamado, mas VAD NAO (frame vazio retorna early)
+        # Assert: preprocessor called, but VAD NOT (empty frame returns early)
         preprocessor.process_frame.assert_called_once_with(b"")
         vad.process_frame.assert_not_called()
 
         await session.close()
 
     async def test_process_large_frame_over_64kb(self) -> None:
-        """Frame muito grande (>64KB) e processado normalmente."""
+        """Very large frame (>64KB) is processed normally."""
         large_data = b"\x00\x01" * 40000  # 80KB
         preprocessor = make_preprocessor_mock()
-        # Preprocessor retorna frame grande (40000 samples)
+        # Preprocessor returns large frame (40000 samples)
         preprocessor.process_frame.return_value = np.zeros(40000, dtype=np.float32)
         vad = make_vad_mock()
 
@@ -423,17 +423,17 @@ class TestStreamingSessionEdgeCases:
             on_event=_make_on_event(),
         )
 
-        # Act: processar frame grande
+        # Act: process large frame
         await session.process_frame(large_data)
 
-        # Assert: preprocessor e VAD chamados normalmente
+        # Assert: preprocessor and VAD called normally
         preprocessor.process_frame.assert_called_once_with(large_data)
         vad.process_frame.assert_called_once()
 
         await session.close()
 
     async def test_double_close_is_safe(self) -> None:
-        """Chamar close() duas vezes seguidas nao levanta excecao."""
+        """Calling close() twice in a row does not raise an exception."""
         session = StreamingSession(
             session_id="test_session",
             preprocessor=make_preprocessor_mock(),
@@ -449,7 +449,7 @@ class TestStreamingSessionEdgeCases:
         assert session.is_closed
 
     async def test_process_frame_after_close_is_noop(self) -> None:
-        """Frames recebidos apos close sao ignorados sem erro."""
+        """Frames received after close are ignored without error."""
         preprocessor = make_preprocessor_mock()
         session = StreamingSession(
             session_id="test_session",
@@ -468,7 +468,7 @@ class TestStreamingSessionEdgeCases:
         preprocessor.process_frame.assert_not_called()
 
     async def test_commit_after_close_is_noop(self) -> None:
-        """commit() em sessao fechada e no-op, sem erro."""
+        """commit() on closed session is no-op, no error."""
         session = StreamingSession(
             session_id="test_session",
             preprocessor=make_preprocessor_mock(),
@@ -483,7 +483,7 @@ class TestStreamingSessionEdgeCases:
         assert session.segment_id == 0
 
     async def test_check_inactivity_on_closed_session_returns_false(self) -> None:
-        """check_inactivity() em sessao fechada retorna False."""
+        """check_inactivity() on closed session returns False."""
         session = StreamingSession(
             session_id="test_session",
             preprocessor=make_preprocessor_mock(),
@@ -494,11 +494,11 @@ class TestStreamingSessionEdgeCases:
         )
         await session.close()
 
-        # Mesmo com tempo passado, sessao fechada nao e "inativa"
+        # Even with time elapsed, closed session is not "inactive"
         assert not session.check_inactivity()
 
     async def test_worker_crash_on_send_frame_emits_error(self) -> None:
-        """WorkerCrashError durante send_frame emite erro recuperavel."""
+        """WorkerCrashError during send_frame emits recoverable error."""
         stream_handle = _make_stream_handle_mock()
         stream_handle.send_frame = AsyncMock(side_effect=WorkerCrashError("worker_1"))
         grpc_client = _make_grpc_client_mock(stream_handle)
@@ -538,7 +538,7 @@ class TestStreamingSessionEdgeCases:
         await session.close()
 
     async def test_unexpected_exception_in_receiver_emits_irrecoverable_error(self) -> None:
-        """Excecao inesperada no receiver task emite erro irrecuperavel."""
+        """Unexpected exception in receiver task emits irrecoverable error."""
         stream_handle = _make_stream_handle_mock(
             events=[RuntimeError("unexpected GPU error")],
         )
@@ -555,7 +555,7 @@ class TestStreamingSessionEdgeCases:
             on_event=on_event,
         )
 
-        # Trigger speech_start (inicia receiver que levanta RuntimeError)
+        # Trigger speech_start (starts receiver that raises RuntimeError)
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=1000,
@@ -577,7 +577,7 @@ class TestStreamingSessionEdgeCases:
         await session.close()
 
     async def test_session_id_property(self) -> None:
-        """session_id retorna o ID fornecido no construtor."""
+        """session_id returns the ID provided in the constructor."""
         session = StreamingSession(
             session_id="sess_abc123",
             preprocessor=make_preprocessor_mock(),
@@ -590,7 +590,7 @@ class TestStreamingSessionEdgeCases:
         await session.close()
 
     async def test_multiple_speech_start_without_end(self) -> None:
-        """Segundo speech_start sem speech_end abre novo stream."""
+        """Second speech_start without speech_end opens new stream."""
         stream_handle1 = _make_stream_handle_mock()
         stream_handle2 = _make_stream_handle_mock()
         grpc_client = _make_grpc_client_mock(stream_handle1)
@@ -635,7 +635,7 @@ class TestStreamingSessionEdgeCases:
         await session.close()
 
     async def test_final_transcript_with_empty_text_and_itn(self) -> None:
-        """ITN em texto vazio nao deve crashar."""
+        """ITN on empty text should not crash."""
         final_segment = TranscriptSegment(
             text="",
             is_final=True,
@@ -680,10 +680,10 @@ class TestStreamingSessionEdgeCases:
 
 
 class TestEnergyPreFilterEdgeCases:
-    """Edge cases para EnergyPreFilter."""
+    """Edge cases for EnergyPreFilter."""
 
     def test_all_max_amplitude_frame(self) -> None:
-        """Frame com amplitude maxima (1.0) nao e silencio."""
+        """Frame with maximum amplitude (1.0) is not silence."""
         pre_filter = EnergyPreFilter(sensitivity=VADSensitivity.NORMAL)
         frame = np.ones(1024, dtype=np.float32)
 
@@ -692,7 +692,7 @@ class TestEnergyPreFilterEdgeCases:
         assert result is False
 
     def test_all_negative_one_frame(self) -> None:
-        """Frame com amplitude -1.0 nao e silencio."""
+        """Frame with amplitude -1.0 is not silence."""
         pre_filter = EnergyPreFilter(sensitivity=VADSensitivity.NORMAL)
         frame = np.full(1024, -1.0, dtype=np.float32)
 
@@ -701,28 +701,28 @@ class TestEnergyPreFilterEdgeCases:
         assert result is False
 
     def test_dc_offset_only_frame(self) -> None:
-        """Frame com DC offset constante tem spectral flatness baixa (nao silencio).
+        """Frame with constant DC offset has low spectral flatness (not silence).
 
-        Um sinal DC puro tem energia concentrada no bin 0 da FFT, resultando
-        em spectral flatness baixa (dominancia de 1 bin). Mesmo com RMS baixo,
-        a flatness < 0.8 faz o filtro nao classificar como silencio.
+        A pure DC signal has energy concentrated in FFT bin 0, resulting
+        in low spectral flatness (dominance of 1 bin). Even with low RMS,
+        flatness < 0.8 causes the filter not to classify as silence.
         """
         pre_filter = EnergyPreFilter(sensitivity=VADSensitivity.LOW)
-        # Sinal constante: FFT concentrada em bin 0, flatness baixa
+        # Constant signal: FFT concentrated in bin 0, low flatness
         frame = np.full(1024, 0.001, dtype=np.float32)
 
         result = pre_filter.is_silence(frame)
 
-        # RMS muito baixo (-60dBFS < -30dBFS threshold) mas flatness baixa
-        # -> nao classificado como silencio pelo filtro
+        # Very low RMS (-60dBFS < -30dBFS threshold) but low flatness
+        # -> not classified as silence by the filter
         assert result is False
 
     def test_very_short_frame_two_samples(self) -> None:
-        """Frame com 2 samples e classificado sem crash."""
+        """Frame with 2 samples is classified without crash."""
         pre_filter = EnergyPreFilter(sensitivity=VADSensitivity.NORMAL)
         frame = np.array([0.5, -0.5], dtype=np.float32)
 
-        # Nao deve levantar excecao
+        # Should not raise an exception
         result = pre_filter.is_silence(frame)
         assert isinstance(result, bool)
 
@@ -733,13 +733,13 @@ class TestEnergyPreFilterEdgeCases:
 
 
 class TestVADDetectorEdgeCases:
-    """Edge cases para VADDetector."""
+    """Edge cases for VADDetector."""
 
     def test_speech_resumes_during_silence_debounce(self) -> None:
-        """Fala retomada durante debounce de silencio cancela SPEECH_END.
+        """Speech resumed during silence debounce cancels SPEECH_END.
 
-        Cenario: fala detectada -> silencio curto (< min_silence) -> fala novamente.
-        Nao deve emitir SPEECH_END.
+        Scenario: speech detected -> short silence (< min_silence) -> speech again.
+        Should not emit SPEECH_END.
         """
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -747,8 +747,8 @@ class TestVADDetectorEdgeCases:
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
             sample_rate=SAMPLE_RATE,
-            min_speech_duration_ms=64,  # 1 frame para simplificar
-            min_silence_duration_ms=300,  # 5 frames de 64ms
+            min_speech_duration_ms=64,  # 1 frame for simplicity
+            min_silence_duration_ms=300,  # 5 frames of 64ms
         )
 
         # Phase 1: speech (2 frames -> SPEECH_START)
@@ -784,7 +784,7 @@ class TestVADDetectorEdgeCases:
         assert detector.is_speaking is True
 
     def test_minimum_speech_duration_boundary(self) -> None:
-        """SPEECH_START emitido exatamente no frame que atinge min_speech_duration."""
+        """SPEECH_START emitted exactly on the frame that reaches min_speech_duration."""
         # min_speech_duration_ms=64ms = exactly 1 frame of 64ms
         detector, _, _ = _make_detector(
             energy_is_silence=False,
@@ -799,7 +799,7 @@ class TestVADDetectorEdgeCases:
         assert event.type == VADEventType.SPEECH_START
 
     def test_energy_filter_alternating_silence_non_silence(self) -> None:
-        """Frames alternando entre silencio e nao-silencio no energy filter."""
+        """Frames alternating between silence and non-silence in the energy filter."""
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
         detector = VADDetector(
@@ -809,7 +809,7 @@ class TestVADDetectorEdgeCases:
             min_speech_duration_ms=250,
         )
 
-        # Alternar energy: non-silence, silence, non-silence, silence...
+        # Alternate energy: non-silence, silence, non-silence, silence...
         all_events: list[VADEvent] = []
         for i in range(20):
             energy_mock.is_silence.return_value = i % 2 == 1
@@ -818,11 +818,11 @@ class TestVADDetectorEdgeCases:
             if event is not None:
                 all_events.append(event)
 
-        # Nunca atinge min_speech_duration consecutivo -> sem SPEECH_START
+        # Never reaches consecutive min_speech_duration -> no SPEECH_START
         assert len(all_events) == 0
 
     def test_force_speech_end_resets_for_new_speech(self) -> None:
-        """Apos force SPEECH_END, novo segmento de fala pode comecar."""
+        """After force SPEECH_END, new speech segment can start."""
         detector, _, _silero_mock = _make_detector(
             energy_is_silence=False,
             silero_is_speech=True,
@@ -853,10 +853,10 @@ class TestVADDetectorEdgeCases:
 
 
 class TestBackpressureEdgeCases:
-    """Edge cases para BackpressureController."""
+    """Edge cases for BackpressureController."""
 
     def test_zero_byte_frame_no_crash(self) -> None:
-        """Frame de 0 bytes nao deve crashar."""
+        """0-byte frame should not crash."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -868,11 +868,11 @@ class TestBackpressureEdgeCases:
         assert ctrl.frames_received == 1
 
     def test_very_large_frame_handled(self) -> None:
-        """Frame muito grande (1 minuto de audio) e tratado sem crash."""
+        """Very large frame (1 minute of audio) is handled without crash."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
-            max_backlog_s=120.0,  # Alto para nao dropar
+            max_backlog_s=120.0,  # High to avoid dropping
             clock=clock,
         )
 
@@ -883,7 +883,7 @@ class TestBackpressureEdgeCases:
         assert ctrl.frames_received == 1
 
     def test_backpressure_after_long_pause(self) -> None:
-        """Apos longa pausa (10s), retomar envio nao deve emitir rate_limit."""
+        """After long pause (10s), resuming send should not emit rate_limit."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -892,15 +892,15 @@ class TestBackpressureEdgeCases:
             clock=clock,
         )
 
-        # Enviar 10 frames normais
+        # Send 10 normal frames
         for _ in range(10):
             ctrl.record_frame(640)
             clock.advance(0.020)
 
-        # Longa pausa
+        # Long pause
         clock.advance(10.0)
 
-        # Retomar envio normal
+        # Resume normal sending
         actions: list[RateLimitAction] = []
         for _ in range(10):
             result = ctrl.record_frame(640)
@@ -911,11 +911,11 @@ class TestBackpressureEdgeCases:
         assert len(actions) == 0
 
     def test_multiple_drops_counted_correctly(self) -> None:
-        """Multiplos drops consecutivos sao contados corretamente."""
+        """Multiple consecutive drops are counted correctly."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
-            max_backlog_s=0.1,  # Muito baixo
+            max_backlog_s=0.1,  # Very low
             clock=clock,
         )
 
@@ -936,10 +936,10 @@ class TestBackpressureEdgeCases:
 
 
 class TestStreamHandleEdgeCases:
-    """Edge cases para StreamHandle."""
+    """Edge cases for StreamHandle."""
 
     async def test_cancel_on_already_closed_handle(self) -> None:
-        """cancel() em handle ja fechado e idempotente."""
+        """cancel() on already closed handle is idempotent."""
         from macaw.scheduler.streaming import StreamHandle
 
         mock_call = AsyncMock(
@@ -962,7 +962,7 @@ class TestStreamHandleEdgeCases:
         assert mock_call.cancel.call_count >= 1
 
     async def test_send_frame_empty_pcm_data(self) -> None:
-        """send_frame com bytes vazios e valido."""
+        """send_frame with empty bytes is valid."""
         from macaw.scheduler.streaming import StreamHandle
 
         mock_call = AsyncMock(
@@ -981,7 +981,7 @@ class TestStreamHandleEdgeCases:
         assert frame.data == b""
 
     async def test_send_frame_after_close_raises_worker_crash(self) -> None:
-        """send_frame em handle fechado levanta WorkerCrashError."""
+        """send_frame on closed handle raises WorkerCrashError."""
         from macaw.scheduler.streaming import StreamHandle
 
         mock_call = AsyncMock(
@@ -1004,10 +1004,10 @@ class TestStreamHandleEdgeCases:
 
 
 class TestStreamingPreprocessorEdgeCases:
-    """Edge cases para StreamingPreprocessor."""
+    """Edge cases for StreamingPreprocessor."""
 
     def test_single_sample_frame(self) -> None:
-        """Frame com 1 sample (2 bytes) e processado sem crash."""
+        """Frame with 1 sample (2 bytes) is processed without crash."""
         from macaw.preprocessing.resample import ResampleStage
         from macaw.preprocessing.streaming import StreamingPreprocessor
 
@@ -1022,14 +1022,14 @@ class TestStreamingPreprocessorEdgeCases:
         assert len(result) == 1
 
     def test_consecutive_frames_maintain_state(self) -> None:
-        """Multiplos frames consecutivos sao processados sem leak de estado."""
+        """Multiple consecutive frames are processed without state leak."""
         from macaw.preprocessing.dc_remove import DCRemoveStage
         from macaw.preprocessing.streaming import StreamingPreprocessor
 
         stages = [DCRemoveStage(cutoff_hz=20)]
         preprocessor = StreamingPreprocessor(stages=stages, input_sample_rate=16000)
 
-        # Processar 100 frames pequenos
+        # Process 100 small frames
         for _ in range(100):
             frame = (
                 np.random.default_rng(42).integers(-1000, 1000, size=160, dtype=np.int16).tobytes()
@@ -1045,10 +1045,10 @@ class TestStreamingPreprocessorEdgeCases:
 
 
 class TestSileroClassifierEdgeCases:
-    """Edge cases para SileroVADClassifier."""
+    """Edge cases for SileroVADClassifier."""
 
     def test_probability_just_above_threshold(self) -> None:
-        """Probabilidade 0.5001 (just above 0.5) e classificada como fala."""
+        """Probability 0.5001 (just above 0.5) is classified as speech."""
         from macaw.vad.silero import SileroVADClassifier
 
         classifier = SileroVADClassifier(sensitivity=VADSensitivity.NORMAL)
@@ -1063,7 +1063,7 @@ class TestSileroClassifierEdgeCases:
         assert classifier.is_speech(frame) is True
 
     def test_probability_just_below_threshold(self) -> None:
-        """Probabilidade 0.4999 (just below 0.5) nao e classificada como fala."""
+        """Probability 0.4999 (just below 0.5) is not classified as speech."""
         from macaw.vad.silero import SileroVADClassifier
 
         classifier = SileroVADClassifier(sensitivity=VADSensitivity.NORMAL)
@@ -1084,10 +1084,10 @@ class TestSileroClassifierEdgeCases:
 
 
 class TestStreamingConvertersEdgeCases:
-    """Edge cases para conversores de proto streaming."""
+    """Edge cases for streaming proto converters."""
 
     def test_proto_event_with_empty_text(self) -> None:
-        """Evento proto com texto vazio e convertido corretamente."""
+        """Proto event with empty text is converted correctly."""
         from macaw.proto.stt_worker_pb2 import TranscriptEvent
         from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
@@ -1102,7 +1102,7 @@ class TestStreamingConvertersEdgeCases:
         assert result.is_final is True
 
     def test_proto_event_unknown_type_treated_as_partial(self) -> None:
-        """Evento proto com event_type desconhecido e tratado como partial (is_final=False)."""
+        """Proto event with unknown event_type is treated as partial (is_final=False)."""
         from macaw.proto.stt_worker_pb2 import TranscriptEvent
         from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
@@ -1116,7 +1116,7 @@ class TestStreamingConvertersEdgeCases:
         assert result.is_final is False
 
     def test_proto_event_with_many_words(self) -> None:
-        """Evento proto com muitas words e convertido corretamente."""
+        """Proto event with many words is converted correctly."""
         from macaw.proto.stt_worker_pb2 import TranscriptEvent, Word
         from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
@@ -1138,7 +1138,7 @@ class TestStreamingConvertersEdgeCases:
         assert len(result.words) == 50
 
     def test_proto_event_with_zero_probability_becomes_none(self) -> None:
-        """Probabilidade 0.0 em word e convertida para None."""
+        """Probability 0.0 in word is converted to None."""
         from macaw.proto.stt_worker_pb2 import TranscriptEvent, Word
         from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
@@ -1154,7 +1154,7 @@ class TestStreamingConvertersEdgeCases:
         assert result.words[0].probability is None
 
     def test_proto_event_with_zero_start_ms_preserved(self) -> None:
-        """start_ms=0 e preservado como 0 (valor valido: inicio do audio)."""
+        """start_ms=0 is preserved as 0 (valid value: start of audio)."""
         from macaw.proto.stt_worker_pb2 import TranscriptEvent
         from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
@@ -1171,7 +1171,7 @@ class TestStreamingConvertersEdgeCases:
         assert result.end_ms == 0
 
     def test_proto_event_partial_type_is_not_final(self) -> None:
-        """event_type='partial' gera is_final=False."""
+        """event_type='partial' produces is_final=False."""
         from macaw.proto.stt_worker_pb2 import TranscriptEvent
         from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
@@ -1185,7 +1185,7 @@ class TestStreamingConvertersEdgeCases:
         assert result.is_final is False
 
     def test_proto_event_no_words_is_none(self) -> None:
-        """Evento proto sem words resulta em words=None."""
+        """Proto event without words results in words=None."""
         from macaw.proto.stt_worker_pb2 import TranscriptEvent
         from macaw.scheduler.streaming import _proto_event_to_transcript_segment
 
@@ -1205,53 +1205,53 @@ class TestStreamingConvertersEdgeCases:
 
 
 class TestProtocolDispatchMoreEdgeCases:
-    """Mais edge cases para dispatch_message()."""
+    """More edge cases for dispatch_message()."""
 
     def test_none_message_returns_none(self) -> None:
-        """Mensagem sem bytes nem text retorna None."""
+        """Message with neither bytes nor text returns None."""
         result = dispatch_message({})
         assert result is None
 
     def test_message_with_only_unknown_keys_returns_none(self) -> None:
-        """Mensagem com chaves desconhecidas retorna None."""
+        """Message with unknown keys returns None."""
         result = dispatch_message({"foo": "bar", "baz": 42})
         assert result is None
 
     def test_binary_empty_frame_is_valid(self) -> None:
-        """Frame binario vazio (0 bytes) e valido."""
+        """Empty binary frame (0 bytes) is valid."""
         result = dispatch_message({"bytes": b""})
         assert isinstance(result, AudioFrameResult)
         assert result.data == b""
 
     def test_binary_large_frame_is_valid(self) -> None:
-        """Frame binario grande (100KB) e valido."""
+        """Large binary frame (100KB) is valid."""
         large_data = b"\x00" * 100_000
         result = dispatch_message({"bytes": large_data})
         assert isinstance(result, AudioFrameResult)
         assert len(result.data) == 100_000
 
     def test_json_array_returns_error(self) -> None:
-        """JSON array retorna ErrorResult (esperado objeto)."""
+        """JSON array returns ErrorResult (expected object)."""
         result = dispatch_message({"text": "[1, 2, 3]"})
         assert isinstance(result, ErrorResult)
         assert result.event.code == "malformed_json"
 
     def test_session_cancel_command_parsed(self) -> None:
-        """session.cancel e parseado corretamente."""
+        """session.cancel is parsed correctly."""
         msg = {"text": json.dumps({"type": "session.cancel"})}
         result = dispatch_message(msg)
         assert isinstance(result, CommandResult)
         assert isinstance(result.command, SessionCancelCommand)
 
     def test_session_close_command_parsed(self) -> None:
-        """session.close e parseado corretamente."""
+        """session.close is parsed correctly."""
         msg = {"text": json.dumps({"type": "session.close"})}
         result = dispatch_message(msg)
         assert isinstance(result, CommandResult)
         assert isinstance(result.command, SessionCloseCommand)
 
     def test_input_audio_buffer_commit_command_parsed(self) -> None:
-        """input_audio_buffer.commit e parseado corretamente."""
+        """input_audio_buffer.commit is parsed correctly."""
         msg = {"text": json.dumps({"type": "input_audio_buffer.commit"})}
         result = dispatch_message(msg)
         assert isinstance(result, CommandResult)
@@ -1270,10 +1270,10 @@ class TestProtocolDispatchMoreEdgeCases:
 
 
 class TestVADDetectorMoreEdgeCases:
-    """Mais edge cases para VADDetector."""
+    """More edge cases for VADDetector."""
 
     def test_reset_during_speech_clears_state(self) -> None:
-        """reset() durante fala ativa limpa estado para silencio."""
+        """reset() during active speech clears state to silence."""
         detector, _, _silero_mock = _make_detector(
             energy_is_silence=False,
             silero_is_speech=True,
@@ -1282,19 +1282,19 @@ class TestVADDetectorMoreEdgeCases:
 
         frame = np.zeros(FRAME_SIZE, dtype=np.float32)
 
-        # Iniciar fala
+        # Start speech
         event = detector.process_frame(frame)
         assert event is not None
         assert event.type == VADEventType.SPEECH_START
         assert detector.is_speaking is True
 
-        # Reset durante fala
+        # Reset during speech
         detector.reset()
 
         assert detector.is_speaking is False
 
     def test_timestamp_calculation_correct(self) -> None:
-        """Timestamps em milissegundos sao calculados corretamente."""
+        """Timestamps in milliseconds are calculated correctly."""
         detector, _, _ = _make_detector(
             energy_is_silence=False,
             silero_is_speech=True,
@@ -1309,7 +1309,7 @@ class TestVADDetectorMoreEdgeCases:
         assert event.timestamp_ms == 64
 
     def test_silence_after_max_speech_does_not_double_emit(self) -> None:
-        """Silencio apos force SPEECH_END nao emite outro SPEECH_END."""
+        """Silence after force SPEECH_END does not emit another SPEECH_END."""
         detector, _, silero_mock = _make_detector(
             energy_is_silence=False,
             silero_is_speech=True,
@@ -1339,7 +1339,7 @@ class TestVADDetectorMoreEdgeCases:
         assert len([e for e in all_events if e.type == VADEventType.SPEECH_END]) == 1
 
     def test_zero_min_speech_duration_emits_immediately(self) -> None:
-        """min_speech_duration_ms=0 emite SPEECH_START no primeiro frame de fala."""
+        """min_speech_duration_ms=0 emits SPEECH_START on the first speech frame."""
         detector, _, _ = _make_detector(
             energy_is_silence=False,
             silero_is_speech=True,
@@ -1360,15 +1360,15 @@ class TestVADDetectorMoreEdgeCases:
 
 
 class TestStreamingSessionMoreEdgeCases:
-    """Mais edge cases do StreamingSession."""
+    """More edge cases for StreamingSession."""
 
     async def test_speech_end_without_stream_handle(self) -> None:
-        """SPEECH_END sem stream handle ativo nao causa crash.
+        """SPEECH_END without an active stream handle does not cause a crash.
 
-        Com a state machine integrada (M6-03), um SPEECH_END em estado INIT
-        (sem SPEECH_START previo) e ignorado silenciosamente — a sessao nunca
-        esteve ACTIVE, entao nao ha transicao valida para SILENCE.
-        O importante e que nao causa crash.
+        With the integrated state machine (M6-03), a SPEECH_END in INIT state
+        (without a prior SPEECH_START) is silently ignored -- the session was
+        never ACTIVE, so there is no valid transition to SILENCE.
+        The important thing is that it does not crash.
         """
         vad = make_vad_mock()
         on_event = _make_on_event()
@@ -1382,7 +1382,7 @@ class TestStreamingSessionMoreEdgeCases:
             on_event=on_event,
         )
 
-        # Emitir SPEECH_END sem nunca ter tido SPEECH_START
+        # Emit SPEECH_END without ever having had SPEECH_START
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_END,
             timestamp_ms=1000,
@@ -1390,8 +1390,8 @@ class TestStreamingSessionMoreEdgeCases:
         vad.is_speaking = False
         await session.process_frame(make_raw_bytes())
 
-        # Com state machine, SPEECH_END em INIT e ignorado (sem crash).
-        # Nenhum evento speech_end e emitido pois sessao nunca esteve ACTIVE.
+        # With state machine, SPEECH_END in INIT is ignored (no crash).
+        # No speech_end event is emitted because the session was never ACTIVE.
         end_calls = [
             call for call in on_event.call_args_list if isinstance(call.args[0], VADSpeechEndEvent)
         ]
@@ -1400,7 +1400,7 @@ class TestStreamingSessionMoreEdgeCases:
         await session.close()
 
     async def test_grpc_open_stream_failure_emits_error(self) -> None:
-        """Falha ao abrir gRPC stream emite erro recuperavel."""
+        """Failure to open gRPC stream emits a recoverable error."""
         grpc_client = AsyncMock()
         grpc_client.open_stream = AsyncMock(side_effect=WorkerCrashError("worker_1"))
         grpc_client.close = AsyncMock()
@@ -1416,7 +1416,7 @@ class TestStreamingSessionMoreEdgeCases:
             on_event=on_event,
         )
 
-        # Trigger speech_start -> tenta abrir stream, falha
+        # Trigger speech_start -> tries to open stream, fails
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=1000,
@@ -1424,7 +1424,7 @@ class TestStreamingSessionMoreEdgeCases:
         vad.is_speaking = False
         await session.process_frame(make_raw_bytes())
 
-        # Deve emitir erro recuperavel
+        # Should emit a recoverable error
         error_calls = [
             call
             for call in on_event.call_args_list
@@ -1437,7 +1437,7 @@ class TestStreamingSessionMoreEdgeCases:
         await session.close()
 
     async def test_postprocessor_none_skips_itn(self) -> None:
-        """Sem postprocessor, ITN e pulado mesmo com enable_itn=True."""
+        """Without postprocessor, ITN is skipped even with enable_itn=True."""
         final_segment = TranscriptSegment(
             text="hello world",
             is_final=True,
@@ -1469,7 +1469,7 @@ class TestStreamingSessionMoreEdgeCases:
         await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
-        # Final deve ter texto original (sem ITN)
+        # Final should have original text (no ITN)
         final_calls = [
             call
             for call in on_event.call_args_list
@@ -1481,7 +1481,7 @@ class TestStreamingSessionMoreEdgeCases:
         await session.close()
 
     async def test_itn_disabled_skips_postprocessing(self) -> None:
-        """enable_itn=False pula post-processing mesmo com postprocessor."""
+        """enable_itn=False skips post-processing even with postprocessor."""
         final_segment = TranscriptSegment(
             text="dois mil",
             is_final=True,
@@ -1503,7 +1503,7 @@ class TestStreamingSessionMoreEdgeCases:
             grpc_client=grpc_client,
             postprocessor=postprocessor,
             on_event=on_event,
-            enable_itn=False,  # ITN desabilitado
+            enable_itn=False,  # ITN disabled
         )
 
         vad.process_frame.return_value = VADEvent(
@@ -1514,10 +1514,10 @@ class TestStreamingSessionMoreEdgeCases:
         await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
-        # Postprocessor NAO deve ser chamado
+        # Postprocessor MUST NOT be called
         postprocessor.process.assert_not_called()
 
-        # Texto original
+        # Original text
         final_calls = [
             call
             for call in on_event.call_args_list
@@ -1529,7 +1529,7 @@ class TestStreamingSessionMoreEdgeCases:
         await session.close()
 
     async def test_segment_id_after_speech_end_increments(self) -> None:
-        """segment_id incrementa apos SPEECH_END."""
+        """segment_id increments after SPEECH_END."""
         vad = make_vad_mock()
         on_event = _make_on_event()
 
@@ -1574,24 +1574,24 @@ class TestStreamingSessionMoreEdgeCases:
 
 
 class TestBackpressureMoreEdgeCases:
-    """Mais edge cases para BackpressureController."""
+    """More edge cases for BackpressureController."""
 
     def test_first_frame_never_triggers_action(self) -> None:
-        """Primeiro frame nunca dispara acao de backpressure."""
+        """First frame never triggers a backpressure action."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
-            max_backlog_s=0.001,  # Muito baixo
-            rate_limit_threshold=1.0,  # Extremo
+            max_backlog_s=0.001,  # Very low
+            rate_limit_threshold=1.0,  # Extreme
             clock=clock,
         )
 
-        # Primeiro frame: nunca dispara
+        # First frame: never triggers
         result = ctrl.record_frame(640)
         assert result is None
 
     def test_rate_limit_cooldown(self) -> None:
-        """Rate limit tem cooldown de 1s entre emissoes."""
+        """Rate limit has a 1s cooldown between emissions."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -1600,20 +1600,20 @@ class TestBackpressureMoreEdgeCases:
             clock=clock,
         )
 
-        # Enviar rapido (muitos frames em pouco tempo)
+        # Send fast (many frames in a short time)
         rate_limit_count = 0
         for _ in range(100):
             result = ctrl.record_frame(640)
             if isinstance(result, RateLimitAction):
                 rate_limit_count += 1
-            clock.advance(0.001)  # 1ms entre frames (muito rapido)
+            clock.advance(0.001)  # 1ms between frames (very fast)
 
-        # Deve ter emitido poucas vezes por causa do cooldown de 1s
-        # 100 frames * 1ms = 100ms < 1s cooldown -> no maximo 1 emissao
+        # Should have emitted few times because of the 1s cooldown
+        # 100 frames * 1ms = 100ms < 1s cooldown -> at most 1 emission
         assert rate_limit_count <= 1
 
     def test_properties_initial_state(self) -> None:
-        """Estado inicial: zero frames recebidos e dropados."""
+        """Initial state: zero frames received and dropped."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,

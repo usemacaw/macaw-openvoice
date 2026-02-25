@@ -1,9 +1,9 @@
-"""Testes de compatibilidade com o SDK OpenAI Python.
+"""Compatibility tests with the OpenAI Python SDK.
 
-Valida que o SDK `openai` funciona como cliente do Macaw sem modificacoes.
-Usa servidor Macaw real (via uvicorn in-process) para testar o contrato completo.
+Validates that the `openai` SDK works as a Macaw client without modifications.
+Uses a real Macaw server (via in-process uvicorn) to test the full contract.
 
-Marcado como @pytest.mark.integration — requer `openai` instalado.
+Marked as @pytest.mark.integration -- requires `openai` installed.
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ class _SyncASGITransport(httpx.BaseTransport):
 
 @pytest.mark.integration
 class TestOpenAISDKCompat:
-    """Testes usando o SDK `openai` como cliente real."""
+    """Tests using the `openai` SDK as a real client."""
 
     @pytest.fixture(autouse=True)
     def _client(self) -> object:  # type: ignore[misc]
@@ -174,5 +174,5 @@ class TestOpenAISDKCompat:
             response_format="text",
         )
 
-        # text format retorna string diretamente
+        # text format returns string directly
         assert "Hello" in str(result)

@@ -61,6 +61,22 @@ class WorkerHandle:
     model_path: str = ""
     engine_config: dict[str, object] = field(default_factory=dict)
     worker_type: WorkerType = WorkerType.STT
+    python_package: str | None = None
+    venv_python: str | None = None
+    remote_endpoint: str | None = None
+
+    @property
+    def worker_address(self) -> str:
+        """Return gRPC address (host:port) for this worker.
+
+        For remote workers, returns the configured endpoint.
+        For local workers, combines worker_host setting with the port.
+        """
+        if self.remote_endpoint is not None:
+            return self.remote_endpoint
+        from macaw.config.settings import get_settings
+
+        return f"{get_settings().worker.worker_host}:{self.port}"
 
 
 class WorkerManager:
@@ -77,6 +93,73 @@ class WorkerManager:
         self._tasks: dict[str, list[asyncio.Task[None]]] = {}
         self._lifecycle = get_settings().worker_lifecycle
 
+    async def register_remote_worker(
+        self,
+        model_name: str,
+        engine: str,
+        remote_endpoint: str,
+        worker_type: WorkerType | str = WorkerType.STT,
+    ) -> WorkerHandle:
+        """Register a remote worker (no subprocess spawning).
+
+        The worker process is managed externally (e.g., Docker, K8s).
+        Only health probing is performed locally — no process monitoring.
+
+        Args:
+            model_name: Model name (for identification).
+            engine: Engine name (e.g., "faster-whisper", "kokoro").
+            remote_endpoint: gRPC address as "host:port".
+            worker_type: Worker type (WorkerType enum or "stt"/"tts" string).
+
+        Returns:
+            WorkerHandle with worker information.
+
+        Raises:
+            ValueError: If remote_endpoint format is invalid.
+        """
+        if isinstance(worker_type, str):
+            worker_type = WorkerType(worker_type)
+
+        # Validate endpoint format
+        if ":" not in remote_endpoint:
+            msg = f"Invalid remote endpoint format: {remote_endpoint!r} (expected 'host:port')"
+            raise ValueError(msg)
+
+        _host, port_str = remote_endpoint.rsplit(":", 1)
+        if not _host or not port_str.isdigit():
+            msg = f"Invalid remote endpoint format: {remote_endpoint!r} (expected 'host:port')"
+            raise ValueError(msg)
+
+        port = int(port_str)
+        worker_id = f"{engine}-remote-{port}"
+
+        logger.info(
+            "registering_remote_worker",
+            worker_id=worker_id,
+            engine=engine,
+            remote_endpoint=remote_endpoint,
+            worker_type=worker_type.value,
+        )
+
+        handle = WorkerHandle(
+            worker_id=worker_id,
+            port=port,
+            model_name=model_name,
+            engine=engine,
+            process=None,
+            state=WorkerState.STARTING,
+            worker_type=worker_type,
+            remote_endpoint=remote_endpoint,
+        )
+
+        self._workers[worker_id] = handle
+
+        # Only start health probe — no monitor task (no local process to poll)
+        health_task = asyncio.create_task(self._health_probe(worker_id))
+        self._tasks[worker_id] = [health_task]
+
+        return handle
+
     async def spawn_worker(
         self,
         model_name: str,
@@ -85,6 +168,9 @@ class WorkerManager:
         model_path: str,
         engine_config: dict[str, object],
         worker_type: WorkerType | str = WorkerType.STT,
+        *,
+        python_package: str | None = None,
+        venv_python: str | None = None,
     ) -> WorkerHandle:
         """Start a new worker as a subprocess.
 
@@ -95,6 +181,8 @@ class WorkerManager:
             model_path: Path to model files.
             engine_config: Engine configuration.
             worker_type: Worker type (WorkerType enum or "stt"/"tts" string).
+            python_package: Dotted module path for external engines (optional).
+            venv_python: Path to isolated venv Python executable (optional).
 
         Returns:
             WorkerHandle with worker information.
@@ -113,7 +201,13 @@ class WorkerManager:
         )
 
         process = _spawn_worker_process(
-            port, engine, model_path, engine_config, worker_type=worker_type
+            port,
+            engine,
+            model_path,
+            engine_config,
+            worker_type=worker_type,
+            python_package=python_package,
+            venv_python=venv_python,
         )
 
         handle = WorkerHandle(
@@ -126,6 +220,8 @@ class WorkerManager:
             model_path=model_path,
             engine_config=engine_config,
             worker_type=worker_type,
+            python_package=python_package,
+            venv_python=venv_python,
         )
 
         self._workers[worker_id] = handle
@@ -150,6 +246,8 @@ class WorkerManager:
     async def stop_worker(self, worker_id: str) -> None:
         """Stop a worker gracefully (SIGTERM, wait, SIGKILL if needed).
 
+        For remote workers, skips process termination (no local process).
+
         Args:
             worker_id: Worker ID.
         """
@@ -162,24 +260,26 @@ class WorkerManager:
 
         await self._cancel_background_tasks(worker_id)
 
-        process = handle.process
-        if process is not None and process.poll() is None:
-            process.terminate()
-            try:
-                await asyncio.wait_for(
-                    asyncio.get_running_loop().run_in_executor(None, process.wait),
-                    timeout=self._lifecycle.stop_grace_period_s,
-                )
-            except asyncio.TimeoutError:  # noqa: UP041
-                logger.warning("worker_force_kill", worker_id=worker_id)
-                process.kill()
+        # Skip process termination for remote workers (no local process)
+        if handle.remote_endpoint is None:
+            process = handle.process
+            if process is not None and process.poll() is None:
+                process.terminate()
                 try:
                     await asyncio.wait_for(
                         asyncio.get_running_loop().run_in_executor(None, process.wait),
                         timeout=self._lifecycle.stop_grace_period_s,
                     )
                 except asyncio.TimeoutError:  # noqa: UP041
-                    logger.warning("worker_force_kill_timeout", worker_id=worker_id)
+                    logger.warning("worker_force_kill", worker_id=worker_id)
+                    process.kill()
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.get_running_loop().run_in_executor(None, process.wait),
+                            timeout=self._lifecycle.stop_grace_period_s,
+                        )
+                    except asyncio.TimeoutError:  # noqa: UP041
+                        logger.warning("worker_force_kill_timeout", worker_id=worker_id)
 
         handle.state = WorkerState.STOPPED
         logger.info("worker_stopped", worker_id=worker_id)
@@ -198,6 +298,17 @@ class WorkerManager:
         """Return the first READY worker for a given model."""
         for handle in self._workers.values():
             if handle.model_name == model_name and handle.state == WorkerState.READY:
+                return handle
+        return None
+
+    def get_worker_for_model(self, model_name: str) -> WorkerHandle | None:
+        """Return any worker handle for a model, regardless of state.
+
+        Useful when a READY worker is not yet available (e.g., remote worker
+        still health-probing) but the worker address is needed.
+        """
+        for handle in self._workers.values():
+            if handle.model_name == model_name:
                 return handle
         return None
 
@@ -225,6 +336,11 @@ class WorkerManager:
         delay = self._lifecycle.health_probe_initial_delay_s
         start = time.monotonic()
 
+        # Extract host for remote workers
+        remote_host: str | None = None
+        if handle.remote_endpoint is not None:
+            remote_host = handle.remote_endpoint.rsplit(":", 1)[0]
+
         while handle.state == WorkerState.STARTING:
             elapsed = time.monotonic() - start
             if elapsed > self._lifecycle.health_probe_timeout_s:
@@ -238,6 +354,7 @@ class WorkerManager:
                     handle.port,
                     timeout=self._lifecycle.health_probe_rpc_timeout_s,
                     worker_type=handle.worker_type,
+                    host=remote_host,
                 )
                 if result.get("status") == "ok":
                     handle.state = WorkerState.READY
@@ -251,9 +368,16 @@ class WorkerManager:
             delay = min(delay * 2, self._lifecycle.health_probe_max_delay_s)
 
     async def _monitor_worker(self, worker_id: str) -> None:
-        """Monitor the worker process and detect crashes."""
+        """Monitor the worker process and detect crashes.
+
+        Returns immediately for remote workers (no local process to poll).
+        """
         handle = self._workers.get(worker_id)
         if handle is None:
+            return
+
+        # Remote workers have no local process to monitor
+        if handle.remote_endpoint is not None:
             return
 
         try:
@@ -289,6 +413,9 @@ class WorkerManager:
         """Attempt to restart a worker with rate limiting.
 
         Do not restart if max_crashes_in_window is exceeded within crash_window_s.
+
+        For remote workers, no subprocess is spawned — only health probing
+        resumes to detect when the remote host restarts the worker.
         """
         handle = self._workers.get(worker_id)
         if handle is None:
@@ -326,12 +453,24 @@ class WorkerManager:
 
         await asyncio.sleep(backoff)
 
+        if handle.remote_endpoint is not None:
+            # Remote workers: no subprocess to spawn.
+            # Transition to STARTING and resume health probing.
+            handle.state = WorkerState.STARTING
+            handle.last_started_at = time.monotonic()
+            self._tasks.pop(worker_id, None)
+            health_task = asyncio.create_task(self._health_probe(worker_id))
+            self._tasks[worker_id] = [health_task]
+            return
+
         process = _spawn_worker_process(
             handle.port,
             handle.engine,
             handle.model_path,
             handle.engine_config,
             worker_type=handle.worker_type,
+            python_package=handle.python_package,
+            venv_python=handle.venv_python,
         )
 
         handle.process = process
@@ -353,6 +492,9 @@ def _build_worker_cmd(
     model_path: str,
     engine_config: dict[str, object],
     worker_type: WorkerType = WorkerType.STT,
+    *,
+    python_package: str | None = None,
+    venv_python: str | None = None,
 ) -> list[str]:
     """Build CLI command to start a worker as a subprocess.
 
@@ -362,15 +504,18 @@ def _build_worker_cmd(
         model_path: Path to model files.
         engine_config: Engine configuration.
         worker_type: Worker type (WorkerType enum).
+        python_package: Dotted module path for external engines (optional).
+        venv_python: Path to isolated venv Python executable (optional).
 
     Returns:
         List of arguments for subprocess.Popen.
     """
     import json
 
+    python_exe = venv_python if venv_python is not None else sys.executable
     module = f"macaw.workers.{worker_type.value}"
     cmd = [
-        sys.executable,
+        python_exe,
         "-m",
         module,
         "--port",
@@ -383,6 +528,9 @@ def _build_worker_cmd(
         json.dumps(engine_config),
     ]
 
+    if python_package:
+        cmd.extend(["--python-package", python_package])
+
     return cmd
 
 
@@ -392,6 +540,9 @@ def _spawn_worker_process(
     model_path: str,
     engine_config: dict[str, object],
     worker_type: WorkerType = WorkerType.STT,
+    *,
+    python_package: str | None = None,
+    venv_python: str | None = None,
 ) -> subprocess.Popen[bytes]:
     """Create worker subprocess.
 
@@ -401,11 +552,21 @@ def _spawn_worker_process(
         model_path: Path to model files.
         engine_config: Engine configuration.
         worker_type: Worker type (WorkerType enum).
+        python_package: Dotted module path for external engines (optional).
+        venv_python: Path to isolated venv Python executable (optional).
 
     Returns:
         Popen handle for the created process.
     """
-    cmd = _build_worker_cmd(port, engine, model_path, engine_config, worker_type=worker_type)
+    cmd = _build_worker_cmd(
+        port,
+        engine,
+        model_path,
+        engine_config,
+        worker_type=worker_type,
+        python_package=python_package,
+        venv_python=venv_python,
+    )
     # Flat layout: macaw/workers/manager.py → parents[2] = repo root
     # (macaw/ is directly under the repo root, not under src/)
     repo_root = Path(__file__).resolve().parents[2]
@@ -466,7 +627,10 @@ _HEALTH_CHECKERS: dict[WorkerType, _HealthChecker] = {
 
 
 async def _check_worker_health(
-    port: int, timeout: float = 2.0, worker_type: WorkerType = WorkerType.STT
+    port: int,
+    timeout: float = 2.0,
+    worker_type: WorkerType = WorkerType.STT,
+    host: str | None = None,
 ) -> dict[str, str]:
     """Check worker health via gRPC Health RPC.
 
@@ -477,15 +641,17 @@ async def _check_worker_health(
         port: Worker gRPC port.
         timeout: Timeout in seconds.
         worker_type: Worker type (WorkerType enum).
+        host: Override host for remote workers. Uses worker_host setting if None.
 
     Returns:
         Dict with worker status.
     """
     import grpc.aio
 
-    from macaw.config.settings import get_settings
+    if host is None:
+        from macaw.config.settings import get_settings
 
-    host = get_settings().worker.worker_host
+        host = get_settings().worker.worker_host
     checker = _HEALTH_CHECKERS[worker_type]
     channel = grpc.aio.insecure_channel(f"{host}:{port}")
     try:

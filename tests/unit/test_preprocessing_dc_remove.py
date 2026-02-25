@@ -1,7 +1,7 @@
-"""Testes do DCRemoveStage.
+"""Tests for DCRemoveStage.
 
-Valida que o filtro Butterworth HPF remove DC offset sem degradar
-sinais na banda de fala. Testa caching de coeficientes e edge cases.
+Validates that the Butterworth HPF removes DC offset without degrading
+signals in the speech band. Tests coefficient caching and edge cases.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ def _make_sine(
     amplitude: float = 0.5,
     dc_offset: float = 0.0,
 ) -> np.ndarray:
-    """Gera sinal senoidal float32 com DC offset opcional."""
+    """Generates a float32 sine wave signal with optional DC offset."""
     t = np.arange(int(sample_rate * duration)) / sample_rate
     signal = amplitude * np.sin(2 * np.pi * frequency * t) + dc_offset
     return signal.astype(np.float32)
@@ -26,7 +26,7 @@ def _make_sine(
 
 class TestDCRemoveStage:
     def test_dc_remove_offset_reduced(self) -> None:
-        """Sinal com DC offset 0.1: apos filtragem, media < 0.01."""
+        """Signal with DC offset 0.1: after filtering, mean < 0.01."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         audio = _make_sine(frequency=440.0, dc_offset=0.1, duration=1.0)
@@ -40,7 +40,7 @@ class TestDCRemoveStage:
         assert sr == 16000
 
     def test_dc_remove_preserves_signal(self) -> None:
-        """Senoide pura sem DC: sinal nao e significativamente degradado."""
+        """Pure sine wave without DC: signal is not significantly degraded."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         audio = _make_sine(frequency=440.0, dc_offset=0.0, duration=1.0)
@@ -48,14 +48,14 @@ class TestDCRemoveStage:
         # Act
         result, _ = stage.process(audio, 16000)
 
-        # Assert -- correlacao alta indica que o sinal foi preservado
-        # Descarta primeiras amostras (transiente do filtro)
+        # Assert -- high correlation indicates the signal was preserved
+        # Discard initial samples (filter transient)
         skip = 1600  # 100ms a 16kHz
         correlation = np.corrcoef(audio[skip:], result[skip:])[0, 1]
         assert correlation > 0.95
 
     def test_dc_remove_large_offset(self) -> None:
-        """DC offset de 0.5: removido efetivamente."""
+        """DC offset of 0.5: effectively removed."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         audio = _make_sine(frequency=440.0, dc_offset=0.5, duration=1.0)
@@ -68,24 +68,24 @@ class TestDCRemoveStage:
         assert abs(np.mean(result)) < 0.01
 
     def test_dc_remove_coefficients_cached(self) -> None:
-        """Mesmo sample rate: coeficientes nao sao recomputados."""
+        """Same sample rate: coefficients are not recomputed."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         audio = _make_sine(duration=0.1)
 
-        # Act -- processar duas vezes com mesmo sample rate
+        # Act -- process twice with same sample rate
         stage.process(audio, 16000)
         sos_after_first = stage._cached_sos
 
         stage.process(audio, 16000)
         sos_after_second = stage._cached_sos
 
-        # Assert -- mesmo objeto em memoria (nao recalculado)
+        # Assert -- same object in memory (not recalculated)
         assert sos_after_first is sos_after_second
         assert stage._cached_sample_rate == 16000
 
     def test_dc_remove_coefficients_recalculated(self) -> None:
-        """Sample rate diferente: coeficientes sao recalculados."""
+        """Different sample rate: coefficients are recalculated."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         audio_16k = _make_sine(sample_rate=16000, duration=0.1)
@@ -98,12 +98,12 @@ class TestDCRemoveStage:
         stage.process(audio_8k, 8000)
         sos_8k = stage._cached_sos
 
-        # Assert -- objetos diferentes (recalculados)
+        # Assert -- different objects (recalculated)
         assert sos_16k is not sos_8k
         assert stage._cached_sample_rate == 8000
 
     def test_dc_remove_preserves_float32(self) -> None:
-        """Output e float32."""
+        """Output is float32."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         audio = _make_sine(duration=0.1)
@@ -115,7 +115,7 @@ class TestDCRemoveStage:
         assert result.dtype == np.float32
 
     def test_dc_remove_preserves_sample_rate(self) -> None:
-        """Sample rate nao e alterado pelo stage."""
+        """Sample rate is not modified by the stage."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         audio = _make_sine(duration=0.1)
@@ -127,7 +127,7 @@ class TestDCRemoveStage:
         assert sr == 44100
 
     def test_dc_remove_empty_audio(self) -> None:
-        """Array vazio retornado sem modificacao."""
+        """Empty array returned without modification."""
         # Arrange
         stage = DCRemoveStage(cutoff_hz=20)
         empty = np.array([], dtype=np.float32)
@@ -140,7 +140,7 @@ class TestDCRemoveStage:
         assert sr == 16000
 
     def test_dc_remove_name_property(self) -> None:
-        """Propriedade name retorna 'dc_remove'."""
+        """Name property returns 'dc_remove'."""
         # Arrange
         stage = DCRemoveStage()
 

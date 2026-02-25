@@ -11,11 +11,14 @@ from unittest.mock import MagicMock
 from fastapi import FastAPI
 
 from macaw.exceptions import (
+    AudioDownloadError,
     AudioFormatError,
     AudioTooLargeError,
     InvalidRequestError,
     MacawError,
     ModelNotFoundError,
+    PronunciationDictionaryNotFoundError,
+    ServiceUnavailableError,
     VoiceNotFoundError,
     WorkerCrashError,
     WorkerTimeoutError,
@@ -27,6 +30,8 @@ from macaw.server.error_handlers import (
     _handle_invalid_request,
     _handle_macaw_error,
     _handle_model_not_found,
+    _handle_pronunciation_dictionary_not_found,
+    _handle_service_unavailable,
     _handle_unexpected_error,
     _handle_voice_not_found,
     _handle_worker_crash,
@@ -45,6 +50,29 @@ def _make_request(*, request_id: str | None = None) -> MagicMock:
         # getattr(request.state, "request_id", None) should return None
         del request.state.request_id
     return request
+
+
+class TestHandlePronunciationDictionaryNotFound:
+    async def test_returns_404(self) -> None:
+        request = _make_request()
+        exc = PronunciationDictionaryNotFoundError(dictionary_id="dict-abc")
+
+        response = await _handle_pronunciation_dictionary_not_found(request, exc)
+
+        assert response.status_code == 404
+        body = response.body.decode()
+        assert "pronunciation_dictionary_not_found_error" in body
+        assert "pronunciation_dictionary_not_found" in body
+
+    async def test_includes_dictionary_id(self) -> None:
+        request = _make_request()
+        exc = PronunciationDictionaryNotFoundError(dictionary_id="missing-dict")
+
+        response = await _handle_pronunciation_dictionary_not_found(request, exc)
+
+        assert response.status_code == 404
+        body = response.body.decode()
+        assert "missing-dict" in body
 
 
 class TestHandleVoiceNotFound:
@@ -124,6 +152,20 @@ class TestHandleAudioTooLarge:
         body = response.body.decode()
         assert "audio_too_large_error" in body
         assert "file_too_large" in body
+
+
+class TestHandleServiceUnavailable:
+    async def test_returns_503_with_retry_after(self) -> None:
+        request = _make_request()
+        exc = ServiceUnavailableError("Forced alignment requires torchaudio >= 2.1")
+
+        response = await _handle_service_unavailable(request, exc)
+
+        assert response.status_code == 503
+        assert response.headers.get("retry-after") == "5"
+        body = response.body.decode()
+        assert "service_unavailable_error" in body
+        assert "torchaudio" in body
 
 
 class TestHandleWorkerUnavailable:
@@ -220,17 +262,20 @@ class TestRegisterErrorHandlers:
 
         registered = app.exception_handlers
         assert InvalidRequestError in registered
+        assert PronunciationDictionaryNotFoundError in registered
         assert VoiceNotFoundError in registered
         assert ModelNotFoundError in registered
         assert AudioFormatError in registered
         assert AudioTooLargeError in registered
+        assert AudioDownloadError in registered
+        assert ServiceUnavailableError in registered
         assert WorkerUnavailableError in registered
         assert WorkerTimeoutError in registered
         assert WorkerCrashError in registered
         assert MacawError in registered
         assert Exception in registered
 
-    def test_registers_exactly_ten_handlers(self) -> None:
+    def test_registers_correct_handler_count(self) -> None:
         app = FastAPI()
         # FastAPI registers some default handlers (e.g., HTTPException, RequestValidationError)
         default_count = len(app.exception_handlers)
@@ -238,4 +283,4 @@ class TestRegisterErrorHandlers:
         register_error_handlers(app)
 
         added = len(app.exception_handlers) - default_count
-        assert added == 10
+        assert added == 15

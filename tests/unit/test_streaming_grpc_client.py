@@ -1,6 +1,6 @@
-"""Testes unitarios para StreamingGRPCClient e StreamHandle.
+"""Unit tests for StreamingGRPCClient and StreamHandle.
 
-Todos os testes usam mocks para gRPC — nenhum servidor real e iniciado.
+All tests use mocks for gRPC -- no real server is started.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
 
 class AsyncIterableFromList:
-    """Wrapper que torna uma lista iteravel com `async for`."""
+    """Wrapper that makes a list iterable with `async for`."""
 
     def __init__(self, items: Sequence[object]) -> None:
         self._items = items
@@ -53,7 +53,7 @@ def _make_async_iterable_call(
     mock_call: AsyncMock,
     events: Sequence[object],
 ) -> None:
-    """Configura mock_call para ser async-iteravel sobre a lista de eventos."""
+    """Configures mock_call to be async-iterable over the list of events."""
     ait = AsyncIterableFromList(events)
     mock_call.__aiter__ = MagicMock(return_value=ait)
 
@@ -65,12 +65,12 @@ def _make_async_iterable_call(
 
 @pytest.fixture
 def mock_call() -> AsyncMock:
-    """Cria mock de grpc.aio.StreamStreamCall."""
+    """Creates a mock of grpc.aio.StreamStreamCall."""
     call = AsyncMock(spec_set=["write", "done_writing", "cancel", "__aiter__", "__anext__"])
     call.write = AsyncMock()
     call.done_writing = AsyncMock()
     call.cancel = MagicMock()
-    # Default: iterador vazio
+    # Default: empty iterator
     call.__aiter__ = MagicMock(return_value=call)
     call.__anext__ = AsyncMock(side_effect=StopAsyncIteration)
     return call
@@ -78,7 +78,7 @@ def mock_call() -> AsyncMock:
 
 @pytest.fixture
 def stream_handle(mock_call: AsyncMock) -> StreamHandle:
-    """Cria StreamHandle com mock call."""
+    """Creates a StreamHandle with mock call."""
     return StreamHandle(session_id="sess_test_001", call=mock_call)
 
 
@@ -88,14 +88,14 @@ def stream_handle(mock_call: AsyncMock) -> StreamHandle:
 
 
 class TestStreamHandleSendFrame:
-    """Testes de StreamHandle.send_frame()."""
+    """Tests for StreamHandle.send_frame()."""
 
     async def test_send_frame_creates_correct_audio_frame(
         self,
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """send_frame deve criar AudioFrame com campos corretos e chamar write."""
+        """send_frame should create AudioFrame with correct fields and call write."""
         pcm_data = b"\x00\x01" * 160  # 20ms a 16kHz
 
         await stream_handle.send_frame(
@@ -117,7 +117,7 @@ class TestStreamHandleSendFrame:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """send_frame sem prompt e hot_words deve usar defaults vazios."""
+        """send_frame without prompt and hot_words should use empty defaults."""
         await stream_handle.send_frame(pcm_data=b"\x00" * 320)
 
         frame: AudioFrame = mock_call.write.call_args[0][0]
@@ -128,7 +128,7 @@ class TestStreamHandleSendFrame:
         self,
         stream_handle: StreamHandle,
     ) -> None:
-        """send_frame em stream ja fechado deve levantar WorkerCrashError."""
+        """send_frame on an already closed stream should raise WorkerCrashError."""
         await stream_handle.close()
         assert stream_handle.is_closed is True
 
@@ -140,7 +140,7 @@ class TestStreamHandleSendFrame:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """Erro gRPC durante write deve levantar WorkerCrashError e marcar closed."""
+        """gRPC error during write should raise WorkerCrashError and mark closed."""
         mock_call.write.side_effect = grpc.aio.AioRpcError(
             code=grpc.StatusCode.UNAVAILABLE,
             initial_metadata=grpc.aio.Metadata(),
@@ -161,14 +161,14 @@ class TestStreamHandleSendFrame:
 
 
 class TestStreamHandleReceiveEvents:
-    """Testes de StreamHandle.receive_events()."""
+    """Tests for StreamHandle.receive_events()."""
 
     async def test_receive_events_converts_proto_to_transcript_segment(
         self,
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """receive_events deve converter TranscriptEvent proto em TranscriptSegment."""
+        """receive_events should convert TranscriptEvent proto to TranscriptSegment."""
         event = TranscriptEvent(
             session_id="sess_test_001",
             event_type="partial",
@@ -199,7 +199,7 @@ class TestStreamHandleReceiveEvents:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """receive_events com event_type 'final' gera TranscriptSegment is_final=True."""
+        """receive_events with event_type 'final' yields TranscriptSegment is_final=True."""
         event = TranscriptEvent(
             session_id="sess_test_001",
             event_type="final",
@@ -235,7 +235,7 @@ class TestStreamHandleReceiveEvents:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """receive_events deve iterar sobre multiplos eventos."""
+        """receive_events should iterate over multiple events."""
         events = [
             TranscriptEvent(event_type="partial", text="ola", segment_id=0),
             TranscriptEvent(event_type="partial", text="ola como", segment_id=0),
@@ -257,9 +257,9 @@ class TestStreamHandleReceiveEvents:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """Erro gRPC durante iteracao deve levantar WorkerCrashError."""
+        """gRPC error during iteration should raise WorkerCrashError."""
 
-        # Simula async generator que levanta erro antes de yield
+        # Simulate async generator that raises error before yield
         async def _error_iter() -> AsyncIterator[TranscriptEvent]:
             raise grpc.aio.AioRpcError(
                 code=grpc.StatusCode.UNAVAILABLE,
@@ -283,9 +283,9 @@ class TestStreamHandleReceiveEvents:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """DEADLINE_EXCEEDED durante iteracao deve levantar WorkerTimeoutError."""
+        """DEADLINE_EXCEEDED during iteration should raise WorkerTimeoutError."""
 
-        # Simula async generator que levanta DEADLINE_EXCEEDED antes de yield
+        # Simulate async generator that raises DEADLINE_EXCEEDED before yield
         async def _timeout_iter() -> AsyncIterator[TranscriptEvent]:
             raise grpc.aio.AioRpcError(
                 code=grpc.StatusCode.DEADLINE_EXCEEDED,
@@ -309,7 +309,7 @@ class TestStreamHandleReceiveEvents:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """Stream vazio deve completar sem eventos."""
+        """Empty stream should complete without events."""
         _make_async_iterable_call(mock_call, [])
 
         segments: list[TranscriptSegment] = []
@@ -325,19 +325,19 @@ class TestStreamHandleReceiveEvents:
 
 
 class TestStreamHandleClose:
-    """Testes de StreamHandle.close()."""
+    """Tests for StreamHandle.close()."""
 
     async def test_close_sends_is_last_and_done_writing(
         self,
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """close() deve enviar frame com is_last=True e chamar done_writing."""
+        """close() should send frame with is_last=True and call done_writing."""
         await stream_handle.close()
 
         assert stream_handle.is_closed is True
 
-        # Verificar que write foi chamado com is_last=True
+        # Verify that write was called with is_last=True
         mock_call.write.assert_called_once()
         frame: AudioFrame = mock_call.write.call_args[0][0]
         assert frame.is_last is True
@@ -351,12 +351,12 @@ class TestStreamHandleClose:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """close() em stream ja fechado deve ser no-op."""
+        """close() on an already closed stream should be a no-op."""
         await stream_handle.close()
         mock_call.write.reset_mock()
         mock_call.done_writing.reset_mock()
 
-        # Segunda chamada nao deve fazer nada
+        # Second call should do nothing
         await stream_handle.close()
 
         mock_call.write.assert_not_called()
@@ -367,7 +367,7 @@ class TestStreamHandleClose:
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """close() deve tratar erro gRPC sem propagar excecao."""
+        """close() should handle gRPC error without propagating exception."""
         mock_call.write.side_effect = grpc.aio.AioRpcError(
             code=grpc.StatusCode.CANCELLED,
             initial_metadata=grpc.aio.Metadata(),
@@ -376,7 +376,7 @@ class TestStreamHandleClose:
             debug_error_string=None,
         )
 
-        # Nao deve levantar excecao
+        # Should not raise an exception
         await stream_handle.close()
 
         assert stream_handle.is_closed is True
@@ -388,14 +388,14 @@ class TestStreamHandleClose:
 
 
 class TestStreamHandleCancel:
-    """Testes de StreamHandle.cancel()."""
+    """Tests for StreamHandle.cancel()."""
 
     async def test_cancel_calls_cancel_and_marks_closed(
         self,
         stream_handle: StreamHandle,
         mock_call: AsyncMock,
     ) -> None:
-        """cancel() deve chamar call.cancel() e marcar closed."""
+        """cancel() should call call.cancel() and mark closed."""
         await stream_handle.cancel()
 
         mock_call.cancel.assert_called_once()
@@ -408,20 +408,20 @@ class TestStreamHandleCancel:
 
 
 class TestStreamHandleProperties:
-    """Testes de propriedades do StreamHandle."""
+    """Tests for StreamHandle properties."""
 
     async def test_session_id_returns_correct_value(
         self,
         stream_handle: StreamHandle,
     ) -> None:
-        """session_id deve retornar o ID da sessao."""
+        """session_id should return the session ID."""
         assert stream_handle.session_id == "sess_test_001"
 
     async def test_is_closed_initially_false(
         self,
         stream_handle: StreamHandle,
     ) -> None:
-        """is_closed deve ser False inicialmente."""
+        """is_closed should be False initially."""
         assert stream_handle.is_closed is False
 
 
@@ -431,17 +431,17 @@ class TestStreamHandleProperties:
 
 
 class TestStreamingGRPCClient:
-    """Testes de StreamingGRPCClient."""
+    """Tests for StreamingGRPCClient."""
 
     async def test_open_stream_without_connect_raises_worker_crash(self) -> None:
-        """open_stream sem connect() deve levantar WorkerCrashError."""
+        """open_stream without connect() should raise WorkerCrashError."""
         client = StreamingGRPCClient("localhost:50051")
 
         with pytest.raises(WorkerCrashError):
             await client.open_stream("sess_test_001")
 
     async def test_connect_creates_channel_and_stub(self) -> None:
-        """connect() deve criar canal gRPC e stub."""
+        """connect() should create gRPC channel and stub."""
         client = StreamingGRPCClient("localhost:50051")
 
         with patch("macaw.scheduler.streaming.grpc.aio.insecure_channel") as mock_channel_fn:
@@ -459,14 +459,14 @@ class TestStreamingGRPCClient:
         client._stub = None
 
     async def test_open_stream_returns_stream_handle(self) -> None:
-        """open_stream apos connect deve retornar StreamHandle."""
+        """open_stream after connect should return StreamHandle."""
         client = StreamingGRPCClient("localhost:50051")
 
         mock_call = AsyncMock()
         mock_stub = MagicMock()
         mock_stub.TranscribeStream.return_value = mock_call
 
-        # Injetar stub diretamente
+        # Inject stub directly
         client._stub = mock_stub
         client._channel = MagicMock()
 
@@ -481,7 +481,7 @@ class TestStreamingGRPCClient:
         client._stub = None
 
     async def test_close_closes_channel(self) -> None:
-        """close() deve fechar o canal gRPC e limpar referencias."""
+        """close() should close the gRPC channel and clear references."""
         client = StreamingGRPCClient("localhost:50051")
 
         mock_channel = AsyncMock()
@@ -495,21 +495,21 @@ class TestStreamingGRPCClient:
         assert client._stub is None
 
     async def test_close_idempotent_when_not_connected(self) -> None:
-        """close() sem conexao deve ser no-op sem erro."""
+        """close() without connection should be a no-op without error."""
         client = StreamingGRPCClient("localhost:50051")
-        await client.close()  # Nao deve levantar excecao
+        await client.close()  # Should not raise an exception
 
 
 # ---------------------------------------------------------------------------
-# _proto_event_to_transcript_segment (funcao pura)
+# _proto_event_to_transcript_segment (pure function)
 # ---------------------------------------------------------------------------
 
 
 class TestProtoEventToTranscriptSegment:
-    """Testes da funcao de conversao proto -> dominio."""
+    """Tests for proto -> domain conversion function."""
 
     def test_converts_final_event(self) -> None:
-        """Evento 'final' deve gerar TranscriptSegment com is_final=True."""
+        """'final' event should produce TranscriptSegment with is_final=True."""
         event = TranscriptEvent(
             session_id="sess_001",
             event_type="final",
@@ -533,7 +533,7 @@ class TestProtoEventToTranscriptSegment:
         assert result.words is None
 
     def test_converts_partial_event(self) -> None:
-        """Evento 'partial' deve gerar TranscriptSegment com is_final=False."""
+        """'partial' event should produce TranscriptSegment with is_final=False."""
         event = TranscriptEvent(
             session_id="sess_001",
             event_type="partial",
@@ -552,7 +552,7 @@ class TestProtoEventToTranscriptSegment:
         assert result.confidence is None  # Proto default 0.0 -> None
 
     def test_converts_event_with_words(self) -> None:
-        """Evento com words deve converter para tuple de WordTimestamp."""
+        """Event with words should convert to tuple of WordTimestamp."""
         event = TranscriptEvent(
             session_id="sess_001",
             event_type="final",
@@ -582,7 +582,7 @@ class TestProtoEventToTranscriptSegment:
         assert result.words[1].probability == pytest.approx(0.85)
 
     def test_word_probability_zero_becomes_none(self) -> None:
-        """Probabilidade 0.0 do proto (default) deve virar None no dominio."""
+        """Probability 0.0 from proto (default) should become None in domain."""
         event = TranscriptEvent(
             session_id="sess_001",
             event_type="final",
@@ -599,7 +599,7 @@ class TestProtoEventToTranscriptSegment:
         assert result.words[0].probability is None
 
     def test_confidence_zero_becomes_none(self) -> None:
-        """Confidence 0.0 do proto (default) deve virar None no dominio."""
+        """Confidence 0.0 from proto (default) should become None in domain."""
         event = TranscriptEvent(
             session_id="sess_001",
             event_type="final",
@@ -613,7 +613,7 @@ class TestProtoEventToTranscriptSegment:
         assert result.confidence is None
 
     def test_empty_language_becomes_none(self) -> None:
-        """Language vazia do proto (default) deve virar None no dominio."""
+        """Empty language from proto (default) should become None in domain."""
         event = TranscriptEvent(
             session_id="sess_001",
             event_type="partial",
@@ -627,7 +627,7 @@ class TestProtoEventToTranscriptSegment:
         assert result.language is None
 
     def test_result_is_immutable(self) -> None:
-        """TranscriptSegment retornado deve ser frozen (imutavel)."""
+        """Returned TranscriptSegment should be frozen (immutable)."""
         event = TranscriptEvent(
             event_type="final",
             text="teste",

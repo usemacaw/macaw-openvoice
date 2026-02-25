@@ -16,16 +16,23 @@ Hierarchy:
     +-- AudioError
     |   +-- AudioFormatError
     |   +-- AudioTooLargeError
+    |   +-- AudioDownloadError
     +-- SessionError
     |   +-- SessionNotFoundError
     |   +-- SessionClosedError
     |   +-- InvalidTransitionError
     |   +-- BufferOverrunError
     +-- VoiceNotFoundError
+    +-- TranscriptNotFoundError
+    +-- PronunciationDictionaryNotFoundError
     +-- TTSError
     |   +-- TTSSynthesisError (client input errors -> INVALID_ARGUMENT)
     |   +-- TTSEngineError   (server engine errors -> INTERNAL)
+    +-- CodecError
+    |   +-- CodecUnavailableError
+    +-- VenvProvisionError
     +-- InvalidRequestError
+    +-- ServiceUnavailableError
 """
 
 from __future__ import annotations
@@ -161,6 +168,19 @@ class AudioTooLargeError(AudioError):
         super().__init__(f"Audio file ({size_mb:.1f}MB) exceeds the {max_mb:.1f}MB limit")
 
 
+class AudioDownloadError(AudioError):
+    """Failed to download audio from a remote URL.
+
+    Raised when ``cloud_storage_url`` download fails due to network errors,
+    timeouts, HTTP errors, or size limit violations.
+    Maps to HTTP 502 (Bad Gateway) in error handlers.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Audio download failed: {detail}")
+
+
 # --- Session ---
 
 
@@ -219,6 +239,30 @@ class VoiceNotFoundError(MacawError):
         super().__init__(f"Saved voice '{voice_id}' not found")
 
 
+class TranscriptNotFoundError(MacawError):
+    """Stored transcript not found in TranscriptStore."""
+
+    def __init__(self, transcription_id: str) -> None:
+        self.transcription_id = transcription_id
+        super().__init__(f"Transcript '{transcription_id}' not found")
+
+
+class PronunciationDictionaryNotFoundError(MacawError):
+    """Pronunciation dictionary not found in PronunciationStore."""
+
+    def __init__(self, dictionary_id: str) -> None:
+        self.dictionary_id = dictionary_id
+        super().__init__(f"Pronunciation dictionary '{dictionary_id}' not found")
+
+
+class DubbingNotFoundError(MacawError):
+    """Dubbing job not found."""
+
+    def __init__(self, dubbing_id: str) -> None:
+        self.dubbing_id = dubbing_id
+        super().__init__(f"Dubbing job '{dubbing_id}' not found")
+
+
 class TTSError(MacawError):
     """Speech synthesis (TTS) error."""
 
@@ -246,3 +290,55 @@ class TTSEngineError(TTSError):
         self.model_name = model_name
         self.reason = reason
         super().__init__(f"TTS engine error for model '{model_name}': {reason}")
+
+
+# --- Service Availability ---
+
+
+class ServiceUnavailableError(MacawError):
+    """A runtime capability is unavailable (missing optional dependency).
+
+    Raised when an endpoint requires a feature that depends on an
+    optional library that is not installed.  Maps to HTTP 503
+    (Service Unavailable) in error handlers.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
+# --- Codec ---
+
+
+class CodecError(MacawError):
+    """Audio codec error."""
+
+
+class CodecUnavailableError(CodecError):
+    """Requested codec is not available (missing library or unknown codec).
+
+    Raised during codec initialization when the required library is not
+    installed, or when an unrecognized codec name is requested.
+    """
+
+    def __init__(self, codec_name: str, reason: str) -> None:
+        self.codec_name = codec_name
+        self.reason = reason
+        super().__init__(f"Codec '{codec_name}' unavailable: {reason}")
+
+
+# --- Venv Provisioning ---
+
+
+class VenvProvisionError(MacawError):
+    """Backend venv provisioning failed.
+
+    Raised when creating or installing into an engine's isolated venv fails
+    (e.g. ``uv`` not found, dependency install failure, disk error).
+    """
+
+    def __init__(self, engine: str, reason: str) -> None:
+        self.engine = engine
+        self.reason = reason
+        super().__init__(f"Venv provisioning failed for engine '{engine}': {reason}")

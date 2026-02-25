@@ -1,13 +1,13 @@
-"""Testes do BackpressureController.
+"""Tests for BackpressureController.
 
-Valida que o controlador de backpressure detecta corretamente:
-- Envio de audio em velocidade normal (1x) -> sem eventos
-- Envio mais rapido que real-time -> RateLimitAction
-- Backlog excessivo -> FramesDroppedAction
-- Contadores de frames recebidos e dropados
-- Retorno ao normal apos desaceleracao
+Validates that the backpressure controller correctly detects:
+- Audio sent at normal speed (1x) -> no events
+- Sending faster than real-time -> RateLimitAction
+- Excessive backlog -> FramesDroppedAction
+- Counters for received and dropped frames
+- Return to normal after slowdown
 
-Todos os testes usam clock injetavel para determinismo.
+All tests use injectable clock for determinism.
 """
 
 from __future__ import annotations
@@ -25,9 +25,9 @@ _BYTES_PER_20MS = _BYTES_PER_SECOND // 50  # 640 bytes = 20ms frame
 
 
 class _FakeClock:
-    """Relogio fake para testes deterministicos.
+    """Fake clock for deterministic tests.
 
-    Permite avanco manual do tempo sem depender de time.monotonic().
+    Allows manual time advancement without depending on time.monotonic().
     """
 
     def __init__(self, start: float = 0.0) -> None:
@@ -37,15 +37,15 @@ class _FakeClock:
         return self._now
 
     def advance(self, seconds: float) -> None:
-        """Avanca o relogio em `seconds` segundos."""
+        """Advance the clock by `seconds` seconds."""
         self._now += seconds
 
 
 class TestBackpressureControllerNormalSpeed:
-    """Testes com audio em velocidade normal (1x real-time)."""
+    """Tests with audio at normal speed (1x real-time)."""
 
     def test_first_frame_never_triggers(self) -> None:
-        """Primeiro frame nunca deve emitir acao (sem historico)."""
+        """First frame should never emit an action (no history)."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -59,14 +59,14 @@ class TestBackpressureControllerNormalSpeed:
         assert ctrl.frames_dropped == 0
 
     def test_normal_speed_no_events(self) -> None:
-        """Audio em velocidade 1x real-time nao deve emitir eventos."""
+        """Audio at 1x real-time speed should not emit events."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
             clock=clock,
         )
 
-        # Enviar 100 frames de 20ms a velocidade real-time
+        # Send 100 frames of 20ms at real-time speed
         for _ in range(100):
             result = ctrl.record_frame(_BYTES_PER_20MS)
             assert result is None
@@ -76,7 +76,7 @@ class TestBackpressureControllerNormalSpeed:
         assert ctrl.frames_dropped == 0
 
     def test_slightly_fast_below_threshold_no_events(self) -> None:
-        """Audio a 1.1x (abaixo do threshold 1.2x) nao deve emitir eventos."""
+        """Audio at 1.1x (below threshold 1.2x) should not emit events."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -84,7 +84,7 @@ class TestBackpressureControllerNormalSpeed:
             clock=clock,
         )
 
-        # Enviar frames de 20ms de audio com 18.18ms de wall-clock (~1.1x)
+        # Send 20ms audio frames with 18.18ms wall-clock (~1.1x)
         for _ in range(100):
             result = ctrl.record_frame(_BYTES_PER_20MS)
             assert result is None
@@ -94,10 +94,10 @@ class TestBackpressureControllerNormalSpeed:
 
 
 class TestBackpressureControllerRateLimit:
-    """Testes de deteccao de taxa acima do threshold."""
+    """Tests for rate detection above threshold."""
 
     def test_fast_sending_triggers_rate_limit(self) -> None:
-        """Audio a 2x real-time deve emitir RateLimitAction."""
+        """Audio at 2x real-time should emit RateLimitAction."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -106,9 +106,9 @@ class TestBackpressureControllerRateLimit:
             clock=clock,
         )
 
-        # Enviar frames de 20ms de audio com 10ms de wall-clock (2x real-time)
-        # Precisamos de wall_elapsed >= 0.5s para a checagem de taxa iniciar,
-        # portanto enviamos 100 frames (99 * 10ms = 0.99s de wall-clock)
+        # Send 20ms audio frames with 10ms wall-clock (2x real-time)
+        # Need wall_elapsed >= 0.5s for rate check to start,
+        # so we send 100 frames (99 * 10ms = 0.99s wall-clock)
         actions: list[RateLimitAction] = []
         for _ in range(100):
             result = ctrl.record_frame(_BYTES_PER_20MS)
@@ -116,12 +116,12 @@ class TestBackpressureControllerRateLimit:
                 actions.append(result)
             clock.advance(0.010)  # 10ms wall-clock = 2x real-time
 
-        assert len(actions) >= 1, "Deveria emitir pelo menos 1 RateLimitAction"
+        assert len(actions) >= 1, "Should emit at least 1 RateLimitAction"
         assert all(isinstance(a, RateLimitAction) for a in actions)
         assert all(a.delay_ms >= 1 for a in actions)
 
     def test_rate_limit_has_positive_delay(self) -> None:
-        """RateLimitAction deve ter delay_ms positivo."""
+        """RateLimitAction should have positive delay_ms."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -129,8 +129,8 @@ class TestBackpressureControllerRateLimit:
             clock=clock,
         )
 
-        # Enviar rapido o suficiente para disparar
-        # wall_elapsed >= 0.5s necessario: 200 frames * 5ms = 1.0s
+        # Send fast enough to trigger
+        # wall_elapsed >= 0.5s needed: 200 frames * 5ms = 1.0s
         actions: list[RateLimitAction] = []
         for _ in range(200):
             result = ctrl.record_frame(_BYTES_PER_20MS)
@@ -143,7 +143,7 @@ class TestBackpressureControllerRateLimit:
             assert action.delay_ms >= 1
 
     def test_rate_returns_to_normal_after_slowdown(self) -> None:
-        """Apos desacelerar para 1x, nao deve mais emitir rate_limit."""
+        """After slowing down to 1x, should no longer emit rate_limit."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -152,15 +152,15 @@ class TestBackpressureControllerRateLimit:
             clock=clock,
         )
 
-        # Fase 1: enviar rapido (2x) por 2 segundos
+        # Phase 1: send fast (2x) for 2 seconds
         for _ in range(100):
             ctrl.record_frame(_BYTES_PER_20MS)
             clock.advance(0.010)  # 2x
 
-        # Fase 2: avanca o relogio para que a sliding window "esqueca" o burst
+        # Phase 2: advance clock so the sliding window "forgets" the burst
         clock.advance(6.0)
 
-        # Fase 3: enviar a velocidade normal (1x) por 3 segundos
+        # Phase 3: send at normal speed (1x) for 3 seconds
         actions_normal: list[RateLimitAction] = []
         for _ in range(150):
             result = ctrl.record_frame(_BYTES_PER_20MS)
@@ -168,14 +168,14 @@ class TestBackpressureControllerRateLimit:
                 actions_normal.append(result)
             clock.advance(0.020)  # 1x real-time
 
-        assert len(actions_normal) == 0, "Nao deveria emitir rate_limit apos desacelerar para 1x"
+        assert len(actions_normal) == 0, "Should not emit rate_limit after slowing down to 1x"
 
 
 class TestBackpressureControllerFramesDrop:
-    """Testes de drop de frames por excesso de backlog."""
+    """Tests for frame drop due to excessive backlog."""
 
     def test_backlog_exceeds_max_triggers_drop(self) -> None:
-        """Backlog > max_backlog_s deve dropar frames."""
+        """Backlog > max_backlog_s should drop frames."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -184,24 +184,24 @@ class TestBackpressureControllerFramesDrop:
             clock=clock,
         )
 
-        # Enviar muitos frames instantaneamente (wall-clock nao avanca)
-        # Cada frame = 20ms de audio. 1s de backlog = 50 frames sem wall-clock.
-        # Apos 50 frames (1s de audio) sem avancar relogio, backlog = 1s
-        # O primeiro frame nao conta (inicializa), entao 52 frames = ~1.02s
+        # Send many frames instantaneously (wall-clock does not advance)
+        # Each frame = 20ms of audio. 1s backlog = 50 frames without wall-clock.
+        # After 50 frames (1s of audio) without advancing clock, backlog = 1s
+        # First frame does not count (initializes), so 52 frames = ~1.02s
         drop_action = None
         for _ in range(100):
             result = ctrl.record_frame(_BYTES_PER_20MS)
             if isinstance(result, FramesDroppedAction):
                 drop_action = result
                 break
-            # Nao avanca o relogio! Simula burst instantaneo
+            # Do not advance clock! Simulates instantaneous burst
 
-        assert drop_action is not None, "Deveria emitir FramesDroppedAction"
+        assert drop_action is not None, "Should emit FramesDroppedAction"
         assert isinstance(drop_action, FramesDroppedAction)
         assert drop_action.dropped_ms > 0
 
     def test_dropped_frames_counter_incremented(self) -> None:
-        """Contador de frames dropados deve ser incrementado corretamente."""
+        """Dropped frames counter should be incremented correctly."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -209,7 +209,7 @@ class TestBackpressureControllerFramesDrop:
             clock=clock,
         )
 
-        # Enviar muitos frames sem avancar relogio
+        # Send many frames without advancing clock
         total_drops = 0
         for _ in range(200):
             result = ctrl.record_frame(_BYTES_PER_20MS)
@@ -221,7 +221,7 @@ class TestBackpressureControllerFramesDrop:
         assert ctrl.frames_received == 200
 
     def test_dropped_ms_reflects_frame_duration(self) -> None:
-        """dropped_ms deve refletir a duracao do frame dropado."""
+        """dropped_ms should reflect the duration of the dropped frame."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -229,7 +229,7 @@ class TestBackpressureControllerFramesDrop:
             clock=clock,
         )
 
-        # Preencher backlog ate estourar
+        # Fill backlog until overflow
         drop_action = None
         for _ in range(200):
             result = ctrl.record_frame(_BYTES_PER_20MS)
@@ -242,7 +242,7 @@ class TestBackpressureControllerFramesDrop:
         assert drop_action.dropped_ms == 20
 
     def test_backlog_within_limit_no_drop(self) -> None:
-        """Backlog dentro do limite nao deve dropar frames."""
+        """Backlog within limit should not drop frames."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -250,7 +250,7 @@ class TestBackpressureControllerFramesDrop:
             clock=clock,
         )
 
-        # Enviar 5 segundos de audio instantaneamente (5s < 10s backlog)
+        # Send 5 seconds of audio instantaneously (5s < 10s backlog)
         for _ in range(250):  # 250 * 20ms = 5s
             result = ctrl.record_frame(_BYTES_PER_20MS)
             assert not isinstance(result, FramesDroppedAction)
@@ -259,10 +259,10 @@ class TestBackpressureControllerFramesDrop:
 
 
 class TestBackpressureControllerEdgeCases:
-    """Testes de edge cases e cenarios limites."""
+    """Tests for edge cases and boundary scenarios."""
 
     def test_single_frame_no_action(self) -> None:
-        """Um unico frame nao deve emitir nenhuma acao."""
+        """A single frame should not emit any action."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -274,7 +274,7 @@ class TestBackpressureControllerEdgeCases:
         assert result is None
 
     def test_two_frames_same_time_no_crash(self) -> None:
-        """Dois frames no mesmo instante nao deve crashar (divisao por zero)."""
+        """Two frames at the same instant should not crash (division by zero)."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -285,18 +285,18 @@ class TestBackpressureControllerEdgeCases:
         ctrl.record_frame(_BYTES_PER_20MS)
         result = ctrl.record_frame(_BYTES_PER_20MS)
 
-        # Nao deve crashar; resultado depende do backlog
+        # Should not crash; result depends on backlog
         assert result is None or isinstance(result, RateLimitAction | FramesDroppedAction)
 
     def test_counters_start_at_zero(self) -> None:
-        """Contadores devem comecar em zero."""
+        """Counters should start at zero."""
         ctrl = BackpressureController(sample_rate=SAMPLE_RATE)
 
         assert ctrl.frames_received == 0
         assert ctrl.frames_dropped == 0
 
     def test_large_frame_counted_correctly(self) -> None:
-        """Frames grandes devem ter duracao calculada corretamente."""
+        """Large frames should have duration calculated correctly."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -312,11 +312,11 @@ class TestBackpressureControllerEdgeCases:
         # Segundo frame de 1s: backlog sera ~2s em 0.001s de wall
         ctrl.record_frame(one_sec_frame)
 
-        # Verificar que nao crashou e contadores estao corretos
+        # Verify it did not crash and counters are correct
         assert ctrl.frames_received == 2
 
     def test_rate_limit_cooldown_prevents_spam(self) -> None:
-        """Rate limit deve respeitar cooldown de 1s entre emissoes."""
+        """Rate limit should respect 1s cooldown between emissions."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -337,7 +337,7 @@ class TestBackpressureControllerEdgeCases:
         assert rate_limits <= 1
 
     def test_frames_dropped_priority_over_rate_limit(self) -> None:
-        """FramesDroppedAction deve ter prioridade sobre RateLimitAction."""
+        """FramesDroppedAction should have priority over RateLimitAction."""
         clock = _FakeClock()
         ctrl = BackpressureController(
             sample_rate=SAMPLE_RATE,
@@ -346,14 +346,14 @@ class TestBackpressureControllerEdgeCases:
             clock=clock,
         )
 
-        # Encher backlog rapidamente
+        # Fill backlog quickly
         last_action = None
         for _ in range(100):
             result = ctrl.record_frame(_BYTES_PER_20MS)
             if result is not None:
                 last_action = result
-            # Nao avanca relogio
+            # Do not advance clock
 
-        # O ultimo resultado apos estourar backlog deve ser FramesDroppedAction
-        # (backlog e verificado antes de rate_limit no codigo)
+        # The last result after backlog overflow should be FramesDroppedAction
+        # (backlog is checked before rate_limit in the code)
         assert isinstance(last_action, FramesDroppedAction)

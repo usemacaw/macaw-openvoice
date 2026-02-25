@@ -1,4 +1,4 @@
-"""Ponto de entrada para executar o backend do demo."""
+"""Entry point to run the demo backend."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Testes de integracao dos pipelines de preprocessing e post-processing no fluxo HTTP."""
+"""Integration tests for preprocessing and post-processing pipelines in the HTTP flow."""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ def _make_mock_scheduler(text: str = "Ola mundo") -> MagicMock:
 
 
 class _UpperCaseStage(TextStage):
-    """Stage de teste que converte texto para uppercase."""
+    """Test stage that converts text to uppercase."""
 
     @property
     def name(self) -> str:
@@ -51,7 +51,7 @@ class _UpperCaseStage(TextStage):
 
 
 class _SuffixStage(TextStage):
-    """Stage de teste que adiciona sufixo ao texto."""
+    """Test stage that appends a suffix to text."""
 
     @property
     def name(self) -> str:
@@ -64,11 +64,11 @@ class _SuffixStage(TextStage):
         return text + self._suffix
 
 
-# --- Testes de backwards compatibility ---
+# --- Backwards compatibility tests ---
 
 
 async def test_no_pipelines_backwards_compatible() -> None:
-    """App criada sem pipelines continua funcionando normalmente."""
+    """App created without pipelines continues working normally."""
     scheduler = _make_mock_scheduler()
     app = create_app(registry=_make_mock_registry(), scheduler=scheduler)
 
@@ -87,25 +87,25 @@ async def test_no_pipelines_backwards_compatible() -> None:
     scheduler.transcribe.assert_awaited_once()
 
 
-# --- Testes de preprocessing ---
+# --- Preprocessing tests ---
 
 
 async def test_preprocessing_applied_to_audio() -> None:
-    """Preprocessing transforma audio antes de enviar ao scheduler."""
+    """Preprocessing transforms audio before sending to scheduler."""
     scheduler = _make_mock_scheduler()
     audio_bytes = AUDIO_FIXTURE.read_bytes()
 
     config = PreprocessingConfig(target_sample_rate=16000)
     pipeline = AudioPreprocessingPipeline(config, stages=[])
 
-    # Criar mock stage que marca o audio como processado
+    # Create mock stage that marks audio as processed
     mock_stage = MagicMock(spec=AudioStage)
     mock_stage.name = "test_marker"
 
     import numpy as np
 
     def mark_process(audio: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int]:
-        # Retorna audio com todos os valores zerados (marker para verificacao)
+        # Returns audio with all values zeroed (marker for verification)
         return np.zeros_like(audio), sample_rate
 
     mock_stage.process.side_effect = mark_process
@@ -129,16 +129,16 @@ async def test_preprocessing_applied_to_audio() -> None:
 
     assert response.status_code == 200
 
-    # Verificar que o stage foi chamado
+    # Verify the stage was called
     mock_stage.process.assert_called_once()
 
-    # Verificar que o scheduler recebeu audio diferente do original
+    # Verify the scheduler received audio different from the original
     call_args = scheduler.transcribe.call_args[0][0]
     assert call_args.audio_data != audio_bytes
 
 
 async def test_preprocessing_only_without_postprocessing() -> None:
-    """Apenas preprocessing configurado, sem post-processing."""
+    """Only preprocessing configured, without post-processing."""
     scheduler = _make_mock_scheduler(text="texto original")
     audio_bytes = AUDIO_FIXTURE.read_bytes()
 
@@ -162,15 +162,15 @@ async def test_preprocessing_only_without_postprocessing() -> None:
         )
 
     assert response.status_code == 200
-    # Texto nao deve ser modificado (sem post-processing)
+    # Text should not be modified (no post-processing)
     assert response.json() == {"text": "texto original"}
 
 
-# --- Testes de post-processing ---
+# --- Post-processing tests ---
 
 
 async def test_postprocessing_applied_to_result() -> None:
-    """Post-processing transforma texto do resultado antes de retornar."""
+    """Post-processing transforms result text before returning."""
     scheduler = _make_mock_scheduler(text="dois mil e vinte e cinco")
 
     config = PostProcessingConfig()
@@ -197,7 +197,7 @@ async def test_postprocessing_applied_to_result() -> None:
 
 
 async def test_postprocessing_transforms_segments_in_verbose_json() -> None:
-    """Post-processing transforma texto de segmentos em verbose_json."""
+    """Post-processing transforms segment text in verbose_json."""
     scheduler = _make_mock_scheduler(text="hello world")
 
     config = PostProcessingConfig()
@@ -226,7 +226,7 @@ async def test_postprocessing_transforms_segments_in_verbose_json() -> None:
 
 
 async def test_postprocessing_only_without_preprocessing() -> None:
-    """Apenas post-processing configurado, sem preprocessing."""
+    """Only post-processing configured, without preprocessing."""
     scheduler = _make_mock_scheduler(text="texto cru")
 
     config = PostProcessingConfig()
@@ -252,11 +252,11 @@ async def test_postprocessing_only_without_preprocessing() -> None:
     assert response.json() == {"text": "texto cru [processado]"}
 
 
-# --- Testes com ambos os pipelines ---
+# --- Tests with both pipelines ---
 
 
 async def test_both_pipelines_applied() -> None:
-    """Ambos os pipelines aplicados na mesma request."""
+    """Both pipelines applied in the same request."""
     scheduler = _make_mock_scheduler(text="resultado do stt")
     audio_bytes = AUDIO_FIXTURE.read_bytes()
 
@@ -288,11 +288,11 @@ async def test_both_pipelines_applied() -> None:
     scheduler.transcribe.assert_awaited_once()
 
 
-# --- Testes de translations com pipelines ---
+# --- Translation tests with pipelines ---
 
 
 async def test_postprocessing_applied_to_translation() -> None:
-    """Post-processing funciona na rota de traducao."""
+    """Post-processing works on the translation route."""
     scheduler = _make_mock_scheduler(text="hello world")
 
     config = PostProcessingConfig()
@@ -318,11 +318,11 @@ async def test_postprocessing_applied_to_translation() -> None:
     assert response.json() == {"text": "HELLO WORLD"}
 
 
-# --- Testes de pipeline com multiplos stages ---
+# --- Pipeline tests with multiple stages ---
 
 
 async def test_postprocessing_multiple_stages_applied_in_order() -> None:
-    """Multiplos stages de post-processing aplicados em sequencia."""
+    """Multiple post-processing stages applied in sequence."""
     scheduler = _make_mock_scheduler(text="hello")
 
     config = PostProcessingConfig()

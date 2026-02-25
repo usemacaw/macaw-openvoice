@@ -57,6 +57,10 @@ class ServerSettings(BaseSettings):
         default="",
         validation_alias="MACAW_CORS_ORIGINS",
     )
+    voice_dir: str | None = Field(
+        default=None,
+        validation_alias="MACAW_VOICE_DIR",
+    )
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -433,6 +437,127 @@ class CodecSettings(BaseSettings):
     )
 
 
+class EffectsSettings(BaseSettings):
+    """Post-synthesis audio effects settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    pitch_shift_max_semitones: float = Field(
+        default=12.0,
+        ge=1.0,
+        le=24.0,
+        validation_alias="MACAW_EFFECTS_PITCH_SHIFT_MAX_SEMITONES",
+    )
+
+
+class TranscriptStoreSettings(BaseSettings):
+    """Transcript storage settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(default=False, validation_alias="MACAW_TRANSCRIPT_STORE_ENABLED")
+    store_path: str = Field(
+        default="data/transcripts", validation_alias="MACAW_TRANSCRIPT_STORE_PATH"
+    )
+    ttl_seconds: int | None = Field(
+        default=None, ge=1, validation_alias="MACAW_TRANSCRIPT_STORE_TTL_SECONDS"
+    )
+
+
+class PronunciationSettings(BaseSettings):
+    """Pronunciation dictionary store settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    store_path: str = Field(
+        default="data/pronunciation",
+        validation_alias="MACAW_PRONUNCIATION_STORE_PATH",
+    )
+
+
+class STTDownloadSettings(BaseSettings):
+    """STT audio download settings for cloud_storage_url.
+
+    Controls size limits and timeout for downloading audio from remote URLs.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_size_bytes: int = Field(
+        default=2 * 1024 * 1024 * 1024,  # 2 GB
+        ge=1024,
+        validation_alias="MACAW_STT_MAX_DOWNLOAD_SIZE_BYTES",
+    )
+    timeout_s: float = Field(
+        default=120.0,
+        gt=0,
+        le=600,
+        validation_alias="MACAW_STT_DOWNLOAD_TIMEOUT_S",
+    )
+
+
+class WebhookSettings(BaseSettings):
+    """Webhook delivery settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_retries: int = Field(default=3, ge=0, le=10, validation_alias="MACAW_WEBHOOK_MAX_RETRIES")
+    retry_delay_s: float = Field(default=1.0, gt=0, validation_alias="MACAW_WEBHOOK_RETRY_DELAY_S")
+    allowed_schemes: str = Field(default="https", validation_alias="MACAW_WEBHOOK_ALLOWED_SCHEMES")
+
+
+class MultiContextSettings(BaseSettings):
+    """Multi-context WebSocket TTS settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_contexts: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        validation_alias="MACAW_MULTI_CONTEXT_MAX_CONTEXTS",
+    )
+    inactivity_timeout_s: float = Field(
+        default=20.0,
+        gt=0,
+        le=300,
+        validation_alias="MACAW_MULTI_CONTEXT_INACTIVITY_TIMEOUT_S",
+    )
+    max_concurrent_tts: int = Field(
+        default=4,
+        ge=1,
+        le=20,
+        validation_alias="MACAW_MULTI_CONTEXT_MAX_CONCURRENT_TTS",
+    )
+
+
+class BackendSettings(BaseSettings):
+    """Backend venv isolation and remote worker settings.
+
+    Controls per-engine venv provisioning for dependency isolation
+    and remote worker endpoint configuration for horizontal scaling.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    venv_dir: str = Field(default="~/.cache/macaw/venvs", validation_alias="MACAW_VENV_DIR")
+    auto_provision: bool = Field(default=True, validation_alias="MACAW_BACKEND_AUTO_PROVISION")
+    uv_path: str = Field(default="uv", validation_alias="MACAW_UV_PATH")
+    remote_workers: dict[str, str] = Field(
+        default_factory=dict,
+        validation_alias="MACAW_REMOTE_WORKERS",
+        description=(
+            "Engine-to-endpoint map for remote gRPC workers. "
+            'JSON: {"faster-whisper":"stt-worker:50051"}'
+        ),
+    )
+
+    @property
+    def venv_base_path(self) -> Path:
+        """Expanded venv base directory as a Path object."""
+        return Path(self.venv_dir).expanduser()
+
+
 class MacawSettings(BaseSettings):
     """Root settings — aggregates all subsystem settings.
 
@@ -457,6 +582,13 @@ class MacawSettings(BaseSettings):
     preprocessing: PreprocessingSettings = Field(default_factory=PreprocessingSettings)
     postprocessing: PostProcessingSettings = Field(default_factory=PostProcessingSettings)
     codec: CodecSettings = Field(default_factory=CodecSettings)
+    effects: EffectsSettings = Field(default_factory=EffectsSettings)
+    pronunciation: PronunciationSettings = Field(default_factory=PronunciationSettings)
+    transcript_store: TranscriptStoreSettings = Field(default_factory=TranscriptStoreSettings)
+    webhook: WebhookSettings = Field(default_factory=WebhookSettings)
+    stt_download: STTDownloadSettings = Field(default_factory=STTDownloadSettings)
+    multi_context: MultiContextSettings = Field(default_factory=MultiContextSettings)
+    backend: BackendSettings = Field(default_factory=BackendSettings)
 
 
 @lru_cache(maxsize=1)

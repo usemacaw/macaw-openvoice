@@ -65,81 +65,81 @@ log_step "Verifying prerequisites..."
 
 if [ "$SKIP_BACKEND" != "1" ]; then
     if [ ! -f "$VENV_PYTHON" ]; then
-        log_error "Venv nao encontrado em $PROJECT_ROOT/.venv/"
-        log_error "Execute: cd $PROJECT_ROOT && uv venv --python 3.12 && uv pip install -e '.[server,grpc,dev]'"
+        log_error "Venv not found at $PROJECT_ROOT/.venv/"
+        log_error "Run: cd $PROJECT_ROOT && uv venv --python 3.12 && uv pip install -e '.[server,grpc,dev]'"
         exit 1
     fi
 
-    # Verifica se o pacote Macaw esta instalado
+    # Check if the Macaw package is installed
     if ! "$VENV_PYTHON" -c "import macaw" 2>/dev/null; then
-        log_error "Pacote 'macaw' nao encontrado no venv."
-        log_error "Execute: cd $PROJECT_ROOT && .venv/bin/pip install -e '.[server,grpc]'"
+        log_error "Package 'macaw' not found in venv."
+        log_error "Run: cd $PROJECT_ROOT && .venv/bin/pip install -e '.[server,grpc]'"
         exit 1
     fi
 
     MACAW_VERSION=$("$VENV_PYTHON" -c "import macaw; print(macaw.__version__)" 2>/dev/null || echo "unknown")
     log_info "Macaw OpenVoice v${MACAW_VERSION}"
 
-    # Verifica se ha modelos instalados
+    # Check if models are installed
     MODELS_DIR="${DEMO_MODELS_DIR:-$HOME/.macaw/models}"
     if [ ! -d "$MODELS_DIR" ]; then
-        log_warn "Diretorio de modelos nao encontrado: $MODELS_DIR"
-        log_warn "Crie o diretorio e instale ao menos um modelo STT."
+        log_warn "Models directory not found: $MODELS_DIR"
+        log_warn "Create the directory and install at least one STT model."
         log_warn "  mkdir -p $MODELS_DIR"
         log_warn "  macaw pull faster-whisper-tiny"
     else
         MODEL_COUNT=$(find "$MODELS_DIR" -name "macaw.yaml" 2>/dev/null | wc -l)
         if [ "$MODEL_COUNT" -eq 0 ]; then
-            log_warn "Nenhum modelo encontrado em $MODELS_DIR"
-            log_warn "Instale ao menos um modelo STT: macaw pull faster-whisper-tiny"
+            log_warn "No models found in $MODELS_DIR"
+            log_warn "Install at least one STT model: macaw pull faster-whisper-tiny"
         else
-            log_info "Modelos encontrados: $MODEL_COUNT (em $MODELS_DIR)"
+            log_info "Models found: $MODEL_COUNT (in $MODELS_DIR)"
         fi
     fi
 fi
 
 if [ "$SKIP_FRONTEND" != "1" ]; then
     if ! command -v node &>/dev/null; then
-        log_error "Node.js nao encontrado. Instale Node.js 18+."
+        log_error "Node.js not found. Install Node.js 18+."
         exit 1
     fi
     NODE_VERSION=$(node --version)
     log_info "Node.js $NODE_VERSION"
 
     if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
-        log_step "Instalando dependencias do frontend..."
+        log_step "Installing frontend dependencies..."
         (cd "$FRONTEND_DIR" && npm install --silent)
-        log_info "Dependencias do frontend instaladas."
+        log_info "Frontend dependencies installed."
     fi
 fi
 
 # ---------------------------------------------------------------------------
-# Trap para limpar processos ao encerrar (Ctrl+C)
+# Trap to clean up processes on exit (Ctrl+C)
 # ---------------------------------------------------------------------------
 PIDS=()
 
 cleanup() {
     echo ""
-    log_step "Encerrando processos..."
+    log_step "Shutting down processes..."
     for pid in "${PIDS[@]}"; do
         if kill -0 "$pid" 2>/dev/null; then
             kill "$pid" 2>/dev/null || true
         fi
     done
-    # Espera todos terminarem
+    # Wait for all to finish
     for pid in "${PIDS[@]}"; do
         wait "$pid" 2>/dev/null || true
     done
-    log_info "Demo encerrada."
+    log_info "Demo stopped."
 }
 
 trap cleanup EXIT INT TERM
 
 # ---------------------------------------------------------------------------
-# Inicia backend
+# Start backend
 # ---------------------------------------------------------------------------
 if [ "$SKIP_BACKEND" != "1" ]; then
-    log_step "Iniciando backend em http://${DEMO_HOST}:${DEMO_PORT} ..."
+    log_step "Starting backend at http://${DEMO_HOST}:${DEMO_PORT} ..."
 
     UVICORN_ARGS=(
         "$VENV_PYTHON" -m uvicorn
@@ -157,25 +157,25 @@ if [ "$SKIP_BACKEND" != "1" ]; then
     done) &
     PIDS+=($!)
 
-    # Espera o backend ficar pronto (max 30s)
-    log_step "Aguardando backend ficar pronto..."
+    # Wait for backend to be ready (max 30s)
+    log_step "Waiting for backend to be ready..."
     for i in $(seq 1 30); do
         if curl -sf "http://${DEMO_HOST}:${DEMO_PORT}/api/health" >/dev/null 2>&1; then
-            log_info "Backend pronto!"
+            log_info "Backend ready!"
             break
         fi
         if [ "$i" -eq 30 ]; then
-            log_warn "Backend ainda nao respondeu apos 30s. Continuando..."
+            log_warn "Backend still not responding after 30s. Continuing..."
         fi
         sleep 1
     done
 fi
 
 # ---------------------------------------------------------------------------
-# Inicia frontend
+# Start frontend
 # ---------------------------------------------------------------------------
 if [ "$SKIP_FRONTEND" != "1" ]; then
-    log_step "Iniciando frontend em http://localhost:${FRONTEND_PORT} ..."
+    log_step "Starting frontend at http://localhost:${FRONTEND_PORT} ..."
 
     NEXT_PUBLIC_DEMO_API="http://${DEMO_HOST}:${DEMO_PORT}" \
         PORT="$FRONTEND_PORT" \
@@ -186,7 +186,7 @@ if [ "$SKIP_FRONTEND" != "1" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Sumario
+# Summary
 # ---------------------------------------------------------------------------
 echo ""
 echo -e "${BOLD}══════════════════════════════════════════════════${NC}"
@@ -199,10 +199,10 @@ if [ "$SKIP_FRONTEND" != "1" ]; then
     echo -e "  ${CYAN}Frontend${NC}:  http://localhost:${FRONTEND_PORT}"
 fi
 echo -e "${BOLD}══════════════════════════════════════════════════${NC}"
-echo -e "  Ctrl+C para encerrar."
+echo -e "  Ctrl+C to stop."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Mantém script rodando ate Ctrl+C
+# Keep script running until Ctrl+C
 # ---------------------------------------------------------------------------
 wait

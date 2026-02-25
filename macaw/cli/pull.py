@@ -2,37 +2,43 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 
 import click
 
 from macaw.cli.main import cli
 from macaw.cli.serve import DEFAULT_MODELS_DIR
-from macaw.engines import is_engine_available
 
 
 def _install_engine_deps(engine: str) -> bool:
-    """Install the optional extra for *engine* via pip.
+    """Provision an isolated venv for *engine*.
 
-    Returns ``True`` if installation succeeded or was unnecessary.
+    Returns ``True`` if provisioning succeeded or venv already exists.
+    Falls back to parent-process pip install if venv provisioning is disabled.
     """
-    if is_engine_available(engine):
+    from macaw.backends.venv_manager import VenvManager
+    from macaw.config.settings import get_settings
+    from macaw.exceptions import VenvProvisionError
+
+    settings = get_settings().backend
+    manager = VenvManager(settings.venv_base_path, uv_path=settings.uv_path)
+
+    if manager.exists(engine):
+        click.echo(f"Backend venv for '{engine}' already exists.")
         return True
 
-    extra = engine  # extra name matches engine name in pyproject.toml
-    click.echo(f"Installing dependencies for engine '{engine}'...")
-    result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", f"macaw-openvoice[{extra}]"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        click.echo(f"Warning: failed to install '{extra}' dependencies.", err=True)
-        click.echo(f"Install manually: pip install macaw-openvoice[{extra}]", err=True)
+    click.echo(f"Provisioning venv for engine '{engine}'...")
+    try:
+        manager.provision(engine)
+        click.echo(f"Backend venv for '{engine}' provisioned.")
+        return True
+    except VenvProvisionError as exc:
+        click.echo(f"Warning: {exc}", err=True)
+        click.echo(
+            f"Install manually: macaw backends install {engine}",
+            err=True,
+        )
         return False
-    click.echo(f"Engine '{engine}' dependencies installed.")
-    return True
 
 
 @cli.command()

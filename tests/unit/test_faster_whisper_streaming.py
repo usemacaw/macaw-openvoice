@@ -1,7 +1,7 @@
-"""Testes para FasterWhisperBackend.transcribe_stream().
+"""Tests for FasterWhisperBackend.transcribe_stream().
 
-Valida acumulacao de chunks, threshold de inference, flush no fim
-do stream e tratamento de hot words. Usa mocks para WhisperModel.
+Validates chunk accumulation, inference threshold, flush at end
+of stream, and hot words handling. Uses mocks for WhisperModel.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def _make_fw_segment(
     no_speech_prob: float = 0.01,
     compression_ratio: float = 1.1,
 ) -> SimpleNamespace:
-    """Cria segmento fake no formato faster-whisper."""
+    """Create fake segment in faster-whisper format."""
     return SimpleNamespace(
         text=f" {text}",
         start=start,
@@ -43,18 +43,18 @@ def _make_fw_segment(
 
 
 def _make_fw_info(language: str = "en", duration: float = 2.0) -> SimpleNamespace:
-    """Cria TranscriptionInfo fake."""
+    """Create fake TranscriptionInfo."""
     return SimpleNamespace(language=language, duration=duration)
 
 
 def _make_pcm16_silence(duration_seconds: float, sample_rate: int = 16000) -> bytes:
-    """Gera silencio PCM 16-bit."""
+    """Generate PCM 16-bit silence."""
     num_samples = int(duration_seconds * sample_rate)
     return np.zeros(num_samples, dtype=np.int16).tobytes()
 
 
 async def _make_chunk_iterator(chunks: list[bytes]) -> AsyncIterator[bytes]:
-    """Cria AsyncIterator de chunks para testes."""
+    """Create AsyncIterator of chunks for tests."""
     for chunk in chunks:
         yield chunk
 
@@ -65,7 +65,7 @@ def _make_loaded_backend(
     duration: float = 2.0,
     avg_logprob: float = -0.25,
 ) -> FasterWhisperBackend:
-    """Cria backend com modelo mock carregado."""
+    """Create backend with loaded mock model."""
     backend = FasterWhisperBackend()
     mock_model = MagicMock()
     segment = _make_fw_segment(text=text, end=duration, avg_logprob=avg_logprob)
@@ -76,10 +76,10 @@ def _make_loaded_backend(
 
 
 class TestTranscribeStreamAccumulation:
-    """Testa acumulacao de chunks e threshold de inference."""
+    """Tests chunk accumulation and inference threshold."""
 
     async def test_accumulates_and_transcribes_on_threshold(self) -> None:
-        """Envia 5s de audio (threshold), verifica que yield TranscriptSegment."""
+        """Sends 5s of audio (threshold), verifies that TranscriptSegment is yielded."""
         backend = _make_loaded_backend()
 
         # 5s de audio em chunks de 1s (atinge threshold de 5s)
@@ -98,7 +98,7 @@ class TestTranscribeStreamAccumulation:
         assert segments[0].language == "en"
 
     async def test_flushes_remaining_buffer_on_empty_chunk(self) -> None:
-        """Envia audio curto + chunk vazio, verifica flush do buffer."""
+        """Sends short audio + empty chunk, verifies buffer flush."""
         backend = _make_loaded_backend()
 
         # 2s de audio (abaixo do threshold de 5s) + fim
@@ -129,7 +129,7 @@ class TestTranscribeStreamAccumulation:
 
 
 class TestTranscribeStreamMultipleSegments:
-    """Testa multiplos segmentos e incremento de segment_id."""
+    """Tests multiple segments and segment_id increment."""
 
     async def test_multiple_segments_increment_id(self) -> None:
         """2x threshold gera 2 segmentos com ids 0 e 1."""
@@ -194,10 +194,10 @@ class TestTranscribeStreamMultipleSegments:
 
 
 class TestTranscribeStreamPrompt:
-    """Testa hot words e initial_prompt no streaming."""
+    """Tests hot words and initial_prompt in streaming."""
 
     async def test_hot_words_in_prompt(self) -> None:
-        """Hot words sao injetadas no initial_prompt da transcricao."""
+        """Hot words are injected into the transcription initial_prompt."""
         backend = _make_loaded_backend()
 
         chunks = [_make_pcm16_silence(2.0), b""]
@@ -218,7 +218,7 @@ class TestTranscribeStreamPrompt:
         assert "Contexto bancario" in prompt
 
     async def test_auto_language_passed_as_none(self) -> None:
-        """Language 'auto' e 'mixed' sao convertidos para None."""
+        """Language 'auto' and 'mixed' are converted to None."""
         backend = _make_loaded_backend()
 
         chunks = [_make_pcm16_silence(2.0), b""]
@@ -234,10 +234,10 @@ class TestTranscribeStreamPrompt:
 
 
 class TestTranscribeStreamErrors:
-    """Testa cenarios de erro no streaming."""
+    """Tests error scenarios in streaming."""
 
     async def test_model_not_loaded_raises_error(self) -> None:
-        """Sem modelo carregado levanta ModelLoadError."""
+        """Without loaded model raises ModelLoadError."""
         backend = FasterWhisperBackend()
 
         with pytest.raises(ModelLoadError, match="not loaded"):
@@ -247,7 +247,7 @@ class TestTranscribeStreamErrors:
                 pass
 
     async def test_empty_stream_yields_nothing(self) -> None:
-        """Stream vazio (so chunk vazio) nao gera segmentos."""
+        """Empty stream (only empty chunk) yields no segments."""
         backend = _make_loaded_backend()
 
         segments: list[TranscriptSegment] = []
@@ -341,10 +341,10 @@ class TestAccumulationThresholdConfig:
 
 
 class TestTranscribeStreamTimestamps:
-    """Testa timestamps e confidence nos segmentos."""
+    """Tests timestamps and confidence in segments."""
 
     async def test_segment_has_timestamps(self) -> None:
-        """Segmento retornado tem start_ms e end_ms calculados."""
+        """Returned segment has computed start_ms and end_ms."""
         backend = _make_loaded_backend(duration=3.5)
 
         chunks = [_make_pcm16_silence(2.0), b""]
@@ -358,7 +358,7 @@ class TestTranscribeStreamTimestamps:
         assert segments[0].end_ms == 3500
 
     async def test_segment_has_confidence(self) -> None:
-        """Segmento retornado tem confidence (avg_logprob)."""
+        """Returned segment has confidence (avg_logprob)."""
         backend = _make_loaded_backend(avg_logprob=-0.3)
 
         chunks = [_make_pcm16_silence(2.0), b""]

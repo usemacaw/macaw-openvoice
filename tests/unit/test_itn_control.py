@@ -1,4 +1,4 @@
-"""Testes do controle de ITN via parametro itn na API e --no-itn no CLI."""
+"""Tests for ITN control via itn parameter in the API and --no-itn in the CLI."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class UppercaseStage(TextStage):
-    """Stage de teste que converte texto para maiusculas."""
+    """Test stage that converts text to uppercase."""
 
     @property
     def name(self) -> str:
@@ -56,14 +56,14 @@ def _make_postprocessing_pipeline() -> PostProcessingPipeline:
     )
 
 
-# --- API: parametro itn ---
+# --- API: itn parameter ---
 
 
 class TestITNDefaultBehavior:
-    """Verifica que o comportamento padrao (itn=True) aplica post-processing."""
+    """Verifies that the default behavior (itn=True) applies post-processing."""
 
     async def test_itn_default_true_applies_postprocessing(self) -> None:
-        """Request sem campo itn: post-processing aplicado (default True)."""
+        """Request without itn field: post-processing applied (default True)."""
         scheduler = _make_mock_scheduler()
         pipeline = _make_postprocessing_pipeline()
         app = create_app(
@@ -87,10 +87,10 @@ class TestITNDefaultBehavior:
 
 
 class TestITNFalseSkipsPostprocessing:
-    """Verifica que itn=false desabilita post-processing."""
+    """Verifies that itn=false disables post-processing."""
 
     async def test_itn_false_skips_postprocessing(self) -> None:
-        """Request com itn=false: post-processing NAO aplicado."""
+        """Request with itn=false: post-processing NOT applied."""
         scheduler = _make_mock_scheduler()
         pipeline = _make_postprocessing_pipeline()
         app = create_app(
@@ -114,10 +114,10 @@ class TestITNFalseSkipsPostprocessing:
 
 
 class TestITNTrueAppliesPostprocessing:
-    """Verifica que itn=true aplica post-processing explicitamente."""
+    """Verifies that itn=true applies post-processing explicitly."""
 
     async def test_itn_true_applies_postprocessing(self) -> None:
-        """Request com itn=true: post-processing aplicado."""
+        """Request with itn=true: post-processing applied."""
         scheduler = _make_mock_scheduler()
         pipeline = _make_postprocessing_pipeline()
         app = create_app(
@@ -141,7 +141,7 @@ class TestITNTrueAppliesPostprocessing:
 
 
 class TestITNFalseTranscriptionsEndpoint:
-    """Verifica itn=false no endpoint /v1/audio/transcriptions."""
+    """Verifies itn=false on the /v1/audio/transcriptions endpoint."""
 
     async def test_itn_false_transcriptions_endpoint(self) -> None:
         scheduler = _make_mock_scheduler(text="ola mundo")
@@ -167,7 +167,7 @@ class TestITNFalseTranscriptionsEndpoint:
 
 
 class TestITNFalseTranslationsEndpoint:
-    """Verifica itn=false no endpoint /v1/audio/translations."""
+    """Verifies itn=false on the /v1/audio/translations endpoint."""
 
     async def test_itn_false_translations_endpoint(self) -> None:
         scheduler = _make_mock_scheduler(text="hello world")
@@ -193,10 +193,10 @@ class TestITNFalseTranslationsEndpoint:
 
 
 class TestITNWithoutPipelineConfigured:
-    """Verifica que itn=true sem pipeline configurado nao causa erro."""
+    """Verifies that itn=true without a configured pipeline does not cause an error."""
 
     async def test_itn_true_without_pipeline_configured(self) -> None:
-        """Sem pipeline configurado + itn=true: funciona sem erro."""
+        """Without configured pipeline + itn=true: works without error."""
         scheduler = _make_mock_scheduler(text="ola mundo")
         app = create_app(
             registry=_make_mock_registry(),
@@ -217,7 +217,7 @@ class TestITNWithoutPipelineConfigured:
         assert response.json()["text"] == "ola mundo"
 
     async def test_itn_false_without_pipeline_configured(self) -> None:
-        """Sem pipeline configurado + itn=false: funciona sem erro."""
+        """Without configured pipeline + itn=false: works without error."""
         scheduler = _make_mock_scheduler(text="ola mundo")
         app = create_app(
             registry=_make_mock_registry(),
@@ -239,7 +239,7 @@ class TestITNWithoutPipelineConfigured:
 
 
 class TestITNTranslationsDefault:
-    """Verifica que o endpoint de traducao tambem aplica post-processing por default."""
+    """Verifies that the translation endpoint also applies post-processing by default."""
 
     async def test_translations_default_applies_postprocessing(self) -> None:
         scheduler = _make_mock_scheduler(text="hello world")
@@ -264,14 +264,14 @@ class TestITNTranslationsDefault:
         assert response.json()["text"] == "HELLO WORLD"
 
 
-# --- CLI: flag --no-itn ---
+# --- CLI: --no-itn flag ---
 
 
 class TestCLINoITNFlag:
-    """Testes da flag --no-itn nos comandos CLI."""
+    """Tests for the --no-itn flag in CLI commands."""
 
     def test_transcribe_no_itn_sends_itn_false(self, tmp_path: Path) -> None:
-        """--no-itn envia itn=false no form data."""
+        """--no-itn sends itn=false in form data."""
         from unittest.mock import patch
 
         from macaw.cli.transcribe import transcribe
@@ -297,7 +297,7 @@ class TestCLINoITNFlag:
         assert sent_data["itn"] == "false"
 
     def test_transcribe_without_no_itn_omits_itn_field(self, tmp_path: Path) -> None:
-        """Sem --no-itn, campo itn nao e enviado (server usa default True)."""
+        """Without --no-itn, itn field is not sent (server uses default True)."""
         from unittest.mock import patch
 
         from macaw.cli.transcribe import transcribe
@@ -323,7 +323,7 @@ class TestCLINoITNFlag:
         assert "itn" not in sent_data
 
     def test_translate_no_itn_sends_itn_false(self, tmp_path: Path) -> None:
-        """--no-itn no translate envia itn=false no form data."""
+        """--no-itn in translate sends itn=false in form data."""
         from unittest.mock import patch
 
         from macaw.cli.transcribe import translate
@@ -349,7 +349,7 @@ class TestCLINoITNFlag:
         assert sent_data["itn"] == "false"
 
     def test_translate_without_no_itn_omits_itn_field(self, tmp_path: Path) -> None:
-        """Sem --no-itn no translate, campo itn nao e enviado."""
+        """Without --no-itn in translate, itn field is not sent."""
         from unittest.mock import patch
 
         from macaw.cli.transcribe import translate

@@ -14,12 +14,16 @@ import pydantic
 
 from macaw.logging import get_logger
 from macaw.server.models.events import (
+    CommitCommand,
     InputAudioBufferCommitCommand,
     SessionCancelCommand,
     SessionCloseCommand,
     SessionConfigureCommand,
     StreamingErrorEvent,
+    TTSAppendCommand,
     TTSCancelCommand,
+    TTSClearCommand,
+    TTSFlushCommand,
     TTSSpeakCommand,
 )
 
@@ -38,6 +42,11 @@ _COMMAND_TYPES: dict[str, type[ClientCommand]] = {
     "input_audio_buffer.commit": InputAudioBufferCommitCommand,
     "tts.speak": TTSSpeakCommand,
     "tts.cancel": TTSCancelCommand,
+    "tts.append": TTSAppendCommand,
+    "tts.flush": TTSFlushCommand,
+    "tts.clear": TTSClearCommand,
+    # Short alias for input_audio_buffer.commit (used with commit_strategy: manual)
+    "commit": CommitCommand,
 }
 
 

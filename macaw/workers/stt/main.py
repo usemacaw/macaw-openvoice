@@ -39,16 +39,32 @@ if TYPE_CHECKING:
 logger = get_logger("worker.stt.main")
 
 
-def _create_backend(engine: str) -> STTBackend:
+def _create_backend(engine: str, *, python_package: str | None = None) -> STTBackend:
     """Create an STTBackend instance based on the engine name.
 
+    If *python_package* is provided (from the manifest's ``python_package``
+    field), the backend is loaded dynamically via importlib instead of the
+    built-in registry.  This is the extension path for external engines.
+
     Raises:
-        ValueError: If the engine is not supported.
+        ValueError: If the engine is not supported (built-in path).
+        ModelLoadError: If the external package cannot be loaded.
     """
+    if python_package:
+        from macaw.workers._engine_loader import load_external_backend
+        from macaw.workers.stt.interface import STTBackend as _STTBackend
+
+        return load_external_backend(python_package, _STTBackend)  # type: ignore[type-abstract]
+
     if engine == "faster-whisper":
         from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         return FasterWhisperBackend()
+
+    if engine == "qwen3-asr":
+        from macaw.workers.stt.qwen3_asr import Qwen3ASRBackend
+
+        return Qwen3ASRBackend()
 
     msg = f"Unsupported STT engine: {engine}"
     raise ValueError(msg)
@@ -59,6 +75,8 @@ async def serve(
     engine: str,
     model_path: str,
     engine_config: dict[str, object],
+    *,
+    python_package: str | None = None,
 ) -> None:
     """Start the gRPC server for the STT worker.
 
@@ -67,10 +85,11 @@ async def serve(
         engine: Engine name (e.g., "faster-whisper").
         model_path: Path to model files.
         engine_config: Engine configuration (compute_type, device, etc).
+        python_package: Dotted module path for external engines (optional).
     """
     configure_torch_inference()
 
-    backend = _create_backend(engine)
+    backend = _create_backend(engine, python_package=python_package)
 
     logger.info("loading_model", engine=engine, model_path=model_path)
     await backend.load(model_path, engine_config)
@@ -84,6 +103,13 @@ async def serve(
     await _warmup_backend(backend, warmup_steps=warmup_steps)
 
     from macaw.config.settings import get_settings
+    from macaw.workers.stt.diarization import create_diarizer
+
+    diarizer = create_diarizer()
+    if diarizer is not None:
+        logger.info("diarizer_available", backend="pyannote")
+    else:
+        logger.info("diarizer_not_available", reason="pyannote.audio not available")
 
     model_name = str(engine_config.get("model_size", "unknown"))
     worker_settings = get_settings().worker
@@ -93,6 +119,7 @@ async def serve(
         engine=engine,
         max_concurrent=worker_settings.stt_max_concurrent,
         max_cancelled_requests=worker_settings.stt_max_cancelled_requests,
+        diarizer=diarizer,
     )
 
     server = grpc.aio.server(options=GRPC_WORKER_SERVER_OPTIONS)
@@ -201,6 +228,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="{}",
         help="Engine config as JSON string",
     )
+    parser.add_argument(
+        "--python-package",
+        type=str,
+        default=None,
+        help="Dotted module path for external engine (from manifest python_package)",
+    )
     return parser.parse_args(argv)
 
 
@@ -220,6 +253,7 @@ def main(argv: list[str] | None = None) -> None:
                 engine=args.engine,
                 model_path=args.model_path,
                 engine_config=engine_config,
+                python_package=args.python_package,
             )
         )
     except KeyboardInterrupt:

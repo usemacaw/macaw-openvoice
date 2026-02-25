@@ -28,6 +28,8 @@ message TranscribeFileRequest {
   string initial_prompt = 7;
   repeated string hot_words = 8;
   string task = 9;               // "transcribe" or "translate"
+  bool diarize = 10;              // Enable speaker diarization
+  int32 max_speakers = 11;        // Max speakers for diarization (0 = auto)
 }
 
 message TranscribeFileResponse {
@@ -36,6 +38,7 @@ message TranscribeFileResponse {
   float duration = 3;
   repeated Segment segments = 4;
   repeated Word words = 5;
+  repeated SpeakerSegment speaker_segments = 6;
 }
 
 // --- TranscribeStream messages ---
@@ -59,6 +62,7 @@ message TranscriptEvent {
   string language = 7;
   float confidence = 8;
   repeated Word words = 9;
+  string speaker_id = 10;        // Speaker attribution for streaming
 }
 
 // --- Shared messages ---
@@ -78,6 +82,15 @@ message Word {
   float start = 2;
   float end = 3;
   float probability = 4;
+}
+
+// --- Diarization ---
+
+message SpeakerSegment {
+  string speaker_id = 1;         // e.g. "speaker_0", "speaker_1"
+  float start = 2;               // Start time in seconds
+  float end = 3;                 // End time in seconds
+  string text = 4;               // Text spoken by this speaker
 }
 
 // --- Cancellation ---

@@ -1,13 +1,13 @@
-"""Testes avancados de CTC streaming — M7-08.
+"""Advanced CTC streaming tests -- M7-08.
 
-Valida interacoes CTC-especificas com componentes M6:
-- CTC + state machine: transicoes identicas a encoder-decoder
-- CTC + ring buffer: escrita, commit, read fence
-- CTC + force commit: trigger em 90% de capacidade
-- CTC + recovery: crash -> WAL -> resume sem duplicacao de segment_id
-- CTC + backpressure: rate_limit e frames_dropped
-- CTC sem LocalAgreement: sessao CTC funciona sem LocalAgreement
-- CTC + cross-segment: context ignorado para CTC, usado para encoder-decoder
+Validates CTC-specific interactions with M6 components:
+- CTC + state machine: transitions identical to encoder-decoder
+- CTC + ring buffer: write, commit, read fence
+- CTC + force commit: trigger at 90% capacity
+- CTC + recovery: crash -> WAL -> resume without segment_id duplication
+- CTC + backpressure: rate_limit and frames_dropped
+- CTC without LocalAgreement: CTC session works without LocalAgreement
+- CTC + cross-segment: context ignored for CTC, used for encoder-decoder
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from tests.helpers import AsyncIterFromList
 
 
 def _make_stream_handle(events: list | None = None) -> Mock:
-    """Cria mock de StreamHandle com async iterator correto."""
+    """Create StreamHandle mock with correct async iterator."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test-ctc-adv"
@@ -64,7 +64,7 @@ def _make_session(
     grpc_client: MagicMock | None = None,
     on_event: AsyncMock | None = None,
 ) -> StreamingSession:
-    """Cria StreamingSession CTC com mocks minimos e componentes reais opcionais."""
+    """Create CTC StreamingSession with minimal mocks and optional real components."""
     preprocessor = MagicMock()
     preprocessor.process_frame.return_value = np.zeros(320, dtype=np.float32)
     vad = MagicMock()
@@ -93,10 +93,10 @@ def _make_session(
 
 
 class TestCTCStateMachine:
-    """CTC: state machine funciona de forma identica a encoder-decoder."""
+    """CTC: state machine works identically to encoder-decoder."""
 
     def test_ctc_init_to_active(self) -> None:
-        """CTC: transicao INIT -> ACTIVE funciona corretamente."""
+        """CTC: INIT -> ACTIVE transition works correctly."""
         session = _make_session()
         assert session.session_state == SessionState.INIT
 
@@ -104,7 +104,7 @@ class TestCTCStateMachine:
         assert session.session_state == SessionState.ACTIVE
 
     def test_ctc_active_to_silence_to_active(self) -> None:
-        """CTC: ACTIVE -> SILENCE -> ACTIVE (silencio seguido de nova fala)."""
+        """CTC: ACTIVE -> SILENCE -> ACTIVE (silence followed by new speech)."""
         session = _make_session()
         session._state_machine.transition(SessionState.ACTIVE)
         assert session.session_state == SessionState.ACTIVE
@@ -116,7 +116,7 @@ class TestCTCStateMachine:
         assert session.session_state == SessionState.ACTIVE
 
     def test_ctc_silence_to_hold(self) -> None:
-        """CTC: SILENCE -> HOLD (silencio prolongado)."""
+        """CTC: SILENCE -> HOLD (prolonged silence)."""
         session = _make_session()
         session._state_machine.transition(SessionState.ACTIVE)
         session._state_machine.transition(SessionState.SILENCE)
@@ -126,7 +126,7 @@ class TestCTCStateMachine:
         assert session.session_state == SessionState.HOLD
 
     def test_ctc_hold_to_active(self) -> None:
-        """CTC: HOLD -> ACTIVE (fala retomada apos hold)."""
+        """CTC: HOLD -> ACTIVE (speech resumed after hold)."""
         session = _make_session()
         session._state_machine.transition(SessionState.ACTIVE)
         session._state_machine.transition(SessionState.SILENCE)
@@ -143,30 +143,30 @@ class TestCTCStateMachine:
 
 
 class TestCTCRingBuffer:
-    """CTC: ring buffer funciona corretamente para armazenamento de audio."""
+    """CTC: ring buffer works correctly for audio storage."""
 
     def test_ctc_ring_buffer_write_and_commit(self) -> None:
-        """Escrita no ring buffer seguida de commit avanca o read fence."""
+        """Write to ring buffer followed by commit advances the read fence."""
         rb = RingBuffer(duration_s=30.0, sample_rate=16000, bytes_per_sample=2)
         session = _make_session(ring_buffer=rb)
 
-        # Escrever dados no ring buffer
+        # Write data to ring buffer
         test_data = b"\x01\x02" * 500  # 1000 bytes
         rb.write(test_data)
 
         assert rb.total_written == 1000
         assert rb.read_fence == 0
 
-        # Commit avanca o read fence
+        # Commit advances the read fence
         rb.commit(rb.total_written)
         assert rb.read_fence == 1000
         assert rb.uncommitted_bytes == 0
 
-        # Sessao CTC e funcional com ring buffer
+        # CTC session is functional with ring buffer
         assert session._ring_buffer is rb
 
     def test_ctc_ring_buffer_uncommitted_after_write(self) -> None:
-        """Escrita sem commit mantem uncommitted_bytes > 0."""
+        """Write without commit keeps uncommitted_bytes > 0."""
         rb = RingBuffer(duration_s=30.0, sample_rate=16000, bytes_per_sample=2)
         _session = _make_session(ring_buffer=rb)
 
@@ -178,15 +178,15 @@ class TestCTCRingBuffer:
         assert rb.read_fence == 0
 
     async def test_ctc_ring_buffer_commit_on_final(self) -> None:
-        """Ring buffer e commitado apos receive_worker_events processar transcript.final."""
+        """Ring buffer is committed after receive_worker_events processes transcript.final."""
         rb = RingBuffer(duration_s=30.0, sample_rate=16000, bytes_per_sample=2)
         session = _make_session(ring_buffer=rb)
 
-        # Escrever dados no ring buffer (simula frames enviados ao worker)
+        # Write data to ring buffer (simulates frames sent to worker)
         rb.write(b"\x00" * 3200)
         assert rb.uncommitted_bytes == 3200
 
-        # Simular transcript.final vindo do worker
+        # Simulate transcript.final coming from worker
         final_segment = TranscriptSegment(
             text="teste ctc",
             is_final=True,
@@ -199,7 +199,7 @@ class TestCTCRingBuffer:
 
         await session._receive_worker_events()
 
-        # Apos transcript.final, ring buffer deve estar commitado
+        # After transcript.final, ring buffer should be committed
         assert rb.read_fence == rb.total_written
         assert rb.uncommitted_bytes == 0
 
@@ -210,11 +210,11 @@ class TestCTCRingBuffer:
 
 
 class TestCTCForceCommit:
-    """CTC: force commit disparado quando ring buffer atinge 90%."""
+    """CTC: force commit triggered when ring buffer reaches 90%."""
 
     def test_ctc_force_commit_flag_set_at_90_percent(self) -> None:
         """Force commit pending when buffer > 90% uncommitted."""
-        # Ring buffer pequeno para facilitar teste (1000 bytes)
+        # Small ring buffer for easier testing (1000 bytes)
         rb = RingBuffer(duration_s=0.03125, sample_rate=16000, bytes_per_sample=2)
         # capacity = 0.03125 * 16000 * 2 = 1000 bytes
         assert rb.capacity_bytes == 1000
@@ -224,7 +224,7 @@ class TestCTCForceCommit:
         # No pending force commit initially
         assert session._metrics.consume_force_commit() is False
 
-        # Escrever 901 bytes (>90% de 1000) para disparar force commit
+        # Write 901 bytes (>90% of 1000) to trigger force commit
         rb.write(b"\x00" * 901)
 
         # Force commit should now be pending
@@ -240,10 +240,10 @@ class TestCTCForceCommit:
         # Trigger force commit via ring buffer callback
         session._metrics.on_ring_buffer_force_commit(0)
 
-        # Colocar sessao em ACTIVE (INIT rejeita frame processing com stream)
+        # Put session in ACTIVE (INIT rejects frame processing with stream)
         session._state_machine.transition(SessionState.ACTIVE)
 
-        # process_frame deve consumir a flag
+        # process_frame should consume the flag
         raw_frame = np.zeros(320, dtype=np.int16).tobytes()
         await session.process_frame(raw_frame)
 
@@ -257,10 +257,10 @@ class TestCTCForceCommit:
 
 
 class TestCTCRecovery:
-    """CTC: recovery de crash restaura sessao sem duplicacao de segment_id."""
+    """CTC: crash recovery restores session without segment_id duplication."""
 
     async def test_ctc_recovery_restores_segment_id(self) -> None:
-        """Apos crash e recovery, segment_id vem do WAL."""
+        """After crash and recovery, segment_id comes from WAL."""
         wal = SessionWAL()
         wal.record_checkpoint(segment_id=3, buffer_offset=5000, timestamp_ms=100)
 
@@ -274,7 +274,7 @@ class TestCTCRecovery:
         )
         session._state_machine.transition(SessionState.ACTIVE)
 
-        # segment_id antes do recovery (valor arbitrario)
+        # segment_id before recovery (arbitrary value)
         session._segment_id = 99
 
         result = await session.recover()
@@ -286,17 +286,17 @@ class TestCTCRecovery:
         await session.close()
 
     async def test_ctc_recovery_resends_uncommitted(self) -> None:
-        """Recovery reenvia dados uncommitted do ring buffer ao novo worker."""
+        """Recovery resends uncommitted data from ring buffer to new worker."""
         rb = RingBuffer(duration_s=5.0, sample_rate=16000, bytes_per_sample=2)
         wal = SessionWAL()
 
-        # Escrever e commitar parte dos dados
+        # Write and commit part of the data
         committed_data = b"\x01\x00" * 400  # 800 bytes
         rb.write(committed_data)
         rb.commit(rb.total_written)
         wal.record_checkpoint(segment_id=0, buffer_offset=rb.total_written, timestamp_ms=50)
 
-        # Escrever dados uncommitted
+        # Write uncommitted data
         uncommitted_data = b"\x02\x00" * 200  # 400 bytes
         rb.write(uncommitted_data)
         assert rb.uncommitted_bytes == 400
@@ -323,7 +323,7 @@ class TestCTCRecovery:
         await session.close()
 
     async def test_ctc_recovery_failure_closes_session(self) -> None:
-        """Se recovery falha (grpc open falha), sessao transita para CLOSED."""
+        """If recovery fails (grpc open fails), session transitions to CLOSED."""
         grpc_client = MagicMock()
         grpc_client.open_stream = AsyncMock(
             side_effect=WorkerCrashError("test-ctc-adv"),
@@ -339,19 +339,19 @@ class TestCTCRecovery:
 
 
 # ---------------------------------------------------------------------------
-# Tests: CTC sem LocalAgreement
+# Tests: CTC without LocalAgreement
 # ---------------------------------------------------------------------------
 
 
 class TestCTCNoLocalAgreement:
-    """CTC: sessao funciona sem LocalAgreement (partials nativos do worker)."""
+    """CTC: session works without LocalAgreement (native worker partials)."""
 
     async def test_ctc_has_no_local_agreement(self) -> None:
-        """Sessao CTC funciona sem LocalAgreement — partials emitidos diretamente."""
+        """CTC session works without LocalAgreement -- partials emitted directly."""
         session = _make_session(architecture=STTArchitecture.CTC)
         on_event = session._on_event
 
-        # Sequencia de partials + final do worker (nativo CTC)
+        # Sequence of partials + final from worker (native CTC)
         segments = [
             TranscriptSegment(text="ola", is_final=False, segment_id=0, start_ms=100),
             TranscriptSegment(text="ola mundo", is_final=False, segment_id=0, start_ms=200),
@@ -370,7 +370,7 @@ class TestCTCNoLocalAgreement:
 
         await session._receive_worker_events()
 
-        # Todos os 3 eventos emitidos sem filtragem/LocalAgreement
+        # All 3 events emitted without filtering/LocalAgreement
         assert on_event.call_count == 3
         events = [call.args[0] for call in on_event.call_args_list]
 
@@ -477,10 +477,10 @@ class TestCTCBackpressure:
 
 
 class TestCTCCrossSegmentAdvanced:
-    """CTC: cross-segment context ignorado para CTC, usado para encoder-decoder."""
+    """CTC: cross-segment context ignored for CTC, used for encoder-decoder."""
 
     async def test_ctc_final_does_not_update_context(self) -> None:
-        """transcript.final em sessao CTC NAO atualiza CrossSegmentContext."""
+        """transcript.final in CTC session does NOT update CrossSegmentContext."""
         context = CrossSegmentContext(max_tokens=224)
         session = _make_session(
             architecture=STTArchitecture.CTC,
@@ -499,11 +499,11 @@ class TestCTCCrossSegmentAdvanced:
 
         await session._receive_worker_events()
 
-        # Context NAO atualizado para CTC
+        # Context NOT updated for CTC
         assert context.get_prompt() is None
 
     async def test_encoder_decoder_final_updates_context(self) -> None:
-        """transcript.final em sessao encoder-decoder atualiza CrossSegmentContext."""
+        """transcript.final in encoder-decoder session updates CrossSegmentContext."""
         context = CrossSegmentContext(max_tokens=224)
         session = _make_session(
             architecture=STTArchitecture.ENCODER_DECODER,
@@ -522,7 +522,7 @@ class TestCTCCrossSegmentAdvanced:
 
         await session._receive_worker_events()
 
-        # Context atualizado para encoder-decoder
+        # Context updated for encoder-decoder
         assert context.get_prompt() == "contexto para proximo segmento"
 
     async def test_ctc_build_prompt_ignores_context(self) -> None:
@@ -536,7 +536,7 @@ class TestCTCCrossSegmentAdvanced:
         )
 
         prompt = session._build_initial_prompt()
-        # CTC: sem context no prompt (mesmo com context disponivel)
+        # CTC: no context in prompt (even with context available)
         assert prompt is None
 
     async def test_ctc_wal_checkpoint_recorded_on_final(self) -> None:

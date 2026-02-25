@@ -1,7 +1,7 @@
-"""Testes dedicados para SessionTimeouts e timeouts_from_configure_command.
+"""Dedicated tests for SessionTimeouts and timeouts_from_configure_command.
 
-Cobre: defaults do PRD, override de valores, validacao de minimo (1s),
-conversao ms -> s, mudanca em runtime afetando estado atual, e boundaries.
+Covers: PRD defaults, value overrides, minimum validation (1s),
+ms -> s conversion, runtime change affecting current state, and boundaries.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from macaw.session.state_machine import (
 
 
 class FakeClock:
-    """Clock deterministico para testes."""
+    """Deterministic clock for tests."""
 
     def __init__(self, start: float = 0.0) -> None:
         self._now = start
@@ -41,7 +41,7 @@ class FakeClock:
 
 class TestSessionTimeoutsDefaults:
     def test_defaults_match_prd(self) -> None:
-        """Defaults devem ser: INIT=30s, SILENCE=30s, HOLD=300s, CLOSING=2s."""
+        """Defaults should be: INIT=30s, SILENCE=30s, HOLD=300s, CLOSING=2s."""
         t = SessionTimeouts()
         assert t.init_timeout_s == 30.0
         assert t.silence_timeout_s == 30.0
@@ -49,16 +49,16 @@ class TestSessionTimeoutsDefaults:
         assert t.closing_timeout_s == 2.0
 
     def test_override_specific_values(self) -> None:
-        """Override parcial de valores deve preservar defaults dos demais."""
+        """Partial value override should preserve defaults for the rest."""
         t = SessionTimeouts(silence_timeout_s=5.0, hold_timeout_s=60.0)
-        assert t.init_timeout_s == 30.0  # default mantido
+        assert t.init_timeout_s == 30.0  # default kept
         assert t.silence_timeout_s == 5.0  # override
         assert t.hold_timeout_s == 60.0  # override
-        assert t.closing_timeout_s == 2.0  # default mantido
+        assert t.closing_timeout_s == 2.0  # default kept
 
 
 # ---------------------------------------------------------------------------
-# Validacao de minimo
+# Minimum validation
 # ---------------------------------------------------------------------------
 
 
@@ -80,7 +80,7 @@ class TestMinimumTimeoutValidation:
             SessionTimeouts(closing_timeout_s=0.999)
 
     def test_exactly_minimum_accepted(self) -> None:
-        """Timeout exatamente igual ao minimo (1.0s) deve ser aceito."""
+        """Timeout exactly equal to minimum (1.0s) should be accepted."""
         t = SessionTimeouts(
             init_timeout_s=_MIN_TIMEOUT_S,
             silence_timeout_s=_MIN_TIMEOUT_S,
@@ -93,18 +93,18 @@ class TestMinimumTimeoutValidation:
         assert t.closing_timeout_s == _MIN_TIMEOUT_S
 
     def test_just_below_minimum_rejected(self) -> None:
-        """Timeout 0.999s deve ser rejeitado (< 1.0s)."""
+        """Timeout 0.999s should be rejected (< 1.0s)."""
         with pytest.raises(ValueError):
             SessionTimeouts(silence_timeout_s=0.999)
 
     def test_negative_timeout_rejected(self) -> None:
-        """Timeout negativo deve ser rejeitado."""
+        """Negative timeout should be rejected."""
         with pytest.raises(ValueError):
             SessionTimeouts(init_timeout_s=-1.0)
 
 
 # ---------------------------------------------------------------------------
-# Conversao ms -> s (timeouts_from_configure_command)
+# Conversion ms -> s (timeouts_from_configure_command)
 # ---------------------------------------------------------------------------
 
 
@@ -120,7 +120,7 @@ class TestTimeoutsFromConfigureCommand:
         assert updated.hold_timeout_s == 60.0
 
     def test_none_fields_preserve_current(self) -> None:
-        """Campos None devem manter os valores atuais."""
+        """None fields should keep current values."""
         current = SessionTimeouts(silence_timeout_s=15.0, hold_timeout_s=120.0)
         updated = timeouts_from_configure_command(current)
         assert updated.silence_timeout_s == 15.0
@@ -137,52 +137,52 @@ class TestTimeoutsFromConfigureCommand:
         assert updated.hold_timeout_s == 180.0
 
     def test_init_and_closing_timeouts_preserved(self) -> None:
-        """init e closing timeouts nao sao afetados por configure command."""
+        """init and closing timeouts are not affected by configure command."""
         current = SessionTimeouts(init_timeout_s=10.0, closing_timeout_s=3.0)
         updated = timeouts_from_configure_command(current, silence_timeout_ms=5000)
         assert updated.init_timeout_s == 10.0
         assert updated.closing_timeout_s == 3.0
 
     def test_conversion_below_minimum_raises(self) -> None:
-        """Conversao que resulte em timeout < 1s deve levantar ValueError."""
+        """Conversion resulting in timeout < 1s should raise ValueError."""
         current = SessionTimeouts()
         with pytest.raises(ValueError, match="silence_timeout_s"):
             timeouts_from_configure_command(current, silence_timeout_ms=500)
 
     def test_conversion_exactly_1000ms_accepted(self) -> None:
-        """1000ms = 1.0s deve ser aceito (boundary minimo)."""
+        """1000ms = 1.0s should be accepted (minimum boundary)."""
         current = SessionTimeouts()
         updated = timeouts_from_configure_command(current, silence_timeout_ms=1000)
         assert updated.silence_timeout_s == 1.0
 
 
 # ---------------------------------------------------------------------------
-# Runtime update afeta estado atual
+# Runtime update affects current state
 # ---------------------------------------------------------------------------
 
 
 class TestRuntimeUpdateAffectsCurrentState:
     def test_reducing_timeout_triggers_expiry(self) -> None:
-        """Se em SILENCE ha 6s e timeout muda de 30s para 5s, deve expirar."""
+        """If in SILENCE for 6s and timeout changes from 30s to 5s, should expire."""
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
         sm.transition(SessionState.ACTIVE)
         sm.transition(SessionState.SILENCE)
         clock.advance(6.0)
-        # Com default (30s), nao expirou
+        # With default (30s), not expired
         assert sm.check_timeout() is None
-        # Reduzir timeout para 5s -> ja expirou
+        # Reduce timeout to 5s -> already expired
         sm.update_timeouts(SessionTimeouts(silence_timeout_s=5.0))
         assert sm.check_timeout() == SessionState.HOLD
 
     def test_increasing_timeout_prevents_expiry(self) -> None:
-        """Se em INIT ha 25s e timeout muda de 30s para 60s, nao deve expirar."""
+        """If in INIT for 25s and timeout changes from 30s to 60s, should not expire."""
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
         clock.advance(25.0)
         # Com default (30s), faltam 5s
         assert sm.check_timeout() is None
-        # Aumentar para 60s
+        # Increase to 60s
         sm.update_timeouts(SessionTimeouts(init_timeout_s=60.0))
         clock.advance(10.0)  # 35s total, mas timeout agora e 60s
         assert sm.check_timeout() is None
@@ -190,7 +190,7 @@ class TestRuntimeUpdateAffectsCurrentState:
         assert sm.check_timeout() == SessionState.CLOSED
 
     def test_update_hold_timeout_while_in_hold(self) -> None:
-        """Atualizar hold timeout enquanto em HOLD afeta imediatamente."""
+        """Updating hold timeout while in HOLD takes effect immediately."""
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
         sm.transition(SessionState.ACTIVE)
@@ -198,12 +198,12 @@ class TestRuntimeUpdateAffectsCurrentState:
         sm.transition(SessionState.HOLD)
         clock.advance(10.0)  # 10s em HOLD (default 300s)
         assert sm.check_timeout() is None
-        # Reduzir para 5s -> ja expirou
+        # Reduce to 5s -> already expired
         sm.update_timeouts(SessionTimeouts(hold_timeout_s=5.0))
         assert sm.check_timeout() == SessionState.CLOSING
 
     def test_update_via_configure_command_conversion(self) -> None:
-        """Fluxo completo: session.configure com ms -> update_timeouts com s."""
+        """Full flow: session.configure with ms -> update_timeouts with s."""
         clock = FakeClock()
         sm = SessionStateMachine(clock=clock)
         sm.transition(SessionState.ACTIVE)

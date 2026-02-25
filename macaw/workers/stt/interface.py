@@ -24,11 +24,20 @@ class STTBackend(ABC):
     """Contract that every STT engine must implement.
 
     The runtime interacts with engines exclusively through this interface.
-    Adding a new engine requires:
+
+    Adding a new **built-in** engine (shipped with the package):
     1. Implement STTBackend
     2. Create a macaw.yaml manifest
-    3. Register it in the Model Registry
-    Zero changes to the runtime core.
+    3. Register in ``_create_backend()`` factory (one line)
+    4. Add dependency extra in pyproject.toml
+
+    Adding an **external** engine (separate package):
+    1. Implement STTBackend in your own package
+    2. Create a macaw.yaml manifest with ``python_package: your_module``
+    3. Install your package in the same environment
+
+    Zero changes to the runtime layers above the worker (API, session,
+    scheduler) are required in either case.
     """
 
     @property

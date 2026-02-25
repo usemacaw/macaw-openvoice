@@ -1,7 +1,8 @@
-"""Testes do Model Registry."""
+"""Tests for the Model Registry."""
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import pytest
@@ -36,6 +37,15 @@ engine_config:
   model_size: large-v3
   compute_type: float16
   device: auto
+"""
+
+UNKNOWN_ENGINE_MANIFEST = """\
+name: my-custom-model
+version: "1.0.0"
+engine: whisper-cpp
+type: stt
+resources:
+  memory_mb: 512
 """
 
 INVALID_MANIFEST = """\
@@ -164,7 +174,7 @@ async def test_get_model_path_raises_model_not_found(tmp_path: Path) -> None:
 
 
 async def test_scan_indexes_by_manifest_name_not_dir_name(tmp_path: Path) -> None:
-    """O registry indexa por manifest.name, nao pelo nome do diretorio."""
+    """The registry indexes by manifest.name, not by directory name."""
     _create_model_dir(tmp_path, "my-custom-dir-name", VALID_STT_MANIFEST)
 
     registry = ModelRegistry(tmp_path)
@@ -175,7 +185,7 @@ async def test_scan_indexes_by_manifest_name_not_dir_name(tmp_path: Path) -> Non
 
 
 async def test_scan_ignores_files_in_models_dir(tmp_path: Path) -> None:
-    """Arquivos soltos no models_dir sao ignorados (nao sao subdiretorios)."""
+    """Loose files in models_dir are ignored (they are not subdirectories)."""
     _create_model_dir(tmp_path, "whisper-tiny", VALID_STT_MANIFEST)
     (tmp_path / "random_file.txt").write_text("not a model")
 
@@ -183,3 +193,55 @@ async def test_scan_ignores_files_in_models_dir(tmp_path: Path) -> None:
     await registry.scan()
 
     assert len(registry.list_models()) == 1
+
+
+async def test_scan_warns_on_unknown_engine(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unknown engine triggers warning but model is still registered."""
+    _create_model_dir(tmp_path, "custom-model", UNKNOWN_ENGINE_MANIFEST)
+
+    registry = ModelRegistry(tmp_path)
+    with caplog.at_level(logging.WARNING, logger="registry"):
+        await registry.scan()
+
+    assert registry.has_model("my-custom-model")
+    assert any("unknown_engine" in r.message for r in caplog.records)
+
+
+async def test_scan_no_warning_for_known_engine(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Known engine (faster-whisper) does not trigger unknown_engine warning."""
+    _create_model_dir(tmp_path, "whisper-tiny", VALID_STT_MANIFEST)
+
+    registry = ModelRegistry(tmp_path)
+    with caplog.at_level(logging.WARNING, logger="registry"):
+        await registry.scan()
+
+    assert not any("unknown_engine" in r.message for r in caplog.records)
+
+
+EXTERNAL_ENGINE_MANIFEST = """\
+name: my-external-model
+version: "1.0.0"
+engine: whisper-cpp
+type: stt
+python_package: my_company.engines.whisper_cpp
+resources:
+  memory_mb: 512
+"""
+
+
+async def test_scan_no_warning_for_external_engine_with_python_package(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unknown engine with python_package set does not trigger warning."""
+    _create_model_dir(tmp_path, "external-model", EXTERNAL_ENGINE_MANIFEST)
+
+    registry = ModelRegistry(tmp_path)
+    with caplog.at_level(logging.WARNING, logger="registry"):
+        await registry.scan()
+
+    assert registry.has_model("my-external-model")
+    assert not any("unknown_engine" in r.message for r in caplog.records)

@@ -1,8 +1,8 @@
-"""Testes do SileroVADClassifier.
+"""Tests for SileroVADClassifier.
 
-Valida threshold mapping por sensibilidade, lazy loading, classificacao
-de frames e reset de estado. Todos os testes usam mock do modelo Silero
-(sem dependencia de torch/onnxruntime).
+Validates threshold mapping by sensitivity, lazy loading, frame classification
+and state reset. All tests use a mock Silero model
+(no torch/onnxruntime dependency).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from macaw.vad.silero import SileroVADClassifier
 
 
 def _make_mock_model(return_prob: float) -> MagicMock:
-    """Cria mock do modelo Silero que retorna probabilidade fixa."""
+    """Create mock Silero model that returns a fixed probability."""
     model = MagicMock()
     result = MagicMock()
     result.item.return_value = return_prob
@@ -29,7 +29,7 @@ def _make_classifier_with_mock(
     sensitivity: VADSensitivity = VADSensitivity.NORMAL,
     return_prob: float = 0.5,
 ) -> SileroVADClassifier:
-    """Cria classifier com modelo mock pre-carregado (bypassa lazy loading)."""
+    """Create classifier with pre-loaded mock model (bypasses lazy loading)."""
     classifier = SileroVADClassifier(sensitivity=sensitivity)
     classifier._model = _make_mock_model(return_prob)
     classifier._model_loaded = True
@@ -38,7 +38,7 @@ def _make_classifier_with_mock(
 
 class TestSileroVADClassifier:
     def test_speech_frame_detected_above_threshold(self) -> None:
-        """Modelo retorna prob 0.8, threshold 0.5 -> is_speech=True."""
+        """Model returns prob 0.8, threshold 0.5 -> is_speech=True."""
         # Arrange
         classifier = _make_classifier_with_mock(
             sensitivity=VADSensitivity.NORMAL,
@@ -53,7 +53,7 @@ class TestSileroVADClassifier:
         assert result is True
 
     def test_silence_frame_detected_below_threshold(self) -> None:
-        """Modelo retorna prob 0.2, threshold 0.5 -> is_speech=False."""
+        """Model returns prob 0.2, threshold 0.5 -> is_speech=False."""
         # Arrange
         classifier = _make_classifier_with_mock(
             sensitivity=VADSensitivity.NORMAL,
@@ -92,7 +92,7 @@ class TestSileroVADClassifier:
         assert classifier.threshold == pytest.approx(0.7)
 
     def test_set_sensitivity_updates_threshold(self) -> None:
-        """set_sensitivity muda threshold e sensitivity."""
+        """set_sensitivity changes threshold and sensitivity."""
         # Arrange
         classifier = SileroVADClassifier(sensitivity=VADSensitivity.NORMAL)
         assert classifier.threshold == pytest.approx(0.5)
@@ -105,14 +105,14 @@ class TestSileroVADClassifier:
         assert classifier.threshold == pytest.approx(0.3)
 
     def test_lazy_loading_called_on_first_use(self) -> None:
-        """_ensure_model_loaded e chamado na primeira get_speech_probability."""
+        """_ensure_model_loaded is called on first get_speech_probability."""
         # Arrange
         classifier = SileroVADClassifier(sensitivity=VADSensitivity.NORMAL)
         frame = np.zeros(512, dtype=np.float32)
 
         mock_model = _make_mock_model(return_prob=0.5)
 
-        # Act -- patch _ensure_model_loaded para injetar modelo mock
+        # Act -- patch _ensure_model_loaded to inject mock model
         with patch.object(classifier, "_ensure_model_loaded") as mock_ensure:
 
             def side_effect() -> None:
@@ -126,7 +126,7 @@ class TestSileroVADClassifier:
         mock_ensure.assert_called_once()
 
     def test_get_speech_probability_returns_float(self) -> None:
-        """get_speech_probability retorna float entre 0 e 1."""
+        """get_speech_probability returns float between 0 and 1."""
         # Arrange
         classifier = _make_classifier_with_mock(return_prob=0.73)
         frame = np.zeros(512, dtype=np.float32)
@@ -139,7 +139,7 @@ class TestSileroVADClassifier:
         assert prob == pytest.approx(0.73)
 
     def test_reset_calls_model_reset_states(self) -> None:
-        """reset() chama reset_states do modelo quando disponivel."""
+        """reset() calls reset_states on the model when available."""
         # Arrange
         classifier = _make_classifier_with_mock(return_prob=0.5)
         assert classifier._model is not None
@@ -151,23 +151,23 @@ class TestSileroVADClassifier:
         classifier._model.reset_states.assert_called_once()  # type: ignore[union-attr]
 
     def test_reset_without_loaded_model_is_noop(self) -> None:
-        """reset() sem modelo carregado nao levanta erro."""
+        """reset() without loaded model does not raise error."""
         # Arrange
         classifier = SileroVADClassifier(sensitivity=VADSensitivity.NORMAL)
         assert classifier._model is None
 
-        # Act & Assert -- nenhuma excecao
+        # Act & Assert -- no exception
         classifier.reset()
 
     def test_invalid_sample_rate_raises_value_error(self) -> None:
-        """Sample rate diferente de 16000 levanta ValueError."""
+        """Sample rate different from 16000 raises ValueError."""
         # Act & Assert
         with pytest.raises(ValueError, match="requires sample rate 16000Hz"):
             SileroVADClassifier(sample_rate=8000)
 
     def test_boundary_probability_at_threshold(self) -> None:
-        """Probabilidade exatamente no threshold nao e classificada como fala."""
-        # Arrange -- prob == threshold (0.5), is_speech usa >, nao >=
+        """Probability exactly at threshold is not classified as speech."""
+        # Arrange -- prob == threshold (0.5), is_speech uses >, not >=
         classifier = _make_classifier_with_mock(
             sensitivity=VADSensitivity.NORMAL,
             return_prob=0.5,
@@ -177,7 +177,7 @@ class TestSileroVADClassifier:
         # Act
         result = classifier.is_speech(frame)
 
-        # Assert -- exatamente no threshold nao e fala (> e estrito)
+        # Assert -- exactly at threshold is not speech (> is strict)
         assert result is False
 
 

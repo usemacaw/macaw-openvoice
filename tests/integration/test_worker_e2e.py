@@ -1,11 +1,11 @@
-"""Testes de integracao end-to-end do worker STT.
+"""End-to-end integration tests for the STT worker.
 
-Requerem:
-- faster-whisper instalado
-- Modelo faster-whisper-tiny baixado
-- GPU nao necessaria (usa CPU)
+Requirements:
+- faster-whisper installed
+- faster-whisper-tiny model downloaded
+- GPU not required (uses CPU)
 
-Executar com:
+Run with:
     python -m pytest tests/integration/ -m integration -v
 """
 
@@ -21,9 +21,9 @@ pytestmark = pytest.mark.integration
 
 
 def _generate_speech_audio_bytes(duration: float = 1.0, sample_rate: int = 16000) -> bytes:
-    """Gera audio PCM 16-bit sintetico (sine tone, nao fala real).
+    """Generates synthetic PCM 16-bit audio (sine tone, not real speech).
 
-    Para testes de integracao reais, substituir por audio com fala.
+    For real integration tests, replace with speech audio.
     """
     samples = []
     for i in range(int(sample_rate * duration)):
@@ -34,7 +34,7 @@ def _generate_speech_audio_bytes(duration: float = 1.0, sample_rate: int = 16000
 
 
 class TestFasterWhisperBackendIntegration:
-    """Testes que usam FasterWhisperBackend com modelo real."""
+    """Tests using FasterWhisperBackend with a real model."""
 
     async def test_load_and_health(self) -> None:
         from macaw.workers.stt.faster_whisper import FasterWhisperBackend
@@ -48,7 +48,7 @@ class TestFasterWhisperBackendIntegration:
         await backend.unload()
 
     async def test_transcribe_sine_tone(self) -> None:
-        """Sine tone nao contem fala — resultado esperado e texto vazio ou curto."""
+        """Sine tone does not contain speech -- expected result is empty or short text."""
         from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = FasterWhisperBackend()
@@ -57,8 +57,8 @@ class TestFasterWhisperBackendIntegration:
         audio = _generate_speech_audio_bytes(duration=2.0)
         result = await backend.transcribe_file(audio)
 
-        # Nao validamos texto especifico — sine tone gera output imprevisivel.
-        # Validamos que o pipeline nao crasha e retorna tipos corretos.
+        # We don't validate specific text -- sine tone generates unpredictable output.
+        # We validate that the pipeline doesn't crash and returns correct types.
         assert isinstance(result.text, str)
         assert result.language is not None
         assert result.duration > 0
@@ -74,20 +74,20 @@ class TestFasterWhisperBackendIntegration:
         audio = _generate_speech_audio_bytes(duration=3.0)
         result = await backend.transcribe_file(audio)
 
-        # O tipo de segmentos deve ser tuple
+        # Segments type must be tuple
         assert isinstance(result.segments, tuple)
 
         await backend.unload()
 
 
 class TestWorkerGRPCIntegration:
-    """Testes que iniciam worker real como subprocess e comunicam via gRPC.
+    """Tests that start a real worker as subprocess and communicate via gRPC.
 
-    Requerem modelo tiny disponivel.
+    Require tiny model to be available.
     """
 
     async def test_worker_subprocess_health(self) -> None:
-        """Testa spawn de worker, health check, e shutdown."""
+        """Tests worker spawn, health check, and shutdown."""
         from macaw.workers.manager import WorkerManager, WorkerState
 
         manager = WorkerManager()
@@ -103,7 +103,7 @@ class TestWorkerGRPCIntegration:
             },
         )
 
-        # Esperar worker ficar READY (pode demorar com download de modelo)
+        # Wait for worker to become READY (may take time with model download)
         for _ in range(60):
             if handle.state == WorkerState.READY:
                 break

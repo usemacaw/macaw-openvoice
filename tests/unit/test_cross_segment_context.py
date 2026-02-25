@@ -1,9 +1,9 @@
-"""Testes do CrossSegmentContext.
+"""Tests for CrossSegmentContext.
 
-Valida que o contexto cross-segment armazena corretamente os ultimos
-N tokens do transcript.final para conditioning do proximo segmento.
+Validates that the cross-segment context correctly stores the last
+N tokens from transcript.final for conditioning the next segment.
 
-Testes sao deterministicos, sem dependencias externas.
+Tests are deterministic, with no external dependencies.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from tests.helpers import AsyncIterFromList, make_float32_frame, make_raw_bytes
 
 
 def _make_stream_handle_mock(events: list | None = None) -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create a StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
@@ -42,10 +42,10 @@ def _make_stream_handle_mock(events: list | None = None) -> Mock:
 
 
 class TestCrossSegmentContext:
-    """Testes unitarios do CrossSegmentContext isolado."""
+    """Unit tests for CrossSegmentContext in isolation."""
 
     def test_initial_state_empty(self) -> None:
-        """get_prompt() retorna None quando nenhum contexto foi registrado."""
+        """get_prompt() returns None when no context has been registered."""
         # Arrange
         ctx = CrossSegmentContext()
 
@@ -53,7 +53,7 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() is None
 
     def test_update_stores_text(self) -> None:
-        """Apos update(), get_prompt() retorna o texto armazenado."""
+        """After update(), get_prompt() returns the stored text."""
         # Arrange
         ctx = CrossSegmentContext()
 
@@ -64,7 +64,7 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() == "hello world"
 
     def test_update_truncates_to_max_tokens(self) -> None:
-        """Texto com mais palavras que max_tokens e truncado do inicio."""
+        """Text with more words than max_tokens is truncated from the beginning."""
         # Arrange
         ctx = CrossSegmentContext(max_tokens=3)
         text = "one two three four five"
@@ -72,11 +72,11 @@ class TestCrossSegmentContext:
         # Act
         ctx.update(text)
 
-        # Assert: manteve as ultimas 3 palavras
+        # Assert: kept the last 3 words
         assert ctx.get_prompt() == "three four five"
 
     def test_update_overwrites_previous(self) -> None:
-        """Segunda chamada a update() substitui o contexto anterior."""
+        """Second call to update() replaces the previous context."""
         # Arrange
         ctx = CrossSegmentContext()
         ctx.update("first text")
@@ -88,7 +88,7 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() == "second text"
 
     def test_reset_clears_context(self) -> None:
-        """Apos reset(), get_prompt() retorna None."""
+        """After reset(), get_prompt() returns None."""
         # Arrange
         ctx = CrossSegmentContext()
         ctx.update("some text")
@@ -100,7 +100,7 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() is None
 
     def test_max_tokens_custom(self) -> None:
-        """max_tokens customizado trunca corretamente."""
+        """Custom max_tokens truncates correctly."""
         # Arrange
         ctx = CrossSegmentContext(max_tokens=5)
         text = "a b c d e f g h i j"
@@ -108,11 +108,11 @@ class TestCrossSegmentContext:
         # Act
         ctx.update(text)
 
-        # Assert: ultimas 5 palavras
+        # Assert: last 5 words
         assert ctx.get_prompt() == "f g h i j"
 
     def test_empty_text_update(self) -> None:
-        """update('') resulta em get_prompt() retornando None."""
+        """update('') results in get_prompt() returning None."""
         # Arrange
         ctx = CrossSegmentContext()
         ctx.update("previous context")
@@ -124,7 +124,7 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() is None
 
     def test_whitespace_only_text_update(self) -> None:
-        """update com apenas espacos resulta em None."""
+        """update with whitespace only results in None."""
         # Arrange
         ctx = CrossSegmentContext()
         ctx.update("previous context")
@@ -136,7 +136,7 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() is None
 
     def test_exact_max_tokens_no_truncation(self) -> None:
-        """Texto com exatamente max_tokens palavras nao e truncado."""
+        """Text with exactly max_tokens words is not truncated."""
         # Arrange
         ctx = CrossSegmentContext(max_tokens=4)
         text = "one two three four"
@@ -148,7 +148,7 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() == "one two three four"
 
     def test_single_word_text(self) -> None:
-        """Texto com uma unica palavra e armazenado corretamente."""
+        """Text with a single word is stored correctly."""
         # Arrange
         ctx = CrossSegmentContext()
 
@@ -159,15 +159,15 @@ class TestCrossSegmentContext:
         assert ctx.get_prompt() == "hello"
 
     def test_default_max_tokens_is_224(self) -> None:
-        """Valor default de max_tokens e 224 (metade do context window do Whisper)."""
+        """Default max_tokens is 224 (half of Whisper's context window)."""
         # Arrange
         ctx = CrossSegmentContext()
 
-        # Act: texto com 250 palavras
+        # Act: text with 250 words
         words = [f"word{i}" for i in range(250)]
         ctx.update(" ".join(words))
 
-        # Assert: manteve ultimas 224 palavras
+        # Assert: kept last 224 words
         result = ctx.get_prompt()
         assert result is not None
         assert len(result.split()) == 224
@@ -191,10 +191,10 @@ class TestCrossSegmentContext:
 
 
 class TestStreamingSessionCrossSegment:
-    """Testes de integracao do CrossSegmentContext com StreamingSession."""
+    """Integration tests for CrossSegmentContext with StreamingSession."""
 
     async def test_streaming_session_updates_context(self) -> None:
-        """StreamingSession atualiza cross-segment context apos transcript.final."""
+        """StreamingSession updates cross-segment context after transcript.final."""
         # Arrange
         final_segment = TranscriptSegment(
             text="ola como posso ajudar",
@@ -232,25 +232,25 @@ class TestStreamingSessionCrossSegment:
             cross_segment_context=cross_ctx,
         )
 
-        # Act: trigger speech_start -> receiver processa final
+        # Act: trigger speech_start -> receiver processes final
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=1000,
         )
         await session.process_frame(make_raw_bytes())
 
-        # Dar tempo para receiver task processar o transcript.final
+        # Give time for receiver task to process the transcript.final
         await asyncio.sleep(0.05)
 
-        # Assert: cross-segment context foi atualizado com texto do final
+        # Assert: cross-segment context was updated with the final text
         assert cross_ctx.get_prompt() == "ola como posso ajudar"
 
         # Cleanup
         await session.close()
 
     async def test_streaming_session_sends_initial_prompt_with_context(self) -> None:
-        """StreamingSession envia initial_prompt com cross-segment context."""
-        # Arrange: primeiro segmento emite transcript.final
+        """StreamingSession sends initial_prompt with cross-segment context."""
+        # Arrange: first segment emits transcript.final
         final_segment = TranscriptSegment(
             text="primeiro segmento",
             is_final=True,
@@ -289,7 +289,7 @@ class TestStreamingSessionCrossSegment:
             cross_segment_context=cross_ctx,
         )
 
-        # Primeiro segmento: speech_start -> speech_end
+        # First segment: speech_start -> speech_end
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
@@ -304,10 +304,10 @@ class TestStreamingSessionCrossSegment:
         vad.is_speaking = False
         await session.process_frame(make_raw_bytes())
 
-        # Contexto agora tem "primeiro segmento"
+        # Context now has "primeiro segmento"
         assert cross_ctx.get_prompt() == "primeiro segmento"
 
-        # Segundo segmento: speech_start -> enviar frame
+        # Second segment: speech_start -> send frame
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=2000,
@@ -315,7 +315,7 @@ class TestStreamingSessionCrossSegment:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Assert: primeiro frame do segundo segmento deve ter initial_prompt
+        # Assert: first frame of second segment should have initial_prompt
         calls = stream_handle2.send_frame.call_args_list
         assert len(calls) >= 1
 
@@ -328,7 +328,7 @@ class TestStreamingSessionCrossSegment:
     async def test_streaming_session_initial_prompt_combines_hot_words_and_context(
         self,
     ) -> None:
-        """initial_prompt combina hot words e cross-segment context."""
+        """initial_prompt combines hot words and cross-segment context."""
         # Arrange: pre-seed context
         cross_ctx = CrossSegmentContext(max_tokens=224)
         cross_ctx.update("contexto anterior")
@@ -357,7 +357,7 @@ class TestStreamingSessionCrossSegment:
             cross_segment_context=cross_ctx,
         )
 
-        # Act: speech_start -> envia frame (primeiro frame do segmento)
+        # Act: speech_start -> send frame (first frame of the segment)
         vad.process_frame.return_value = VADEvent(
             type=VADEventType.SPEECH_START,
             timestamp_ms=0,
@@ -365,7 +365,7 @@ class TestStreamingSessionCrossSegment:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Assert: initial_prompt combina hot words e contexto
+        # Assert: initial_prompt combines hot words and context
         calls = stream_handle.send_frame.call_args_list
         assert len(calls) >= 1
 
@@ -373,15 +373,15 @@ class TestStreamingSessionCrossSegment:
         prompt = first_call.kwargs.get("initial_prompt")
         assert prompt == "Terms: PIX, TED. contexto anterior"
 
-        # hot_words tambem enviados
+        # hot_words also sent
         assert first_call.kwargs.get("hot_words") == ["PIX", "TED"]
 
         # Cleanup
         await session.close()
 
     async def test_streaming_session_initial_prompt_hot_words_only(self) -> None:
-        """initial_prompt com hot words mas sem cross-segment context."""
-        # Arrange: sem cross-segment context
+        """initial_prompt with hot words but without cross-segment context."""
+        # Arrange: no cross-segment context
         stream_handle = _make_stream_handle_mock()
         grpc_client = AsyncMock()
         grpc_client.open_stream = AsyncMock(return_value=stream_handle)
@@ -413,7 +413,7 @@ class TestStreamingSessionCrossSegment:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Assert: initial_prompt tem apenas hot words
+        # Assert: initial_prompt has only hot words
         calls = stream_handle.send_frame.call_args_list
         first_call = calls[0]
         prompt = first_call.kwargs.get("initial_prompt")
@@ -423,7 +423,7 @@ class TestStreamingSessionCrossSegment:
         await session.close()
 
     async def test_streaming_session_no_context_no_hot_words_no_prompt(self) -> None:
-        """Sem cross-segment context e sem hot words, initial_prompt e None."""
+        """Without cross-segment context and without hot words, initial_prompt is None."""
         # Arrange
         stream_handle = _make_stream_handle_mock()
         grpc_client = AsyncMock()
@@ -455,7 +455,7 @@ class TestStreamingSessionCrossSegment:
         vad.is_speaking = True
         await session.process_frame(make_raw_bytes())
 
-        # Assert: initial_prompt e None
+        # Assert: initial_prompt is None
         calls = stream_handle.send_frame.call_args_list
         first_call = calls[0]
         assert first_call.kwargs.get("initial_prompt") is None
@@ -464,7 +464,7 @@ class TestStreamingSessionCrossSegment:
         await session.close()
 
     async def test_streaming_session_context_only_no_hot_words(self) -> None:
-        """Cross-segment context sem hot words -> initial_prompt e apenas o contexto."""
+        """Cross-segment context without hot words -> initial_prompt is only the context."""
         # Arrange
         cross_ctx = CrossSegmentContext()
         cross_ctx.update("contexto do segmento anterior")
@@ -510,7 +510,7 @@ class TestStreamingSessionCrossSegment:
         await session.close()
 
     async def test_streaming_session_context_uses_postprocessed_text(self) -> None:
-        """Cross-segment context armazena texto pos-processado (com ITN)."""
+        """Cross-segment context stores post-processed text (with ITN)."""
         # Arrange
         final_segment = TranscriptSegment(
             text="dois mil e vinte e cinco",
@@ -559,14 +559,14 @@ class TestStreamingSessionCrossSegment:
         await session.process_frame(make_raw_bytes())
         await asyncio.sleep(0.05)
 
-        # Assert: contexto armazena texto pos-processado (ITN aplicado)
+        # Assert: context stores post-processed text (ITN applied)
         assert cross_ctx.get_prompt() == "2025"
 
         # Cleanup
         await session.close()
 
     async def test_prompt_not_sent_on_subsequent_frames(self) -> None:
-        """initial_prompt so e enviado no primeiro frame do segmento."""
+        """initial_prompt is only sent on the first frame of the segment."""
         # Arrange
         cross_ctx = CrossSegmentContext()
         cross_ctx.update("contexto")
@@ -606,7 +606,7 @@ class TestStreamingSessionCrossSegment:
         await session.process_frame(make_raw_bytes())
         await session.process_frame(make_raw_bytes())
 
-        # Assert: primeiro frame tem prompt, demais nao
+        # Assert: first frame has prompt, subsequent frames do not
         calls = stream_handle.send_frame.call_args_list
         assert len(calls) == 3
 

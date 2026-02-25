@@ -119,3 +119,131 @@ engine_config:
         assert extra is not None
         assert extra["custom_param"] == "value"
         assert extra["another_param"] == 42
+
+
+class TestPythonPackageValidation:
+    """Verify python_package field validation on ModelManifest."""
+
+    _BASE_YAML = """
+name: test-model
+version: 1.0.0
+engine: custom
+type: stt
+resources:
+  memory_mb: 512
+"""
+
+    def test_python_package_none_by_default(self) -> None:
+        manifest = ModelManifest.from_yaml_string(self._BASE_YAML)
+        assert manifest.python_package is None
+
+    def test_valid_simple_module(self) -> None:
+        yaml_str = self._BASE_YAML + "python_package: my_engine\n"
+        manifest = ModelManifest.from_yaml_string(yaml_str)
+        assert manifest.python_package == "my_engine"
+
+    def test_valid_dotted_module(self) -> None:
+        yaml_str = self._BASE_YAML + "python_package: my_company.engines.whisper_cpp\n"
+        manifest = ModelManifest.from_yaml_string(yaml_str)
+        assert manifest.python_package == "my_company.engines.whisper_cpp"
+
+    def test_empty_string_rejected(self) -> None:
+        yaml_str = self._BASE_YAML + 'python_package: ""\n'
+        with pytest.raises(ManifestValidationError):
+            ModelManifest.from_yaml_string(yaml_str)
+
+    def test_invalid_starts_with_digit(self) -> None:
+        yaml_str = self._BASE_YAML + "python_package: 3rd_party.engine\n"
+        with pytest.raises(ManifestValidationError):
+            ModelManifest.from_yaml_string(yaml_str)
+
+    def test_invalid_contains_hyphen(self) -> None:
+        yaml_str = self._BASE_YAML + "python_package: my-engine\n"
+        with pytest.raises(ManifestValidationError):
+            ModelManifest.from_yaml_string(yaml_str)
+
+    def test_invalid_contains_spaces(self) -> None:
+        yaml_str = self._BASE_YAML + "python_package: my engine\n"
+        with pytest.raises(ManifestValidationError):
+            ModelManifest.from_yaml_string(yaml_str)
+
+    def test_invalid_trailing_dot(self) -> None:
+        yaml_str = self._BASE_YAML + "python_package: my_engine.\n"
+        with pytest.raises(ManifestValidationError):
+            ModelManifest.from_yaml_string(yaml_str)
+
+    def test_valid_underscore_prefix(self) -> None:
+        yaml_str = self._BASE_YAML + "python_package: _private.engine\n"
+        manifest = ModelManifest.from_yaml_string(yaml_str)
+        assert manifest.python_package == "_private.engine"
+
+
+class TestModelCapabilitiesStrictSchema:
+    """Verify ModelCapabilities rejects unknown fields (extra='forbid')."""
+
+    def test_unknown_capability_field_raises_validation_error(self) -> None:
+        yaml_str = """
+name: test-model
+version: 1.0.0
+engine: custom
+type: stt
+capabilities:
+  streaming: true
+  supports_foo: true
+resources:
+  memory_mb: 512
+"""
+        with pytest.raises(ManifestValidationError):
+            ModelManifest.from_yaml_string(yaml_str)
+
+    def test_known_capability_fields_accepted(self) -> None:
+        yaml_str = """
+name: test-model
+version: 1.0.0
+engine: custom
+type: stt
+capabilities:
+  streaming: true
+  architecture: encoder-decoder
+  languages: ["en"]
+  word_timestamps: true
+  translation: false
+  partial_transcripts: true
+  hot_words: false
+  batch_inference: true
+  language_detection: true
+  initial_prompt: true
+resources:
+  memory_mb: 512
+"""
+        manifest = ModelManifest.from_yaml_string(yaml_str)
+        assert manifest.capabilities.streaming is True
+        assert manifest.capabilities.word_timestamps is True
+
+    def test_empty_capabilities_accepted(self) -> None:
+        yaml_str = """
+name: test-model
+version: 1.0.0
+engine: custom
+type: stt
+resources:
+  memory_mb: 512
+"""
+        manifest = ModelManifest.from_yaml_string(yaml_str)
+        assert manifest.capabilities.streaming is False
+
+    def test_engine_config_still_allows_extra(self) -> None:
+        """Confirm EngineConfig extra='allow' is not affected."""
+        yaml_str = """
+name: test-model
+version: 1.0.0
+engine: custom
+type: stt
+resources:
+  memory_mb: 512
+engine_config:
+  custom_engine_param: 42
+"""
+        manifest = ModelManifest.from_yaml_string(yaml_str)
+        assert manifest.engine_config.model_extra is not None
+        assert manifest.engine_config.model_extra["custom_engine_param"] == 42

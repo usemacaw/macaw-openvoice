@@ -1,4 +1,4 @@
-"""Testes dos modelos Pydantic para eventos WebSocket de streaming STT."""
+"""Tests for Pydantic models of WebSocket streaming STT events."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from macaw.server.models.events import (
 
 
 class TestServerEvents:
-    """Testes de serializacao dos eventos server -> client."""
+    """Tests for server -> client event serialization."""
 
     def test_session_created_event_serializes_with_type_field(self) -> None:
         event = SessionCreatedEvent(
@@ -152,7 +152,7 @@ class TestServerEvents:
 
 
 class TestClientCommands:
-    """Testes de desserializacao dos comandos client -> server."""
+    """Tests for client -> server command deserialization."""
 
     def test_session_configure_command_deserializes(self) -> None:
         raw = {
@@ -191,7 +191,7 @@ class TestClientCommands:
 
 
 class TestRoundTrip:
-    """Testes de round-trip: model -> JSON -> model."""
+    """Round-trip tests: model -> JSON -> model."""
 
     def test_session_created_event_roundtrip(self) -> None:
         original = SessionCreatedEvent(
@@ -235,7 +235,7 @@ class TestRoundTrip:
 
 
 class TestValidation:
-    """Testes de validacao e imutabilidade."""
+    """Tests for validation and immutability."""
 
     def test_invalid_vad_sensitivity_raises_validation_error(self) -> None:
         with pytest.raises(ValidationError):

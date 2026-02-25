@@ -1,6 +1,6 @@
-"""Testes do Audio Preprocessing Pipeline.
+"""Tests for the Audio Preprocessing Pipeline.
 
-Testa AudioStage ABC, decode/encode de audio e AudioPreprocessingPipeline.
+Tests AudioStage ABC, audio decode/encode, and AudioPreprocessingPipeline.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def make_wav_bytes(
     frequency: float = 440.0,
     amplitude: float = 0.5,
 ) -> bytes:
-    """Cria bytes WAV PCM 16-bit com tom senoidal."""
+    """Create WAV PCM 16-bit bytes with sine tone."""
     n_samples = int(sample_rate * duration)
     samples = []
     for i in range(n_samples):
@@ -49,7 +49,7 @@ def make_stereo_wav_bytes(
     sample_rate: int = 16000,
     duration: float = 0.1,
 ) -> bytes:
-    """Cria bytes WAV PCM 16-bit stereo."""
+    """Create stereo WAV PCM 16-bit bytes."""
     n_samples = int(sample_rate * duration)
     samples = []
     for i in range(n_samples):
@@ -68,7 +68,7 @@ def make_stereo_wav_bytes(
 
 
 class PassthroughStage(AudioStage):
-    """Stage que retorna audio sem modificacao."""
+    """Stage that returns audio without modification."""
 
     @property
     def name(self) -> str:
@@ -79,7 +79,7 @@ class PassthroughStage(AudioStage):
 
 
 class GainStage(AudioStage):
-    """Stage que multiplica amplitude por um fator."""
+    """Stage that multiplies amplitude by a factor."""
 
     def __init__(self, factor: float = 0.5) -> None:
         self._factor = factor
@@ -93,7 +93,7 @@ class GainStage(AudioStage):
 
 
 class SampleRateChangeStage(AudioStage):
-    """Stage que simula mudanca de sample rate (trunca amostras para teste)."""
+    """Stage that simulates sample rate change (truncates samples for testing)."""
 
     def __init__(self, target_sr: int) -> None:
         self._target_sr = target_sr
@@ -103,24 +103,24 @@ class SampleRateChangeStage(AudioStage):
         return "sr_change"
 
     def process(self, audio: np.ndarray, sample_rate: int) -> tuple[np.ndarray, int]:
-        # Simula resample simples por repeticao/decimacao
+        # Simulates simple resample by repetition/decimation
         ratio = self._target_sr / sample_rate
         new_length = int(len(audio) * ratio)
         indices = np.linspace(0, len(audio) - 1, new_length).astype(int)
         return audio[indices], self._target_sr
 
 
-# --- Testes AudioStage ABC ---
+# --- AudioStage ABC Tests ---
 
 
 class TestAudioStage:
     def test_cannot_instantiate_abc(self) -> None:
-        """AudioStage e abstrato e nao pode ser instanciado diretamente."""
+        """AudioStage is abstract and cannot be instantiated directly."""
         with pytest.raises(TypeError, match="abstract"):
             AudioStage()  # type: ignore[abstract]
 
     def test_passthrough_stage_implements_interface(self) -> None:
-        """Stage concreto implementando AudioStage funciona corretamente."""
+        """Concrete stage implementing AudioStage works correctly."""
         stage = PassthroughStage()
         audio = np.array([0.1, 0.2, 0.3], dtype=np.float32)
         result, sr = stage.process(audio, 16000)
@@ -128,12 +128,12 @@ class TestAudioStage:
         assert sr == 16000
 
     def test_stage_name_property(self) -> None:
-        """Stage expoe nome identificador."""
+        """Stage exposes identifier name."""
         stage = PassthroughStage()
         assert stage.name == "passthrough"
 
     def test_gain_stage_modifies_audio(self) -> None:
-        """Stage pode modificar o audio processado."""
+        """Stage can modify the processed audio."""
         stage = GainStage(factor=0.5)
         audio = np.array([1.0, -1.0, 0.5], dtype=np.float32)
         result, sr = stage.process(audio, 16000)
@@ -142,12 +142,12 @@ class TestAudioStage:
         assert sr == 16000
 
 
-# --- Testes decode_audio ---
+# --- decode_audio Tests ---
 
 
 class TestDecodeAudio:
     def test_decode_wav_16khz(self) -> None:
-        """Decodifica WAV PCM 16-bit, 16kHz corretamente."""
+        """Decodes WAV PCM 16-bit, 16kHz correctly."""
         wav_bytes = make_wav_bytes(sample_rate=16000, duration=0.1)
         audio, sr = decode_audio(wav_bytes)
         assert sr == 16000
@@ -155,70 +155,70 @@ class TestDecodeAudio:
         assert len(audio) == 1600  # 0.1s * 16000
 
     def test_decode_wav_8khz(self) -> None:
-        """Decodifica WAV 8kHz corretamente."""
+        """Decodes WAV 8kHz correctly."""
         wav_bytes = make_wav_bytes(sample_rate=8000, duration=0.1)
         audio, sr = decode_audio(wav_bytes)
         assert sr == 8000
         assert len(audio) == 800
 
     def test_decode_wav_44khz(self) -> None:
-        """Decodifica WAV 44.1kHz corretamente."""
+        """Decodes WAV 44.1kHz correctly."""
         wav_bytes = make_wav_bytes(sample_rate=44100, duration=0.1)
         audio, sr = decode_audio(wav_bytes)
         assert sr == 44100
         assert len(audio) == 4410
 
     def test_decode_stereo_to_mono(self) -> None:
-        """Converte audio stereo para mono automaticamente."""
+        """Converts stereo audio to mono automatically."""
         stereo_bytes = make_stereo_wav_bytes(sample_rate=16000, duration=0.1)
         audio, sr = decode_audio(stereo_bytes)
         assert sr == 16000
         assert audio.ndim == 1  # Mono
 
     def test_decode_empty_bytes_raises(self) -> None:
-        """Bytes vazios levantam AudioFormatError."""
+        """Empty bytes raise AudioFormatError."""
         with pytest.raises(AudioFormatError, match="Empty audio"):
             decode_audio(b"")
 
     def test_decode_invalid_bytes_raises(self) -> None:
-        """Bytes invalidos levantam AudioFormatError."""
+        """Invalid bytes raise AudioFormatError."""
         with pytest.raises(AudioFormatError):
             decode_audio(b"not audio data at all")
 
     def test_decode_returns_float32(self) -> None:
-        """Audio decodificado e sempre float32."""
+        """Decoded audio is always float32."""
         wav_bytes = make_wav_bytes()
         audio, _ = decode_audio(wav_bytes)
         assert audio.dtype == np.float32
 
     def test_decode_values_in_range(self) -> None:
-        """Valores decodificados estao no range [-1.0, 1.0]."""
+        """Decoded values are in the range [-1.0, 1.0]."""
         wav_bytes = make_wav_bytes(amplitude=1.0)
         audio, _ = decode_audio(wav_bytes)
         assert np.all(audio >= -1.0)
         assert np.all(audio <= 1.0)
 
 
-# --- Testes encode_pcm16 ---
+# --- encode_pcm16 Tests ---
 
 
 class TestEncodePcm16:
     def test_encode_produces_valid_wav(self) -> None:
-        """Encode produz bytes WAV validos que podem ser re-decodificados."""
+        """Encode produces valid WAV bytes that can be re-decoded."""
         audio = np.array([0.0, 0.5, -0.5, 1.0, -1.0], dtype=np.float32)
         wav_bytes = encode_pcm16(audio, 16000)
 
-        # Deve ser re-decodificavel
+        # Should be re-decodable
         decoded, sr = decode_audio(wav_bytes)
         assert sr == 16000
         assert len(decoded) == 5
 
     def test_encode_clamps_values(self) -> None:
-        """Encode limita valores fora de [-1.0, 1.0] sem overflow."""
+        """Encode clamps values outside [-1.0, 1.0] without overflow."""
         audio = np.array([2.0, -2.0, 0.0], dtype=np.float32)
         wav_bytes = encode_pcm16(audio, 16000)
 
-        # Verificar via wave stdlib que o WAV e valido
+        # Verify via wave stdlib that the WAV is valid
         with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
             assert wf.getnchannels() == 1
             assert wf.getsampwidth() == 2
@@ -226,7 +226,7 @@ class TestEncodePcm16:
             assert wf.getnframes() == 3
 
     def test_encode_preserves_sample_rate(self) -> None:
-        """Sample rate e preservado no header WAV."""
+        """Sample rate is preserved in the WAV header."""
         audio = np.zeros(100, dtype=np.float32)
         for sr in [8000, 16000, 44100, 48000]:
             wav_bytes = encode_pcm16(audio, sr)
@@ -234,7 +234,7 @@ class TestEncodePcm16:
                 assert wf.getframerate() == sr
 
     def test_roundtrip_decode_encode(self) -> None:
-        """Roundtrip decode -> encode preserva audio (com quantizacao PCM16)."""
+        """Roundtrip decode -> encode preserves audio (with PCM16 quantization)."""
         original_wav = make_wav_bytes(sample_rate=16000, duration=0.05)
         audio, sr = decode_audio(original_wav)
         re_encoded = encode_pcm16(audio, sr)
@@ -242,29 +242,29 @@ class TestEncodePcm16:
 
         assert sr == sr2
         assert len(audio) == len(re_decoded)
-        # Tolerancia de quantizacao PCM16 (1/32768 ~= 3e-5)
+        # PCM16 quantization tolerance (1/32768 ~= 3e-5)
         np.testing.assert_allclose(audio, re_decoded, atol=1e-4)
 
 
-# --- Testes AudioPreprocessingPipeline ---
+# --- AudioPreprocessingPipeline Tests ---
 
 
 class TestAudioPreprocessingPipeline:
     def test_pipeline_zero_stages_returns_pcm16(self) -> None:
-        """Pipeline sem stages decodifica e re-codifica audio como PCM16 WAV."""
+        """Pipeline with no stages decodes and re-encodes audio as PCM16 WAV."""
         config = PreprocessingConfig()
         pipeline = AudioPreprocessingPipeline(config)
         input_wav = make_wav_bytes(sample_rate=16000, duration=0.05)
 
         result = pipeline.process(input_wav)
 
-        # Resultado deve ser WAV valido
+        # Result should be valid WAV
         audio, sr = decode_audio(result)
         assert sr == 16000
         assert audio.dtype == np.float32
 
     def test_pipeline_with_passthrough_stage(self) -> None:
-        """Pipeline com stage passthrough retorna audio equivalente."""
+        """Pipeline with passthrough stage returns equivalent audio."""
         config = PreprocessingConfig()
         pipeline = AudioPreprocessingPipeline(config, stages=[PassthroughStage()])
         input_wav = make_wav_bytes(sample_rate=16000, duration=0.05)
@@ -278,9 +278,9 @@ class TestAudioPreprocessingPipeline:
         np.testing.assert_allclose(result_audio, input_audio, atol=1e-4)
 
     def test_pipeline_chains_multiple_stages(self) -> None:
-        """Pipeline executa stages em sequencia."""
+        """Pipeline executes stages in sequence."""
         config = PreprocessingConfig()
-        # Dois stages de ganho 0.5 -> resultado final = 0.25 * original
+        # Two gain stages of 0.5 -> final result = 0.25 * original
         pipeline = AudioPreprocessingPipeline(
             config,
             stages=[GainStage(factor=0.5), GainStage(factor=0.5)],
@@ -291,12 +291,12 @@ class TestAudioPreprocessingPipeline:
         result_audio, _ = decode_audio(result)
         input_audio, _ = decode_audio(input_wav)
 
-        # Audio resultante deve ser ~0.25 do original
+        # Resulting audio should be ~0.25 of original
         expected = input_audio * 0.25
         np.testing.assert_allclose(result_audio, expected, atol=1e-3)
 
     def test_pipeline_preserves_sample_rate_through_stages(self) -> None:
-        """Sample rate e preservado quando stages nao o alteram."""
+        """Sample rate is preserved when stages do not alter it."""
         config = PreprocessingConfig()
         pipeline = AudioPreprocessingPipeline(
             config,
@@ -309,7 +309,7 @@ class TestAudioPreprocessingPipeline:
         assert result_sr == 44100
 
     def test_pipeline_stage_can_change_sample_rate(self) -> None:
-        """Stage pode alterar sample rate e o pipeline propaga."""
+        """Stage can change sample rate and the pipeline propagates it."""
         config = PreprocessingConfig()
         pipeline = AudioPreprocessingPipeline(
             config,
@@ -322,7 +322,7 @@ class TestAudioPreprocessingPipeline:
         assert result_sr == 8000
 
     def test_pipeline_invalid_audio_raises(self) -> None:
-        """Pipeline levanta AudioFormatError para audio invalido."""
+        """Pipeline raises AudioFormatError for invalid audio."""
         config = PreprocessingConfig()
         pipeline = AudioPreprocessingPipeline(config)
 
@@ -330,7 +330,7 @@ class TestAudioPreprocessingPipeline:
             pipeline.process(b"not valid audio")
 
     def test_pipeline_empty_audio_raises(self) -> None:
-        """Pipeline levanta AudioFormatError para bytes vazios."""
+        """Pipeline raises AudioFormatError for empty bytes."""
         config = PreprocessingConfig()
         pipeline = AudioPreprocessingPipeline(config)
 
@@ -338,28 +338,28 @@ class TestAudioPreprocessingPipeline:
             pipeline.process(b"")
 
     def test_pipeline_config_accessible(self) -> None:
-        """Config e acessivel via property."""
+        """Config is accessible via property."""
         config = PreprocessingConfig(target_sample_rate=8000)
         pipeline = AudioPreprocessingPipeline(config)
         assert pipeline.config.target_sample_rate == 8000
 
     def test_pipeline_stages_property_returns_copy(self) -> None:
-        """Property stages retorna copia da lista interna."""
+        """stages property returns a copy of the internal list."""
         config = PreprocessingConfig()
         stages = [PassthroughStage()]
         pipeline = AudioPreprocessingPipeline(config, stages=stages)
 
         returned = pipeline.stages
-        returned.append(GainStage())  # Modificar copia
-        assert len(pipeline.stages) == 1  # Original nao muda
+        returned.append(GainStage())  # Modify copy
+        assert len(pipeline.stages) == 1  # Original does not change
 
     def test_pipeline_with_fixture_audio(self, audio_16khz: None) -> None:
-        """Pipeline processa fixtures de audio do projeto."""
+        """Pipeline processes project audio fixtures."""
         from pathlib import Path
 
         fixture_path = Path(__file__).parent.parent / "fixtures" / "audio" / "sample_16khz.wav"
         if not fixture_path.exists():
-            pytest.skip("Fixture de audio nao encontrada")
+            pytest.skip("Audio fixture not found")
 
         audio_bytes = fixture_path.read_bytes()
         config = PreprocessingConfig()

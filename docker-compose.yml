@@ -7,15 +7,50 @@ services:
       - macaw-models:/root/.macaw/models
     environment:
       - MACAW_LOG_FORMAT=json
+      - MACAW_BACKEND_AUTO_PROVISION=false
+      - 'MACAW_REMOTE_WORKERS={"faster-whisper":"stt-worker:50051","kokoro":"tts-worker:50051"}'
+    restart: unless-stopped
+    depends_on:
+      - stt-worker
+      - tts-worker
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  stt-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        ENGINE: faster-whisper
+    volumes:
+      - macaw-models:/models
+    command: ["macaw.workers.stt", "--port", "50051", "--engine", "faster-whisper", "--model-path", "/models/large-v3", "--engine-config", "{}"]
+    expose:
+      - "50051"
     restart: unless-stopped
     deploy:
       resources:
         limits:
           memory: 4G
-          cpus: "4.0"
-        reservations:
-          memory: 2G
-          cpus: "1.0"
+
+  tts-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        ENGINE: kokoro
+    volumes:
+      - macaw-models:/models
+    command: ["macaw.workers.tts", "--port", "50051", "--engine", "kokoro", "--model-path", "/models/kokoro-v1", "--engine-config", "{}"]
+    expose:
+      - "50051"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
 
 volumes:
   macaw-models:

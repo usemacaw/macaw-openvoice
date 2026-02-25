@@ -1,12 +1,12 @@
-"""Demo interativo de Voice Cloning — Macaw OpenVoice.
+"""Interactive Voice Cloning demo — Macaw OpenVoice.
 
-Usa Qwen3-TTS-0.6B-Base para clonar voz a partir de audio de referencia.
-Interface web via Gradio.
+Uses Qwen3-TTS-0.6B-Base to clone voice from reference audio.
+Web interface via Gradio.
 
-Uso:
+Usage:
     PYTHONPATH=. .venv/bin/python demo_voice_cloning.py
 
-Abre no navegador: http://localhost:7860
+Opens in browser: http://localhost:7860
 """
 
 from __future__ import annotations
@@ -36,13 +36,13 @@ LANGUAGES = [
     "Italian",
 ]
 
-# Backend global — carregado uma vez
+# Global backend — loaded once
 _backend = None
 _load_time = 0.0
 
 
 def _get_backend():
-    """Lazy-load do backend (carrega modelo na primeira chamada)."""
+    """Lazy-load the backend (loads model on first call)."""
     global _backend, _load_time
 
     if _backend is not None:
@@ -62,19 +62,19 @@ def _get_backend():
     t0 = time.monotonic()
     asyncio.get_event_loop().run_until_complete(_backend.load(MODEL_PATH, config))
     _load_time = time.monotonic() - t0
-    print(f"Modelo carregado em {_load_time:.1f}s")
+    print(f"Model loaded in {_load_time:.1f}s")
     return _backend
 
 
 def _audio_file_to_wav_bytes(filepath: str) -> bytes:
-    """Converte qualquer arquivo de audio para WAV bytes mono 24kHz."""
+    """Convert any audio file to mono WAV bytes at 24kHz."""
     import soundfile as sf
 
     data, sr = sf.read(filepath, dtype="float32")
     # Mono
     if data.ndim > 1:
         data = data.mean(axis=1)
-    # Resample para 24kHz se necessario
+    # Resample to 24kHz if necessary
     if sr != SAMPLE_RATE:
         from scipy.signal import resample
 
@@ -93,7 +93,7 @@ def _audio_file_to_wav_bytes(filepath: str) -> bytes:
 
 
 def _gradio_audio_to_wav_bytes(audio_input) -> bytes:
-    """Converte input do Gradio (filepath ou tuple) para WAV bytes."""
+    """Convert Gradio input (filepath or tuple) to WAV bytes."""
     if isinstance(audio_input, str):
         return _audio_file_to_wav_bytes(audio_input)
 
@@ -122,7 +122,7 @@ def _gradio_audio_to_wav_bytes(audio_input) -> bytes:
             wf.writeframes(pcm16.tobytes())
         return buf.getvalue()
 
-    msg = f"Formato de audio nao suportado: {type(audio_input)}"
+    msg = f"Unsupported audio format: {type(audio_input)}"
     raise ValueError(msg)
 
 
@@ -132,28 +132,28 @@ async def clone_voice(
     synth_text: str,
     language: str,
 ) -> tuple[str | None, str]:
-    """Funcao principal chamada pelo Gradio (async)."""
+    """Main function called by Gradio (async)."""
     if ref_audio is None:
-        return None, "Erro: Envie ou grave um audio de referencia."
+        return None, "Error: Please upload or record a reference audio."
 
     if not synth_text.strip():
-        return None, "Erro: Digite o texto para sintetizar."
+        return None, "Error: Please enter the text to synthesize."
 
     if not ref_text.strip():
-        return None, "Erro: Digite a transcricao do audio de referencia."
+        return None, "Error: Please enter the transcription of the reference audio."
 
     try:
         backend = _get_backend()
     except Exception as e:
-        return None, f"Erro ao carregar modelo: {e}"
+        return None, f"Error loading model: {e}"
 
-    # Converter audio de referencia
+    # Convert reference audio
     try:
         ref_wav_bytes = _gradio_audio_to_wav_bytes(ref_audio)
     except Exception as e:
-        return None, f"Erro ao processar audio de referencia: {e}"
+        return None, f"Error processing reference audio: {e}"
 
-    # Sintetizar
+    # Synthesize
     t0 = time.monotonic()
     chunks: list[bytes] = []
 
@@ -170,13 +170,13 @@ async def clone_voice(
         ):
             chunks.append(chunk)
     except Exception as e:
-        return None, f"Erro na sintese: {e}"
+        return None, f"Synthesis error: {e}"
 
     synth_time = time.monotonic() - t0
     total_pcm = b"".join(chunks)
     audio_duration = len(total_pcm) / (SAMPLE_RATE * 2)
 
-    # Salvar WAV temporario
+    # Save temporary WAV
     out_path = os.path.join(tempfile.gettempdir(), "macaw_clone_output.wav")
     with wave.open(out_path, "wb") as wf:
         wf.setnchannels(1)
@@ -185,9 +185,9 @@ async def clone_voice(
         wf.writeframes(total_pcm)
 
     status = (
-        f"Sintese concluida!\n"
-        f"  Tempo: {synth_time:.1f}s\n"
-        f"  Audio gerado: {audio_duration:.1f}s ({len(chunks)} chunks)\n"
+        f"Synthesis complete!\n"
+        f"  Time: {synth_time:.1f}s\n"
+        f"  Generated audio: {audio_duration:.1f}s ({len(chunks)} chunks)\n"
         f"  RTF: {synth_time / audio_duration:.1f}x (CPU)"
     )
 
@@ -195,7 +195,7 @@ async def clone_voice(
 
 
 def build_app():
-    """Constroi a interface Gradio."""
+    """Build the Gradio interface."""
     import gradio as gr
 
     with gr.Blocks(title="Macaw Voice Cloning") as app:
@@ -203,9 +203,9 @@ def build_app():
             """
             # Macaw OpenVoice — Voice Cloning Demo
 
-            Clone qualquer voz a partir de ~3 segundos de audio de referencia.
+            Clone any voice from ~3 seconds of reference audio.
 
-            **Modelo:** Qwen3-TTS-0.6B-Base | **Engine:** qwen3-tts | **Device:** CPU
+            **Model:** Qwen3-TTS-0.6B-Base | **Engine:** qwen3-tts | **Device:** CPU
 
             ---
             """
@@ -213,35 +213,35 @@ def build_app():
 
         with gr.Row():
             with gr.Column(scale=1):
-                gr.Markdown("### 1. Audio de Referencia")
+                gr.Markdown("### 1. Reference Audio")
                 ref_audio = gr.Audio(
-                    label="Grave ou envie audio (~3-10s)",
+                    label="Record or upload audio (~3-10s)",
                     type="filepath",
                 )
                 ref_text = gr.Textbox(
-                    label="Transcricao do audio de referencia",
-                    placeholder="Digite exatamente o que foi dito no audio...",
+                    label="Transcription of the reference audio",
+                    placeholder="Type exactly what was said in the audio...",
                     lines=2,
                 )
 
             with gr.Column(scale=1):
-                gr.Markdown("### 2. Texto para Sintetizar")
+                gr.Markdown("### 2. Text to Synthesize")
                 synth_text = gr.Textbox(
-                    label="Texto que a voz clonada vai falar",
-                    placeholder="Digite o texto que deseja ouvir com a voz clonada...",
+                    label="Text the cloned voice will speak",
+                    placeholder="Type the text you want to hear with the cloned voice...",
                     lines=3,
                 )
                 language = gr.Dropdown(
                     choices=LANGUAGES,
                     value="English",
-                    label="Idioma",
+                    label="Language",
                 )
 
         gr.Markdown("---")
 
         with gr.Row():
             btn = gr.Button(
-                "Clonar Voz",
+                "Clone Voice",
                 variant="primary",
                 size="lg",
             )
@@ -249,7 +249,7 @@ def build_app():
         with gr.Row():
             with gr.Column(scale=1):
                 output_audio = gr.Audio(
-                    label="Audio Gerado",
+                    label="Generated Audio",
                     type="filepath",
                 )
             with gr.Column(scale=1):
@@ -268,11 +268,11 @@ def build_app():
         gr.Markdown(
             """
             ---
-            **Dicas:**
-            - Use audio limpo de 3-10 segundos (sem ruido de fundo)
-            - A transcricao deve ser exata — ajuda o modelo a entender o timbre
-            - CPU inference e lento (~60-90s). Com GPU, espere ~1-3s
-            - Idiomas suportados: zh, en, ja, ko, de, fr, ru, pt, es, it
+            **Tips:**
+            - Use clean audio of 3-10 seconds (no background noise)
+            - The transcription must be exact — it helps the model understand the timbre
+            - CPU inference is slow (~60-90s). With GPU, expect ~1-3s
+            - Supported languages: zh, en, ja, ko, de, fr, ru, pt, es, it
             """
         )
 
@@ -281,20 +281,20 @@ def build_app():
 
 if __name__ == "__main__":
     if not os.path.isdir(MODEL_PATH):
-        print(f"Modelo nao encontrado em: {MODEL_PATH}")
-        print("Instale com: macaw pull qwen3-tts-0.6b-base")
+        print(f"Model not found at: {MODEL_PATH}")
+        print("Install with: macaw pull qwen3-tts-0.6b-base")
         raise SystemExit(1)
 
     print("Macaw Voice Cloning Demo")
-    print(f"Modelo: {MODEL_PATH}")
+    print(f"Model: {MODEL_PATH}")
     print()
-    print("Carregando modelo (primeira vez pode demorar ~10s)...")
+    print("Loading model (first time may take ~10s)...")
 
-    # Pre-load para nao travar na primeira request
+    # Pre-load to avoid freezing on first request
     _get_backend()
 
     print()
-    print("Iniciando interface web...")
+    print("Starting web interface...")
     import gradio as gr
 
     app = build_app()

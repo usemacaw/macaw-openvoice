@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import threading
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import grpc
@@ -29,13 +30,14 @@ from macaw.workers.stt.converters import (
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from macaw._types import TranscriptSegment
+    from macaw._types import BatchResult, TranscriptSegment
     from macaw.proto.stt_worker_pb2 import (
         AudioFrame,
         CancelRequest,
         HealthRequest,
         TranscribeFileRequest,
     )
+    from macaw.workers.stt.diarization.interface import DiarizationBackend
     from macaw.workers.stt.interface import STTBackend
 
 from macaw.proto.stt_worker_pb2_grpc import STTWorkerServicer as _BaseServicer
@@ -60,12 +62,14 @@ class STTWorkerServicer(_BaseServicer):
         *,
         max_concurrent: int = 1,
         max_cancelled_requests: int = _DEFAULT_MAX_CANCELLED_REQUESTS,
+        diarizer: DiarizationBackend | None = None,
     ) -> None:
         self._backend = backend
         self._model_name = model_name
         self._engine = engine
         self._max_concurrent = max(1, max_concurrent)
         self._max_cancelled_requests = max(1, max_cancelled_requests)
+        self._diarizer = diarizer
         self._inference_semaphore = asyncio.Semaphore(self._max_concurrent)
         self._cancel_lock = threading.Lock()
         self._cancelled_requests: set[str] = set()
@@ -135,6 +139,16 @@ class STTWorkerServicer(_BaseServicer):
                 logger.info("transcribe_file_cancelled_after_inference", request_id=request_id)
                 await context.abort(grpc.StatusCode.CANCELLED, "Request cancelled")
                 return TranscribeFileResponse()  # pragma: no cover
+
+            # Run diarization if requested
+            if params.diarize:
+                result = await self._run_diarization(
+                    result,
+                    params.audio_data,
+                    context,
+                    request_id=request_id,
+                    max_speakers=params.max_speakers,
+                )
         except Exception as exc:
             logger.error("transcribe_file_error", request_id=request_id, error=str(exc))
             await context.abort(grpc.StatusCode.INTERNAL, str(exc))
@@ -152,6 +166,53 @@ class STTWorkerServicer(_BaseServicer):
         )
 
         return batch_result_to_proto_response(result)
+
+    async def _run_diarization(
+        self,
+        result: BatchResult,
+        audio_data: bytes,
+        context: grpc.aio.ServicerContext[TranscribeFileRequest, TranscribeFileResponse],
+        *,
+        request_id: str,
+        max_speakers: int,
+    ) -> BatchResult:
+        """Run post-transcription diarization and merge into the result.
+
+        If the diarizer is not available, aborts with UNAVAILABLE.
+        Diarization errors are logged and result is returned without
+        speaker segments (graceful degradation).
+        """
+        from macaw._audio_constants import STT_SAMPLE_RATE
+
+        if self._diarizer is None:
+            await context.abort(
+                grpc.StatusCode.UNAVAILABLE,
+                "Diarization not available: pyannote.audio is not installed",
+            )
+            return result  # pragma: no cover
+
+        effective_max_speakers = max_speakers if max_speakers > 0 else None
+
+        try:
+            speaker_segments = await self._diarizer.diarize(
+                audio_data,
+                STT_SAMPLE_RATE,
+                max_speakers=effective_max_speakers,
+            )
+            logger.info(
+                "diarization_done",
+                request_id=request_id,
+                num_segments=len(speaker_segments),
+            )
+            return replace(result, speaker_segments=speaker_segments)
+        except Exception as exc:
+            logger.error(
+                "diarization_error",
+                request_id=request_id,
+                error=str(exc),
+            )
+            # Graceful degradation: return transcription without diarization
+            return result
 
     async def TranscribeStream(  # noqa: N802  # type: ignore[override]
         self,

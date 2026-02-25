@@ -1,13 +1,13 @@
-"""Teste de round-trip TTS -> STT (qualidade end-to-end).
+"""Round-trip TTS -> STT test (end-to-end quality).
 
-Gera audio via KokoroBackend (TTS), alimenta ao FasterWhisperBackend (STT),
-e compara o texto original com o texto transcrito.
+Generates audio via KokoroBackend (TTS), feeds it to FasterWhisperBackend (STT),
+and compares the original text with the transcribed text.
 
-Requer modelos reais instalados:
-  - kokoro-v1 em ~/.macaw/models/kokoro-v1/
-  - faster-whisper-tiny em ~/.macaw/models/faster-whisper-tiny/
+Requires real models installed:
+  - kokoro-v1 at ~/.macaw/models/kokoro-v1/
+  - faster-whisper-tiny at ~/.macaw/models/faster-whisper-tiny/
 
-Marcado como @pytest.mark.integration — nao roda no CI padrao.
+Marked as @pytest.mark.integration -- does not run in standard CI.
 """
 
 from __future__ import annotations
@@ -19,17 +19,17 @@ import struct
 import numpy as np
 import pytest
 
-# Paths dos modelos
+# Model paths
 _KOKORO_MODEL_PATH = os.path.expanduser("~/.macaw/models/kokoro-v1")
 _FW_MODEL_PATH = os.path.expanduser("~/.macaw/models/faster-whisper-tiny")
 
-# Pular se modelos nao instalados
+# Skip if models not installed
 _HAS_KOKORO_MODEL = os.path.isdir(_KOKORO_MODEL_PATH) and os.path.isfile(
     os.path.join(_KOKORO_MODEL_PATH, "config.json")
 )
 _HAS_FW_MODEL = os.path.isdir(_FW_MODEL_PATH)
 
-# Tentar importar engines (opcionais)
+# Try to import engines (optional)
 try:
     import kokoro as _kokoro_check  # noqa: F401
 
@@ -46,13 +46,13 @@ except ImportError:
 
 _SKIP_REASON = ""
 if not _HAS_KOKORO_LIB:
-    _SKIP_REASON = "kokoro nao instalado"
+    _SKIP_REASON = "kokoro not installed"
 elif not _HAS_FW_LIB:
-    _SKIP_REASON = "faster-whisper nao instalado"
+    _SKIP_REASON = "faster-whisper not installed"
 elif not _HAS_KOKORO_MODEL:
-    _SKIP_REASON = f"modelo kokoro-v1 nao encontrado em {_KOKORO_MODEL_PATH}"
+    _SKIP_REASON = f"kokoro-v1 model not found at {_KOKORO_MODEL_PATH}"
 elif not _HAS_FW_MODEL:
-    _SKIP_REASON = f"modelo faster-whisper-tiny nao encontrado em {_FW_MODEL_PATH}"
+    _SKIP_REASON = f"faster-whisper-tiny model not found at {_FW_MODEL_PATH}"
 
 pytestmark = [
     pytest.mark.integration,
@@ -61,7 +61,7 @@ pytestmark = [
 
 
 def _normalize_text(text: str) -> str:
-    """Normaliza texto para comparacao: lowercase, sem pontuacao, trim."""
+    """Normalizes text for comparison: lowercase, no punctuation, trim."""
     text = text.lower().strip()
     text = re.sub(r"[^a-z0-9 ]", "", text)
     text = re.sub(r"\s+", " ", text).strip()
@@ -69,9 +69,9 @@ def _normalize_text(text: str) -> str:
 
 
 def _word_overlap_ratio(original: str, transcribed: str) -> float:
-    """Calcula a fracao de palavras do original presentes na transcricao.
+    """Calculates the fraction of original words present in the transcription.
 
-    Retorna valor entre 0.0 e 1.0.
+    Returns a value between 0.0 and 1.0.
     """
     orig_words = set(_normalize_text(original).split())
     trans_words = set(_normalize_text(transcribed).split())
@@ -81,7 +81,7 @@ def _word_overlap_ratio(original: str, transcribed: str) -> float:
 
 
 def _pcm16_to_wav_bytes(pcm_data: bytes, sample_rate: int) -> bytes:
-    """Converte PCM 16-bit mono para WAV em memoria."""
+    """Converts PCM 16-bit mono to WAV in memory."""
     num_channels = 1
     bits_per_sample = 16
     byte_rate = sample_rate * num_channels * bits_per_sample // 8
@@ -110,7 +110,7 @@ class TestRoundtripTTSSTT:
 
     @pytest.fixture(scope="class")
     async def tts_backend(self) -> object:
-        """Carrega KokoroBackend com modelo real (uma vez por classe)."""
+        """Loads KokoroBackend with real model (once per class)."""
         from macaw.workers.tts.kokoro import KokoroBackend
 
         backend = KokoroBackend()
@@ -123,7 +123,7 @@ class TestRoundtripTTSSTT:
 
     @pytest.fixture(scope="class")
     async def stt_backend(self) -> object:
-        """Carrega FasterWhisperBackend com modelo real (uma vez por classe)."""
+        """Loads FasterWhisperBackend with real model (once per class)."""
         from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         backend = FasterWhisperBackend()
@@ -135,7 +135,7 @@ class TestRoundtripTTSSTT:
         await backend.unload()
 
     async def _synthesize_text(self, tts_backend: object, text: str) -> bytes:
-        """Sintetiza texto e retorna audio PCM 16-bit concatenado."""
+        """Synthesizes text and returns concatenated PCM 16-bit audio."""
         from macaw.workers.tts.kokoro import KokoroBackend
 
         assert isinstance(tts_backend, KokoroBackend)
@@ -151,7 +151,7 @@ class TestRoundtripTTSSTT:
         *,
         language: str = "en",
     ) -> str:
-        """Transcreve audio PCM 16-bit e retorna texto."""
+        """Transcribes PCM 16-bit audio and returns text."""
         from macaw.workers.stt.faster_whisper import FasterWhisperBackend
 
         assert isinstance(stt_backend, FasterWhisperBackend)
@@ -169,18 +169,18 @@ class TestRoundtripTTSSTT:
         *,
         language: str = "en",
     ) -> tuple[str, float]:
-        """Executa round-trip: text -> TTS -> STT -> text.
+        """Executes round-trip: text -> TTS -> STT -> text.
 
         Returns:
-            Tupla (texto_transcrito, word_overlap_ratio).
+            Tuple (transcribed_text, word_overlap_ratio).
         """
         # TTS: text -> PCM 16-bit at 24kHz
         pcm_24k = await self._synthesize_text(tts_backend, text)
-        assert len(pcm_24k) > 0, f"TTS retornou audio vazio para: {text!r}"
+        assert len(pcm_24k) > 0, f"TTS returned empty audio for: {text!r}"
 
-        # Resample 24kHz -> 16kHz (STT espera 16kHz)
+        # Resample 24kHz -> 16kHz (STT expects 16kHz)
         pcm_16k = _resample_pcm16(pcm_24k, from_rate=24000, to_rate=16000)
-        assert len(pcm_16k) > 0, "Resample retornou audio vazio"
+        assert len(pcm_16k) > 0, "Resample returned empty audio"
 
         # STT: PCM 16-bit 16kHz -> text
         transcribed = await self._transcribe_audio(stt_backend, pcm_16k, language=language)
@@ -189,52 +189,52 @@ class TestRoundtripTTSSTT:
         return transcribed, overlap
 
     async def test_simple_greeting(self, tts_backend: object, stt_backend: object) -> None:
-        """Frase simples de saudacao."""
+        """Simple greeting phrase."""
         text = "Hello, how can I help you today?"
         transcribed, overlap = await self._roundtrip(tts_backend, stt_backend, text)
 
-        assert len(transcribed) > 0, "STT retornou texto vazio"
+        assert len(transcribed) > 0, "STT returned empty text"
         assert overlap >= 0.5, (
-            f"Word overlap muito baixo ({overlap:.0%}). "
-            f"Original: {text!r}, Transcrito: {transcribed!r}"
+            f"Word overlap too low ({overlap:.0%}). "
+            f"Original: {text!r}, Transcribed: {transcribed!r}"
         )
 
     async def test_sentence_with_numbers(self, tts_backend: object, stt_backend: object) -> None:
-        """Frase com numeros (desafio para TTS+STT)."""
+        """Phrase with numbers (challenging for TTS+STT)."""
         text = "Please transfer one thousand dollars to account number five."
         transcribed, overlap = await self._roundtrip(tts_backend, stt_backend, text)
 
-        assert len(transcribed) > 0, "STT retornou texto vazio"
+        assert len(transcribed) > 0, "STT returned empty text"
         assert overlap >= 0.4, (
-            f"Word overlap muito baixo ({overlap:.0%}). "
-            f"Original: {text!r}, Transcrito: {transcribed!r}"
+            f"Word overlap too low ({overlap:.0%}). "
+            f"Original: {text!r}, Transcribed: {transcribed!r}"
         )
 
     async def test_pangram(self, tts_backend: object, stt_backend: object) -> None:
-        """Pangrama classico — testa diversidade de fonemas."""
+        """Classic pangram -- tests phoneme diversity."""
         text = "The quick brown fox jumps over the lazy dog."
         transcribed, overlap = await self._roundtrip(tts_backend, stt_backend, text)
 
-        assert len(transcribed) > 0, "STT retornou texto vazio"
+        assert len(transcribed) > 0, "STT returned empty text"
         assert overlap >= 0.5, (
-            f"Word overlap muito baixo ({overlap:.0%}). "
-            f"Original: {text!r}, Transcrito: {transcribed!r}"
+            f"Word overlap too low ({overlap:.0%}). "
+            f"Original: {text!r}, Transcribed: {transcribed!r}"
         )
 
     async def test_tts_produces_valid_audio(self, tts_backend: object) -> None:
-        """Verifica que TTS produz audio com amplitude razoavel (nao silencio)."""
+        """Verifies that TTS produces audio with reasonable amplitude (not silence)."""
         pcm_data = await self._synthesize_text(tts_backend, "Hello world")
         assert len(pcm_data) > 1000, "Audio muito curto"
 
-        # Converter para numpy e verificar amplitude
+        # Convert to numpy and check amplitude
         audio_array = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
         rms = np.sqrt(np.mean(audio_array**2))
-        assert rms > 100.0, f"Audio parece silencio (RMS={rms:.1f})"
+        assert rms > 100.0, f"Audio appears to be silence (RMS={rms:.1f})"
 
     async def test_roundtrip_reports_quality(
         self, tts_backend: object, stt_backend: object
     ) -> None:
-        """Teste de relatorio: imprime metricas de qualidade para analise humana."""
+        """Report test: prints quality metrics for human analysis."""
         phrases = [
             "Hello, how can I help you today?",
             "Please transfer one thousand dollars.",
@@ -254,7 +254,7 @@ class TestRoundtripTTSSTT:
                 }
             )
 
-        # Imprimir relatorio para analise humana
+        # Print report for human analysis
         print("\n" + "=" * 70)
         print("ROUND-TRIP TTS->STT QUALITY REPORT")
         print("=" * 70)
@@ -265,18 +265,18 @@ class TestRoundtripTTSSTT:
             print(f"  Transcribed: {r['transcribed']}")
         print("=" * 70)
 
-        # Pelo menos 3 de 5 frases devem ter overlap >= 50%
+        # At least 3 of 5 phrases must have overlap >= 50%
         good_count = sum(1 for r in results if float(str(r["overlap"])) >= 0.5)
         assert good_count >= 3, (
-            f"Apenas {good_count}/5 frases com overlap >= 50%. "
-            "Qualidade de audio TTS->STT abaixo do aceitavel."
+            f"Only {good_count}/5 phrases with overlap >= 50%. "
+            "TTS->STT audio quality below acceptable threshold."
         )
 
 
 def _resample_pcm16(pcm_data: bytes, *, from_rate: int, to_rate: int) -> bytes:
-    """Resample audio PCM 16-bit de from_rate para to_rate.
+    """Resamples PCM 16-bit audio from from_rate to to_rate.
 
-    Usa scipy se disponivel, senao faz downsampling simples por decimacao.
+    Uses scipy if available, otherwise performs simple downsampling via decimation.
     """
     if from_rate == to_rate:
         return pcm_data
@@ -291,7 +291,7 @@ def _resample_pcm16(pcm_data: bytes, *, from_rate: int, to_rate: int) -> bytes:
         down = from_rate // gcd
         resampled: np.ndarray = np.asarray(resample_poly(audio, up, down))
     except ImportError:
-        # Fallback: decimacao simples (funciona para 24k->16k = ratio 2/3)
+        # Fallback: simple decimation (works for 24k->16k = ratio 2/3)
         ratio = to_rate / from_rate
         new_len = int(len(audio) * ratio)
         indices = np.linspace(0, len(audio) - 1, new_len)

@@ -39,6 +39,7 @@ class SessionState(Enum):
         INIT -> ACTIVE (first audio with speech)
         INIT -> CLOSED (30s timeout without audio)
         ACTIVE -> SILENCE (VAD detects silence)
+        ACTIVE -> CLOSING (graceful close requested)
         SILENCE -> ACTIVE (VAD detects speech)
         SILENCE -> HOLD (30s timeout without speech)
         HOLD -> ACTIVE (VAD detects speech)
@@ -117,6 +118,16 @@ class SegmentDetail:
 
 
 @dataclass(frozen=True, slots=True)
+class SpeakerSegment:
+    """Speaker-attributed segment from diarization."""
+
+    speaker_id: str
+    start: float
+    end: float
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
 class BatchResult:
     """Batch transcription result (full file)."""
 
@@ -125,6 +136,7 @@ class BatchResult:
     duration: float
     segments: tuple[SegmentDetail, ...]
     words: tuple[WordTimestamp, ...] | None = None
+    speaker_segments: tuple[SpeakerSegment, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,9 +148,11 @@ class EngineCapabilities:
     """
 
     supports_hot_words: bool = False
+    hot_words_mode: Literal["none", "prompt_injection", "beam_bias", "native"] = "none"
     supports_initial_prompt: bool = False
     supports_batch: bool = False
     supports_word_timestamps: bool = False
+    supports_diarization: bool = False
     max_concurrent_sessions: int = 1
 
 
@@ -146,6 +160,33 @@ class EngineCapabilities:
 
 # Valid voice types for VoiceStore saved voices.
 VoiceTypeLiteral = Literal["cloned", "designed"]
+
+
+@dataclass(frozen=True, slots=True)
+class TTSAlignmentItem:
+    """Timing alignment for a single text element (word or character).
+
+    Produced by TTS engines that support native alignment (e.g., Kokoro
+    via duration prediction) or by runtime-level forced alignment.
+    """
+
+    text: str
+    start_ms: int
+    duration_ms: int
+
+
+@dataclass(frozen=True, slots=True)
+class TTSChunkResult:
+    """Audio chunk with optional alignment data from a TTS engine.
+
+    Returned by TTSBackend.synthesize_with_alignment() to carry both
+    PCM audio and timing metadata in a single object.
+    """
+
+    audio: bytes
+    alignment: tuple[TTSAlignmentItem, ...] | None = None
+    normalized_alignment: tuple[TTSAlignmentItem, ...] | None = None
+    alignment_granularity: Literal["word", "character"] = "word"
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +201,38 @@ class TTSEngineCapabilities:
     supports_voice_cloning: bool = False
     supports_instruct: bool = False
     max_text_length: int | None = None
+    supports_alignment: bool = False
+    supports_character_alignment: bool = False
+
+    # Parameter support declarations for runtime validation.
+    # Engine-specific validation is driven by registered ParamValidator
+    # instances (see macaw.workers.tts._validation), not by these flags.
+    # Only ``supports_speed`` is checked by the default validators.
+    supports_seed: bool = False
+    supports_text_normalization: bool = False
+    supports_speed: bool = True  # default True: most engines support speed
+    supports_voice_settings: bool = False
+    supports_ssml: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class VoiceChangerCapabilities:
+    """Capabilities reported by the voice changer engine at runtime."""
+
+    supports_streaming: bool = False
+    supports_voice_reference: bool = False
+    max_audio_duration_s: float = 300.0  # 5 minutes default max
+    supported_sample_rates: tuple[int, ...] = (16000,)
+
+
+@dataclass(frozen=True, slots=True)
+class SoundEffectCapabilities:
+    """Capabilities reported by the sound effect engine at runtime."""
+
+    max_duration_s: float = 30.0
+    min_duration_s: float = 0.5
+    supports_loop: bool = False
+    supports_prompt_influence: bool = False
 
 
 @dataclass(frozen=True, slots=True)

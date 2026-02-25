@@ -17,6 +17,9 @@ from .stt_worker_pb2 import (
     TranscriptEvent,
     Word,
 )
+from .stt_worker_pb2 import (
+    SpeakerSegment as SpeakerSegmentProto,
+)
 from .stt_worker_pb2_grpc import (
     STTWorkerServicer,
     STTWorkerStub,
@@ -52,6 +55,7 @@ __all__ = [
     "STTWorkerServicer",
     "STTWorkerStub",
     "Segment",
+    "SpeakerSegmentProto",
     "SynthesizeChunk",
     "SynthesizeRequest",
     "TTSHealthRequest",

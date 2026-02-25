@@ -1,15 +1,15 @@
-"""M7-07 Contract Comparison: STT backends produzem respostas com contrato identico.
+"""M7-07 Contract Comparison: STT backends produce responses with identical contract.
 
-Prova que backends STT retornam respostas com a mesma estrutura/campos em todos os
-formatos de resposta. O texto pode diferir (engines distintas), mas o formato e identico.
-Garante que um cliente pode trocar de engine sem alterar codigo.
+Proves that STT backends return responses with the same structure/fields in all
+response formats. The text may differ (different engines), but the format is identical.
+Ensures that a client can switch engines without changing code.
 
-Escopo:
+Scope:
 - Batch REST: response_format json, verbose_json, text, srt, vtt
-- WebSocket: mesma sequencia de eventos para ambas architectures
-- Hot words: backends recebem hot words
-- ITN: aplicado em transcript.final
-- Zero campos faltando ou extras entre backends
+- WebSocket: same event sequence for both architectures
+- Hot words: backends receive hot words
+- ITN: applied to transcript.final
+- Zero missing or extra fields between backends
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from tests.helpers import AsyncIterFromList
 
 
 def _make_batch_result(*, engine: str = "faster-whisper") -> BatchResult:
-    """Ambos engines retornam mesma estrutura BatchResult."""
+    """Both engines return the same BatchResult structure."""
     text = "Ola, como posso ajudar?" if engine == "faster-whisper" else "Ola como posso ajudar"
     return BatchResult(
         text=text,
@@ -98,7 +98,7 @@ def _make_app(
 
 
 def _make_stream_handle(events: list | None = None) -> Mock:
-    """Cria mock de StreamHandle com async iterator."""
+    """Create a mock StreamHandle with async iterator."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test"
@@ -116,7 +116,7 @@ def _make_streaming_session(
     enable_itn: bool = True,
     hot_words: list[str] | None = None,
 ) -> tuple:
-    """Cria StreamingSession com mocks e retorna (session, on_event)."""
+    """Create StreamingSession with mocks and return (session, on_event)."""
     from macaw.session.streaming import StreamingSession
 
     preprocessor = MagicMock()
@@ -149,7 +149,7 @@ def _make_streaming_session(
 
 
 class TestBatchJsonContract:
-    """response_format=json retorna contrato identico para ambos backends."""
+    """response_format=json returns identical contract for both backends."""
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_json_has_text_field(self, engine: str) -> None:
@@ -190,7 +190,7 @@ class TestBatchJsonContract:
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_json_text_is_string(self, engine: str) -> None:
-        """Campo 'text' e do tipo string."""
+        """Field 'text' is of type string."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -213,7 +213,7 @@ class TestBatchJsonContract:
 
 
 class TestBatchVerboseJsonContract:
-    """response_format=verbose_json retorna contrato identico para ambos backends."""
+    """response_format=verbose_json returns identical contract for both backends."""
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_verbose_json_has_required_fields(self, engine: str) -> None:
@@ -281,7 +281,7 @@ class TestBatchVerboseJsonContract:
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_verbose_json_types(self, engine: str) -> None:
-        """Tipos corretos: language=str, duration=float, text=str."""
+        """Correct types: language=str, duration=float, text=str."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -302,7 +302,7 @@ class TestBatchVerboseJsonContract:
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_verbose_json_no_extra_segment_fields(self, engine: str) -> None:
-        """Segmentos nao tem campos inesperados."""
+        """Segments have no unexpected fields."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -327,7 +327,7 @@ class TestBatchVerboseJsonContract:
         }
         for seg in body["segments"]:
             assert set(seg.keys()).issubset(allowed_keys), (
-                f"Campos extras: {set(seg.keys()) - allowed_keys}"
+                f"Extra fields: {set(seg.keys()) - allowed_keys}"
             )
 
 
@@ -337,11 +337,11 @@ class TestBatchVerboseJsonContract:
 
 
 class TestBatchTextFormat:
-    """response_format=text retorna texto puro para ambos backends."""
+    """response_format=text returns plain text for both backends."""
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_text_returns_plain_text(self, engine: str) -> None:
-        """Response e texto puro, nao JSON."""
+        """Response is plain text, not JSON."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -365,11 +365,11 @@ class TestBatchTextFormat:
 
 
 class TestBatchSrtFormat:
-    """response_format=srt produz output valido para ambos backends."""
+    """response_format=srt produces valid output for both backends."""
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_srt_has_proper_format(self, engine: str) -> None:
-        """SRT contem indice, timestamp e texto."""
+        """SRT contains index, timestamp and text."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -389,7 +389,7 @@ class TestBatchSrtFormat:
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_srt_timestamp_format(self, engine: str) -> None:
-        """Timestamps seguem formato HH:MM:SS,mmm."""
+        """Timestamps follow HH:MM:SS,mmm format."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -413,11 +413,11 @@ class TestBatchSrtFormat:
 
 
 class TestBatchVttFormat:
-    """response_format=vtt produz output valido para ambos backends."""
+    """response_format=vtt produces valid output for both backends."""
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_vtt_starts_with_webvtt(self, engine: str) -> None:
-        """Output comeca com 'WEBVTT'."""
+        """Output starts with 'WEBVTT'."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -435,7 +435,7 @@ class TestBatchVttFormat:
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_vtt_timestamp_format(self, engine: str) -> None:
-        """Timestamps seguem formato HH:MM:SS.mmm (ponto, nao virgula)."""
+        """Timestamps follow HH:MM:SS.mmm format (dot, not comma)."""
         result = _make_batch_result(engine=engine)
         scheduler = _make_scheduler(result)
         app = _make_app(scheduler=scheduler)
@@ -464,11 +464,11 @@ class TestBatchVttFormat:
 
 
 class TestHotWordsContract:
-    """Hot words recebidos por ambos backends sem divergencia estrutural."""
+    """Hot words received by both backends without structural divergence."""
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_hot_words_in_batch_result_both_engines(self, engine: str) -> None:
-        """Ambos engines retornam texto quando hot words sao configurados."""
+        """Both engines return text when hot words are configured."""
         hot_word_result = BatchResult(
             text="O PIX foi processado",
             language="pt",
@@ -506,16 +506,16 @@ class TestHotWordsContract:
 
 
 class TestITNContract:
-    """ITN aplicado ao resultado de ambos backends de forma identica."""
+    """ITN applied to the result of both backends identically."""
 
     @pytest.mark.parametrize("engine", ["faster-whisper"])
     async def test_itn_applied_to_both_engines(self, engine: str) -> None:
-        """format_response produz saida estruturalmente identica para ambos."""
+        """format_response produces structurally identical output for both."""
         result = _make_batch_result(engine=engine)
 
-        # format_response e chamado pelo route handler apos post-processing.
-        # Aqui testamos que a funcao aceita BatchResult de qualquer engine
-        # e produz output valido sem erros.
+        # format_response is called by the route handler after post-processing.
+        # Here we test that the function accepts BatchResult from any engine
+        # and produces valid output without errors.
         json_out = format_response(result, ResponseFormat.JSON, task="transcribe")
         assert isinstance(json_out, dict)
         assert "text" in json_out
@@ -527,15 +527,15 @@ class TestITNContract:
 
 
 # ---------------------------------------------------------------------------
-# WebSocket event contract: ambos architectures produzem mesmos tipos de evento
+# WebSocket event contract: both architectures produce the same event types
 # ---------------------------------------------------------------------------
 
 
 class TestWebSocketContractBothEngines:
-    """Ambas architectures (encoder-decoder e CTC) produzem mesmos tipos de evento."""
+    """Both architectures (encoder-decoder and CTC) produce the same event types."""
 
     async def test_event_types_identical_partial(self) -> None:
-        """Ambas architectures emitem transcript.partial com mesma estrutura."""
+        """Both architectures emit transcript.partial with the same structure."""
         partial_segment = TranscriptSegment(
             text="ola como",
             is_final=False,
@@ -559,7 +559,7 @@ class TestWebSocketContractBothEngines:
             assert hasattr(event, "timestamp_ms")
 
     async def test_event_types_identical_final(self) -> None:
-        """Ambas architectures emitem transcript.final com mesma estrutura."""
+        """Both architectures emit transcript.final with the same structure."""
         final_segment = TranscriptSegment(
             text="ola como posso ajudar",
             is_final=True,
@@ -590,7 +590,7 @@ class TestWebSocketContractBothEngines:
             assert hasattr(event, "words")
 
     async def test_event_sequence_partial_then_final(self) -> None:
-        """Ambas architectures emitem mesma sequencia: partial -> final."""
+        """Both architectures emit the same sequence: partial -> final."""
         segments = [
             TranscriptSegment(text="ola", is_final=False, segment_id=0, start_ms=100),
             TranscriptSegment(
@@ -615,12 +615,12 @@ class TestWebSocketContractBothEngines:
             event_types = [call[0][0].type for call in on_event.call_args_list]
             collected_types[arch.value] = event_types
 
-        # Ambas architectures produzem a mesma sequencia de tipos de evento
+        # Both architectures produce the same sequence of event types
         assert collected_types["encoder-decoder"] == collected_types["ctc"]
         assert collected_types["encoder-decoder"] == ["transcript.partial", "transcript.final"]
 
     async def test_itn_applied_to_final_both_architectures(self) -> None:
-        """ITN aplicado em transcript.final de ambas architectures."""
+        """ITN applied to transcript.final of both architectures."""
         final_segment = TranscriptSegment(
             text="dois mil e vinte e cinco",
             is_final=True,
@@ -654,7 +654,7 @@ class TestWebSocketContractBothEngines:
             assert event.text == "2025"
 
     async def test_itn_not_applied_to_partial_both_architectures(self) -> None:
-        """ITN NAO aplicado em transcript.partial de ambas architectures."""
+        """ITN NOT applied to transcript.partial of both architectures."""
         partial_segment = TranscriptSegment(
             text="dois mil",
             is_final=False,
@@ -677,7 +677,7 @@ class TestWebSocketContractBothEngines:
 
             await session._receive_worker_events()
 
-            # Postprocessor NAO deve ter sido chamado para partial
+            # Postprocessor should NOT have been called for partial
             mock_postprocessor.process.assert_not_called()
             event = on_event.call_args[0][0]
             assert event.type == "transcript.partial"

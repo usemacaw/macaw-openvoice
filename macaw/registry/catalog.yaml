@@ -1,12 +1,12 @@
-# Catalogo oficial de modelos Macaw OpenVoice.
+# Official Macaw OpenVoice model catalog.
 #
-# Cada entrada mapeia um nome de modelo para:
-# - repo: repositorio HuggingFace Hub
-# - engine: engine do Macaw (faster-whisper, kokoro, qwen3-tts)
-# - type: stt ou tts
-# - architecture: encoder-decoder, ctc, streaming-native (apenas STT)
-# - description: descricao curta
-# - manifest: conteudo do macaw.yaml que sera gerado no diretorio do modelo
+# Each entry maps a model name to:
+# - repo: HuggingFace Hub repository
+# - engine: Macaw engine (faster-whisper, kokoro, qwen3-tts)
+# - type: stt or tts
+# - architecture: encoder-decoder, ctc, streaming-native (STT only)
+# - description: short description (shown in `macaw catalog`)
+# - manifest: macaw.yaml contents generated in the model directory
 
 models:
   faster-whisper-large-v3:
@@ -14,7 +14,7 @@ models:
     engine: faster-whisper
     type: stt
     architecture: encoder-decoder
-    description: "Faster Whisper Large V3 — melhor qualidade, requer GPU"
+    description: "Faster Whisper Large V3 — best quality, requires GPU"
     manifest:
       name: faster-whisper-large-v3
       version: "3.0.0"
@@ -49,7 +49,7 @@ models:
     engine: faster-whisper
     type: stt
     architecture: encoder-decoder
-    description: "Faster Whisper Medium — bom equilibrio qualidade/velocidade"
+    description: "Faster Whisper Medium — good quality/speed balance"
     manifest:
       name: faster-whisper-medium
       version: "3.0.0"
@@ -84,7 +84,7 @@ models:
     engine: faster-whisper
     type: stt
     architecture: encoder-decoder
-    description: "Faster Whisper Small — leve, bom para CPU"
+    description: "Faster Whisper Small — lightweight, good for CPU"
     manifest:
       name: faster-whisper-small
       version: "3.0.0"
@@ -119,7 +119,7 @@ models:
     engine: faster-whisper
     type: stt
     architecture: encoder-decoder
-    description: "Faster Whisper Tiny — ultra-leve, ideal para testes"
+    description: "Faster Whisper Tiny — ultra-light, ideal for testing"
     manifest:
       name: faster-whisper-tiny
       version: "3.0.0"
@@ -154,7 +154,7 @@ models:
     engine: faster-whisper
     type: stt
     architecture: encoder-decoder
-    description: "Distil-Whisper Large V3 — 6x mais rapido, ~1% WER gap"
+    description: "Distil-Whisper Large V3 — 6x faster, ~1% WER gap"
     manifest:
       name: distil-whisper-large-v3
       version: "3.0.0"
@@ -188,7 +188,7 @@ models:
     repo: "hexgrad/Kokoro-82M"
     engine: kokoro
     type: tts
-    description: "Kokoro TTS — neural text-to-speech, 82M parametros"
+    description: "Kokoro TTS — neural text-to-speech, 82M parameters"
     manifest:
       name: kokoro-v1
       version: "1.0.0"
@@ -213,7 +213,7 @@ models:
     repo: "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
     engine: qwen3-tts
     type: tts
-    description: "Qwen3-TTS 1.7B CustomVoice — 9 vozes preset, 10 idiomas"
+    description: "Qwen3-TTS 1.7B CustomVoice — 9 preset voices, 10 languages"
     manifest:
       name: qwen3-tts-1.7b-custom
       version: "1.0.0"
@@ -240,7 +240,7 @@ models:
     repo: "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
     engine: qwen3-tts
     type: tts
-    description: "Qwen3-TTS 0.6B CustomVoice — leve, 9 vozes preset, 10 idiomas"
+    description: "Qwen3-TTS 0.6B CustomVoice — lightweight, 9 preset voices, 10 languages"
     manifest:
       name: qwen3-tts-0.6b-custom
       version: "1.0.0"
@@ -267,7 +267,7 @@ models:
     repo: "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
     engine: qwen3-tts
     type: tts
-    description: "Qwen3-TTS 1.7B Base — voice cloning de 3 segundos"
+    description: "Qwen3-TTS 1.7B Base — voice cloning from 3-second reference"
     manifest:
       name: qwen3-tts-1.7b-base
       version: "1.0.0"
@@ -293,7 +293,7 @@ models:
     repo: "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
     engine: qwen3-tts
     type: tts
-    description: "Qwen3-TTS 0.6B Base — voice cloning leve"
+    description: "Qwen3-TTS 0.6B Base — lightweight voice cloning"
     manifest:
       name: qwen3-tts-0.6b-base
       version: "1.0.0"
@@ -319,7 +319,7 @@ models:
     repo: "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign"
     engine: qwen3-tts
     type: tts
-    description: "Qwen3-TTS 1.7B VoiceDesign — voz customizada via instrucao"
+    description: "Qwen3-TTS 1.7B VoiceDesign — custom voice via natural language instruction"
     manifest:
       name: qwen3-tts-1.7b-design
       version: "1.0.0"

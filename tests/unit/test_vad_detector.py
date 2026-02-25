@@ -1,10 +1,10 @@
-"""Testes do VADDetector.
+"""Tests for VADDetector.
 
-Valida que o detector orquestra EnergyPreFilter e SileroVADClassifier
-corretamente, gerenciando debounce (min speech/silence duration),
-max speech duration e emissao de eventos VAD.
+Validates that the detector orchestrates EnergyPreFilter and SileroVADClassifier
+correctly, managing debounce (min speech/silence duration),
+max speech duration, and VAD event emission.
 
-Todos os testes usam mocks -- sem dependencia de torch/Silero real.
+All tests use mocks -- no dependency on real torch/Silero.
 """
 
 from __future__ import annotations
@@ -20,19 +20,19 @@ _FRAME_DURATION_MS = FRAME_SIZE * 1000 // SAMPLE_RATE  # 64ms
 
 
 def _make_frames(n: int, frame_size: int = FRAME_SIZE) -> list[np.ndarray]:
-    """Gera N frames de zeros float32."""
+    """Generate N frames of float32 zeros."""
     return [np.zeros(frame_size, dtype=np.float32) for _ in range(n)]
 
 
 def _make_energy_mock(*, is_silence: bool = False) -> Mock:
-    """Cria mock de EnergyPreFilter com retorno fixo."""
+    """Create EnergyPreFilter mock with fixed return value."""
     mock = Mock()
     mock.is_silence.return_value = is_silence
     return mock
 
 
 def _make_silero_mock(*, is_speech: bool = False) -> Mock:
-    """Cria mock de SileroVADClassifier com retorno fixo."""
+    """Create SileroVADClassifier mock with fixed return value."""
     mock = Mock()
     mock.is_speech.return_value = is_speech
     return mock
@@ -45,7 +45,7 @@ def _make_detector(
     min_silence_duration_ms: int = 300,
     max_speech_duration_ms: int = 30_000,
 ) -> tuple[VADDetector, Mock, Mock]:
-    """Cria VADDetector com mocks configurados. Retorna (detector, energy_mock, silero_mock)."""
+    """Create VADDetector with configured mocks. Returns (detector, energy_mock, silero_mock)."""
     energy_mock = _make_energy_mock(is_silence=energy_is_silence)
     silero_mock = _make_silero_mock(is_speech=silero_is_speech)
 
@@ -65,7 +65,7 @@ def _process_n_frames(
     n: int,
     frame_size: int = FRAME_SIZE,
 ) -> list[VADEvent]:
-    """Processa N frames e retorna lista de eventos emitidos (sem None)."""
+    """Process N frames and return list of emitted events (excluding None)."""
     events = []
     for frame in _make_frames(n, frame_size):
         event = detector.process_frame(frame)
@@ -75,10 +75,10 @@ def _process_n_frames(
 
 
 class TestSilenceFrames:
-    """Frames classificados como silencio nao emitem eventos."""
+    """Frames classified as silence do not emit events."""
 
     def test_all_silence_no_events(self) -> None:
-        """Sequencia de frames de silencio nao emite nenhum evento."""
+        """Sequence of silence frames does not emit any event."""
         # Arrange
         detector, _, _ = _make_detector(energy_is_silence=True)
 
@@ -89,7 +89,7 @@ class TestSilenceFrames:
         assert events == []
 
     def test_silence_via_energy_prefilter_skips_silero(self) -> None:
-        """Quando EnergyPreFilter diz silencio, Silero NAO e chamado."""
+        """When EnergyPreFilter says silence, Silero is NOT called."""
         # Arrange
         detector, energy_mock, silero_mock = _make_detector(energy_is_silence=True)
         frames = _make_frames(5)
@@ -104,10 +104,10 @@ class TestSilenceFrames:
 
 
 class TestSpeechStart:
-    """Emissao de SPEECH_START apos debounce de fala."""
+    """SPEECH_START emission after speech debounce."""
 
     def test_speech_start_after_min_duration(self) -> None:
-        """SPEECH_START emitido apos min_speech_duration_ms de fala consecutiva."""
+        """SPEECH_START emitted after min_speech_duration_ms of consecutive speech."""
         # Arrange -- 250ms min speech, frames de 64ms -> ceil(250/64) = 4 frames
         detector, _, _ = _make_detector(
             energy_is_silence=False,
@@ -124,26 +124,26 @@ class TestSpeechStart:
         assert events[0].timestamp_ms == 4 * _FRAME_DURATION_MS  # 256ms
 
     def test_short_speech_burst_no_event(self) -> None:
-        """Burst de fala mais curto que min_speech_duration nao emite evento."""
-        # Arrange -- 250ms min, mas so 3 frames (192ms)
+        """Speech burst shorter than min_speech_duration does not emit event."""
+        # Arrange -- 250ms min, but only 3 frames (192ms)
         detector, _, _ = _make_detector(
             energy_is_silence=False,
             silero_is_speech=True,
             min_speech_duration_ms=250,
         )
 
-        # Act -- 3 frames de fala, depois silencio
+        # Act -- 3 speech frames, then silence
         events_speech: list[VADEvent] = []
         for frame in _make_frames(3):
             event = detector.process_frame(frame)
             if event is not None:
                 events_speech.append(event)
 
-        # Assert -- sem SPEECH_START (nao atingiu min_speech_duration)
+        # Assert -- no SPEECH_START (did not reach min_speech_duration)
         assert events_speech == []
 
     def test_is_speaking_true_after_speech_start(self) -> None:
-        """is_speaking retorna True apos SPEECH_START ser emitido."""
+        """is_speaking returns True after SPEECH_START is emitted."""
         # Arrange
         detector, _, _ = _make_detector(
             energy_is_silence=False,
@@ -152,7 +152,7 @@ class TestSpeechStart:
         )
         assert detector.is_speaking is False
 
-        # Act -- 4 frames de fala = 256ms > 250ms
+        # Act -- 4 speech frames = 256ms > 250ms
         _process_n_frames(detector, n=4)
 
         # Assert
@@ -160,10 +160,10 @@ class TestSpeechStart:
 
 
 class TestSpeechEnd:
-    """Emissao de SPEECH_END apos debounce de silencio."""
+    """SPEECH_END emission after silence debounce."""
 
     def test_speech_end_after_min_silence_duration(self) -> None:
-        """SPEECH_START seguido de SPEECH_END apos min_silence_duration_ms."""
+        """SPEECH_START followed by SPEECH_END after min_silence_duration_ms."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -189,7 +189,7 @@ class TestSpeechEnd:
         assert events_phase2[0].type == VADEventType.SPEECH_END
 
     def test_short_silence_during_speech_no_event(self) -> None:
-        """Silencio mais curto que min_silence_duration nao emite SPEECH_END."""
+        """Silence shorter than min_silence_duration does not emit SPEECH_END."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -205,7 +205,7 @@ class TestSpeechEnd:
         _process_n_frames(detector, n=4)
         assert detector.is_speaking is True
 
-        # Phase 2: short silence (3 frames = 192ms < 300ms) -- nao deve emitir SPEECH_END
+        # Phase 2: short silence (3 frames = 192ms < 300ms) -- should not emit SPEECH_END
         silero_mock.is_speech.return_value = False
         events_silence = _process_n_frames(detector, n=3)
 
@@ -214,7 +214,7 @@ class TestSpeechEnd:
         assert detector.is_speaking is True
 
     def test_is_speaking_false_after_speech_end(self) -> None:
-        """is_speaking retorna False apos SPEECH_END ser emitido."""
+        """is_speaking returns False after SPEECH_END is emitted."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -236,13 +236,13 @@ class TestSpeechEnd:
 
 
 class TestEnergyPreFilterIntegration:
-    """Verifica que energy pre-filter controla quando Silero e chamado."""
+    """Verifies that energy pre-filter controls when Silero is called."""
 
     def test_energy_silence_skips_silero(self) -> None:
-        """Quando energy pre-filter retorna silence, Silero nao e invocado."""
+        """When energy pre-filter returns silence, Silero is not invoked."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=True)
-        silero_mock = _make_silero_mock(is_speech=True)  # Silero diria "fala" se chamado
+        silero_mock = _make_silero_mock(is_speech=True)  # Silero would say "speech" if called
         detector = VADDetector(
             energy_pre_filter=energy_mock,
             silero_classifier=silero_mock,
@@ -252,11 +252,11 @@ class TestEnergyPreFilterIntegration:
         # Act
         _process_n_frames(detector, n=10)
 
-        # Assert -- Silero nunca chamado
+        # Assert -- Silero never called
         silero_mock.is_speech.assert_not_called()
 
     def test_energy_non_silence_calls_silero(self) -> None:
-        """Quando energy pre-filter retorna nao-silencio, Silero e chamado."""
+        """When energy pre-filter returns non-silence, Silero is called."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=False)
@@ -269,16 +269,16 @@ class TestEnergyPreFilterIntegration:
         # Act
         _process_n_frames(detector, n=3)
 
-        # Assert -- Silero chamado para cada frame
+        # Assert -- Silero called for each frame
         assert silero_mock.is_speech.call_count == 3
 
 
 class TestMaxSpeechDuration:
-    """Force SPEECH_END apos max_speech_duration_ms de fala continua."""
+    """Force SPEECH_END after max_speech_duration_ms of continuous speech."""
 
     def test_force_speech_end_after_max_duration(self) -> None:
-        """SPEECH_END forcado apos max_speech_duration_ms mesmo sem silencio."""
-        # Arrange -- max 640ms (= 10 frames de 64ms) para facilitar o teste
+        """SPEECH_END forced after max_speech_duration_ms even without silence."""
+        # Arrange -- max 640ms (= 10 frames of 64ms) for easier testing
         detector, _, _ = _make_detector(
             energy_is_silence=False,
             silero_is_speech=True,
@@ -289,7 +289,7 @@ class TestMaxSpeechDuration:
         # Act
         all_events: list[VADEvent] = []
         # Frame 1: SPEECH_START (min_speech_duration_ms=64ms = 1 frame)
-        # Frame 11: force SPEECH_END (640ms = 10 frames apos speech start)
+        # Frame 11: force SPEECH_END (640ms = 10 frames after speech start)
         for frame in _make_frames(15):
             event = detector.process_frame(frame)
             if event is not None:
@@ -302,9 +302,9 @@ class TestMaxSpeechDuration:
         assert len(speech_ends) >= 1
 
     def test_max_duration_30s_default(self) -> None:
-        """Com parametros default, max speech duration e 30s."""
-        # Arrange -- usar frames maiores para nao processar 469 frames
-        # 30000ms / 1000ms_per_frame = 30 frames de 16000 samples (1s cada)
+        """With default parameters, max speech duration is 30s."""
+        # Arrange -- use larger frames to avoid processing 469 frames
+        # 30000ms / 1000ms_per_frame = 30 frames of 16000 samples (1s each)
         large_frame_size = 16000  # 1 segundo de audio
         detector, _, _ = _make_detector(
             energy_is_silence=False,
@@ -313,8 +313,8 @@ class TestMaxSpeechDuration:
             max_speech_duration_ms=30_000,
         )
 
-        # Act -- 4 frames de 1s para atingir SPEECH_START (>250ms)
-        # depois mais frames ate atingir 30s total
+        # Act -- 4 frames of 1s to reach SPEECH_START (>250ms)
+        # then more frames until reaching 30s total
         all_events: list[VADEvent] = []
         for _i in range(35):
             frame = np.zeros(large_frame_size, dtype=np.float32)
@@ -322,7 +322,7 @@ class TestMaxSpeechDuration:
             if event is not None:
                 all_events.append(event)
 
-        # Assert -- deve ter SPEECH_START e SPEECH_END (force)
+        # Assert -- should have SPEECH_START and SPEECH_END (force)
         speech_starts = [e for e in all_events if e.type == VADEventType.SPEECH_START]
         speech_ends = [e for e in all_events if e.type == VADEventType.SPEECH_END]
         assert len(speech_starts) >= 1
@@ -332,11 +332,11 @@ class TestMaxSpeechDuration:
 
 
 class TestReset:
-    """Verifica que reset() limpa todo estado."""
+    """Verifies that reset() clears all state."""
 
     def test_reset_clears_all_state(self) -> None:
-        """reset() limpa samples_processed, is_speaking, contadores."""
-        # Arrange -- detector em estado de fala
+        """reset() clears samples_processed, is_speaking, counters."""
+        # Arrange -- detector in speaking state
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
         detector = VADDetector(
@@ -346,7 +346,7 @@ class TestReset:
             min_speech_duration_ms=250,
         )
 
-        # Processar ate SPEECH_START
+        # Process until SPEECH_START
         _process_n_frames(detector, n=4)
         assert detector.is_speaking is True
 
@@ -361,7 +361,7 @@ class TestReset:
         silero_mock.reset.assert_called_once()
 
     def test_reset_allows_new_session(self) -> None:
-        """Apos reset, detector pode detectar nova sequencia de fala."""
+        """After reset, detector can detect a new speech sequence."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -372,7 +372,7 @@ class TestReset:
             min_speech_duration_ms=250,
         )
 
-        # Primeira sessao
+        # First session
         events1 = _process_n_frames(detector, n=4)
         assert len(events1) == 1
         assert events1[0].type == VADEventType.SPEECH_START
@@ -380,7 +380,7 @@ class TestReset:
         # Reset
         detector.reset()
 
-        # Segunda sessao -- timestamps devem comecar do zero
+        # Second session -- timestamps should start from zero
         events2 = _process_n_frames(detector, n=4)
         assert len(events2) == 1
         assert events2[0].type == VADEventType.SPEECH_START
@@ -388,10 +388,10 @@ class TestReset:
 
 
 class TestTimestamps:
-    """Verifica calculo correto de timestamps."""
+    """Verifies correct timestamp calculation."""
 
     def test_timestamp_ms_calculated_from_samples(self) -> None:
-        """timestamp_ms e calculado a partir de samples processados."""
+        """timestamp_ms is calculated from processed samples."""
         # Arrange
         detector, _, _ = _make_detector(
             energy_is_silence=False,
@@ -407,7 +407,7 @@ class TestTimestamps:
         assert events[0].timestamp_ms == 256
 
     def test_speech_end_timestamp_after_speech_start(self) -> None:
-        """SPEECH_END timestamp e maior que SPEECH_START timestamp."""
+        """SPEECH_END timestamp is greater than SPEECH_START timestamp."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -432,13 +432,13 @@ class TestTimestamps:
         assert events_end[0].timestamp_ms > events_start[0].timestamp_ms
 
     def test_timestamps_accumulate_across_frames(self) -> None:
-        """Timestamps acumulam corretamente ao longo de muitos frames."""
+        """Timestamps accumulate correctly across many frames."""
         # Arrange
         detector, _, _ = _make_detector(
-            energy_is_silence=True,  # silencio -- sem eventos
+            energy_is_silence=True,  # silence -- no events
         )
 
-        # Act -- 100 frames de silencio
+        # Act -- 100 silence frames
         _process_n_frames(detector, n=100)
 
         # Assert -- samples processados = 100 * 1024 = 102400
@@ -448,10 +448,10 @@ class TestTimestamps:
 
 
 class TestSpeechSilenceCycles:
-    """Testa ciclos completos de fala-silencio-fala."""
+    """Tests complete speech-silence-speech cycles."""
 
     def test_multiple_speech_cycles(self) -> None:
-        """Multiplos ciclos speech->silence geram pares corretos de eventos."""
+        """Multiple speech->silence cycles generate correct event pairs."""
         # Arrange
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -484,12 +484,12 @@ class TestSpeechSilenceCycles:
         assert all_events[2].type == VADEventType.SPEECH_START
         assert all_events[3].type == VADEventType.SPEECH_END
 
-        # Timestamps sao monotonicamente crescentes
+        # Timestamps are monotonically increasing
         for i in range(1, len(all_events)):
             assert all_events[i].timestamp_ms > all_events[i - 1].timestamp_ms
 
     def test_silence_resets_speech_counter(self) -> None:
-        """Frame de silencio reseta contador de speech consecutivo."""
+        """Silence frame resets consecutive speech counter."""
         # Arrange -- min speech = 250ms (4 frames de 64ms)
         energy_mock = _make_energy_mock(is_silence=False)
         silero_mock = _make_silero_mock(is_speech=True)
@@ -501,29 +501,29 @@ class TestSpeechSilenceCycles:
         )
 
         # Act -- 3 frames speech, 1 frame silence, 3 frames speech
-        # Nao deve atingir 4 frames consecutivos
+        # Should not reach 4 consecutive frames
         all_events: list[VADEvent] = []
 
-        # 3 frames de fala
+        # 3 speech frames
         for frame in _make_frames(3):
             event = detector.process_frame(frame)
             if event is not None:
                 all_events.append(event)
 
-        # 1 frame de silencio (reseta contador)
+        # 1 silence frame (resets counter)
         silero_mock.is_speech.return_value = False
         event = detector.process_frame(np.zeros(FRAME_SIZE, dtype=np.float32))
         if event is not None:
             all_events.append(event)
 
-        # 3 frames de fala (nao atinge 4 consecutivos)
+        # 3 speech frames (does not reach 4 consecutive)
         silero_mock.is_speech.return_value = True
         for frame in _make_frames(3):
             event = detector.process_frame(frame)
             if event is not None:
                 all_events.append(event)
 
-        # Assert -- sem SPEECH_START
+        # Assert -- no SPEECH_START
         assert all_events == []
 
 
@@ -558,21 +558,21 @@ class TestVADDetectorValidation:
 
 
 class TestVADEventDataclass:
-    """Testa propriedades do dataclass VADEvent."""
+    """Tests properties of the VADEvent dataclass."""
 
     def test_vad_event_is_frozen(self) -> None:
-        """VADEvent e imutavel (frozen=True)."""
+        """VADEvent is immutable (frozen=True)."""
         # Arrange
         event = VADEvent(type=VADEventType.SPEECH_START, timestamp_ms=100)
 
         # Act & Assert
         try:
             event.timestamp_ms = 200  # type: ignore[misc]
-            raise AssertionError("Deveria levantar FrozenInstanceError")
+            raise AssertionError("Should raise FrozenInstanceError")
         except AttributeError:
             pass  # Expected -- frozen dataclass
 
     def test_vad_event_type_enum_values(self) -> None:
-        """VADEventType tem valores corretos."""
+        """VADEventType has correct values."""
         assert VADEventType.SPEECH_START.value == "speech_start"
         assert VADEventType.SPEECH_END.value == "speech_end"

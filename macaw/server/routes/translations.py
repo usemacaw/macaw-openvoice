@@ -28,6 +28,10 @@ async def create_translation(
     prompt: str | None = Form(default=None),
     response_format: str = Form(default="json"),
     temperature: float = Form(default=DEFAULT_TEMPERATURE, ge=0.0, le=MAX_TEMPERATURE),
+    hot_words: str | None = Form(default=None),
+    timestamp_granularities: list[str] = Form(  # noqa: B008
+        default=["segment"], alias="timestamp_granularities[]"
+    ),
     itn: bool = Form(default=True),
     scheduler: Scheduler = Depends(get_scheduler),  # noqa: B008
     preprocessing_pipeline: AudioPreprocessingPipeline | None = Depends(  # noqa: B008
@@ -46,9 +50,11 @@ async def create_translation(
         prompt=prompt,
         response_format=response_format,
         temperature=temperature,
+        timestamp_granularities=tuple(timestamp_granularities),
         task="translate",
         scheduler=scheduler,
         preprocessing_pipeline=preprocessing_pipeline,
         postprocessing_pipeline=postprocessing_pipeline,
         itn=itn,
+        hot_words=hot_words,
     )

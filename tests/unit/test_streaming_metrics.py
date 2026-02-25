@@ -1,12 +1,12 @@
-"""Testes de metricas Prometheus para streaming STT.
+"""Tests for Prometheus metrics in STT streaming.
 
-Valida que o StreamingSession registra corretamente:
-- TTFB (time to first partial/final apos speech_start)
-- Final delay (tempo entre speech_end e transcript.final)
-- Active sessions (incrementa/decrementa no lifecycle)
-- VAD events (counter por tipo speech_start/speech_end)
+Validates that StreamingSession correctly records:
+- TTFB (time to first partial/final after speech_start)
+- Final delay (time between speech_end and transcript.final)
+- Active sessions (increments/decrements on lifecycle)
+- VAD events (counter per type speech_start/speech_end)
 
-Testes sao deterministicos — usam mock de time.monotonic para controlar timestamps.
+Tests are deterministic -- use time.monotonic mock to control timestamps.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from tests.helpers import (
     make_vad_mock,
 )
 
-# Verificar se prometheus_client esta disponivel para testes de valores
+# Check if prometheus_client is available for value tests
 try:
     from prometheus_client import REGISTRY
 
@@ -42,7 +42,7 @@ except ImportError:
 def _make_stream_handle_mock(
     events: list[object] | None = None,
 ) -> Mock:
-    """Cria mock de StreamHandle."""
+    """Create StreamHandle mock."""
     handle = Mock()
     handle.is_closed = False
     handle.session_id = "test_session"
@@ -58,7 +58,7 @@ def _make_stream_handle_mock(
 
 
 def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
-    """Cria mock de StreamingGRPCClient."""
+    """Create StreamingGRPCClient mock."""
     client = AsyncMock()
     if stream_handle is None:
         stream_handle = _make_stream_handle_mock()
@@ -68,14 +68,14 @@ def _make_grpc_client_mock(stream_handle: Mock | None = None) -> AsyncMock:
 
 
 def _make_postprocessor_mock() -> Mock:
-    """Cria mock de PostProcessingPipeline."""
+    """Create PostProcessingPipeline mock."""
     mock = Mock()
     mock.process.side_effect = lambda text, **kwargs: text
     return mock
 
 
 def _make_on_event() -> AsyncMock:
-    """Cria callback on_event mock."""
+    """Create on_event mock callback."""
     return AsyncMock()
 
 
@@ -86,7 +86,7 @@ def _make_session(
     on_event: AsyncMock | None = None,
     session_id: str = "test_metrics",
 ) -> tuple[StreamingSession, Mock, Mock, AsyncMock]:
-    """Cria StreamingSession com mocks para testes de metricas.
+    """Create StreamingSession with mocks for metrics tests.
 
     Returns:
         (session, vad, stream_handle, on_event)
@@ -109,12 +109,12 @@ def _make_session(
 
 
 # ---------------------------------------------------------------------------
-# Helpers para leitura de metricas
+# Helpers for reading metrics
 # ---------------------------------------------------------------------------
 
 
 def _get_gauge_value(metric_name: str) -> float:
-    """Le o valor atual de um Gauge do REGISTRY default."""
+    """Read the current value of a Gauge from the default REGISTRY."""
     for metric in REGISTRY.collect():
         if metric.name == metric_name:
             for sample in metric.samples:
@@ -124,7 +124,7 @@ def _get_gauge_value(metric_name: str) -> float:
 
 
 def _get_counter_value(metric_name: str, labels: dict[str, str]) -> float:
-    """Le o valor atual de um Counter do REGISTRY default."""
+    """Read the current value of a Counter from the default REGISTRY."""
     for metric in REGISTRY.collect():
         if metric.name == metric_name:
             for sample in metric.samples:
@@ -134,7 +134,7 @@ def _get_counter_value(metric_name: str, labels: dict[str, str]) -> float:
 
 
 def _get_histogram_count(metric_name: str) -> float:
-    """Le o _count de um Histogram do REGISTRY default."""
+    """Read the _count of a Histogram from the default REGISTRY."""
     for metric in REGISTRY.collect():
         if metric.name == metric_name:
             for sample in metric.samples:
@@ -144,7 +144,7 @@ def _get_histogram_count(metric_name: str) -> float:
 
 
 def _get_histogram_sum(metric_name: str) -> float:
-    """Le o _sum de um Histogram do REGISTRY default."""
+    """Read the _sum of a Histogram from the default REGISTRY."""
     for metric in REGISTRY.collect():
         if metric.name == metric_name:
             for sample in metric.samples:
@@ -160,7 +160,7 @@ def _get_histogram_sum(metric_name: str) -> float:
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_active_sessions_increments_on_init():
-    """Active sessions incrementa quando uma sessao e criada."""
+    """Active sessions increments when a session is created."""
     # Arrange
     initial_value = _get_gauge_value("macaw_stt_active_sessions")
 
@@ -177,7 +177,7 @@ async def test_active_sessions_increments_on_init():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_active_sessions_decrements_on_close():
-    """Active sessions decrementa quando uma sessao e fechada."""
+    """Active sessions decrements when a session is closed."""
     # Arrange
     session, _, _, _ = _make_session(session_id="active_dec_test")
     value_after_init = _get_gauge_value("macaw_stt_active_sessions")
@@ -192,7 +192,7 @@ async def test_active_sessions_decrements_on_close():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_active_sessions_idempotent_close():
-    """Multiplas chamadas a close() decrementam apenas uma vez."""
+    """Multiple calls to close() decrement only once."""
     # Arrange
     session, _, _, _ = _make_session(session_id="active_idempotent_test")
     value_after_init = _get_gauge_value("macaw_stt_active_sessions")
@@ -202,7 +202,7 @@ async def test_active_sessions_idempotent_close():
     await session.close()
     await session.close()
 
-    # Assert: decrementou apenas 1x
+    # Assert: decremented only once
     value_after_close = _get_gauge_value("macaw_stt_active_sessions")
     assert value_after_close == value_after_init - 1
 
@@ -214,7 +214,7 @@ async def test_active_sessions_idempotent_close():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_vad_speech_start_increments_counter():
-    """Evento speech_start incrementa counter VAD."""
+    """speech_start event increments VAD counter."""
     # Arrange
     initial_starts = _get_counter_value(
         "macaw_stt_vad_events",
@@ -245,7 +245,7 @@ async def test_vad_speech_start_increments_counter():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_vad_speech_end_increments_counter():
-    """Evento speech_end incrementa counter VAD."""
+    """speech_end event increments VAD counter."""
     # Arrange
     initial_ends = _get_counter_value(
         "macaw_stt_vad_events",
@@ -259,7 +259,7 @@ async def test_vad_speech_end_increments_counter():
         session_id="vad_end_test",
     )
 
-    # Trigger speech_start primeiro
+    # Trigger speech_start first
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -291,7 +291,7 @@ async def test_vad_speech_end_increments_counter():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_ttfb_recorded_on_first_partial():
-    """TTFB e registrado quando o primeiro partial transcript e emitido."""
+    """TTFB is recorded when the first partial transcript is emitted."""
     # Arrange
     partial_seg = TranscriptSegment(
         text="ola",
@@ -311,7 +311,7 @@ async def test_ttfb_recorded_on_first_partial():
         session_id="ttfb_partial_test",
     )
 
-    # Act: trigger speech_start -> receiver task processa partial
+    # Act: trigger speech_start -> receiver task processes partial
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -319,14 +319,14 @@ async def test_ttfb_recorded_on_first_partial():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para receiver task processar
+    # Give time for receiver task to process
     await asyncio.sleep(0.05)
 
-    # Assert: TTFB foi registrado
+    # Assert: TTFB was recorded
     current_count = _get_histogram_count("macaw_stt_ttfb_seconds")
     assert current_count == initial_count + 1
 
-    # Assert: partial event foi emitido
+    # Assert: partial event was emitted
     partial_calls = [
         call
         for call in on_event.call_args_list
@@ -340,8 +340,8 @@ async def test_ttfb_recorded_on_first_partial():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_ttfb_recorded_once_per_segment():
-    """TTFB so e registrado uma vez por segmento de fala."""
-    # Arrange: dois partials no mesmo segmento
+    """TTFB is recorded only once per speech segment."""
+    # Arrange: two partials in the same segment
     partial1 = TranscriptSegment(
         text="ola",
         is_final=False,
@@ -376,7 +376,7 @@ async def test_ttfb_recorded_once_per_segment():
 
     await asyncio.sleep(0.05)
 
-    # Assert: TTFB registrado apenas 1 vez (nao 2)
+    # Assert: TTFB recorded only 1 time (not 2)
     current_count = _get_histogram_count("macaw_stt_ttfb_seconds")
     assert current_count == initial_count + 1
 
@@ -386,7 +386,7 @@ async def test_ttfb_recorded_once_per_segment():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_ttfb_value_reflects_elapsed_time():
-    """TTFB value reflete o tempo real entre speech_start e primeiro transcript."""
+    """TTFB value reflects real time between speech_start and first transcript."""
     # Arrange
     partial_seg = TranscriptSegment(
         text="ola",
@@ -400,7 +400,7 @@ async def test_ttfb_value_reflects_elapsed_time():
 
     initial_sum = _get_histogram_sum("macaw_stt_ttfb_seconds")
 
-    # Usar monotonic time real (o TTFB sera pequeno mas > 0)
+    # Use real monotonic time (TTFB will be small but > 0)
     session, _, _, _ = _make_session(
         vad=vad,
         stream_handle=stream_handle,
@@ -432,8 +432,8 @@ async def test_ttfb_value_reflects_elapsed_time():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_final_delay_recorded_when_final_after_speech_end():
-    """Final delay e registrado quando transcript.final chega apos speech_end."""
-    # Arrange: final segment que sera emitido pelo worker
+    """Final delay is recorded when transcript.final arrives after speech_end."""
+    # Arrange: final segment that will be emitted by worker
     final_seg = TranscriptSegment(
         text="ola mundo",
         is_final=True,
@@ -461,10 +461,10 @@ async def test_final_delay_recorded_when_final_after_speech_end():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para receiver task consumir o final
+    # Give time for receiver task to consume the final
     await asyncio.sleep(0.05)
 
-    # 2. Speech end (apos o final ja ter sido processado)
+    # 2. Speech end (after the final has already been processed)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_END,
         timestamp_ms=2000,
@@ -472,10 +472,10 @@ async def test_final_delay_recorded_when_final_after_speech_end():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Assert: final_delay pode ou nao ter sido registrado dependendo do timing.
-    # O final pode ter chegado ANTES do speech_end, nesse caso final_delay
-    # nao e registrado (speech_end_monotonic era None quando o final chegou).
-    # Este teste valida que nao ha crash no fluxo.
+    # Assert: final_delay may or may not have been recorded depending on timing.
+    # The final may have arrived BEFORE speech_end, in which case final_delay
+    # is not recorded (speech_end_monotonic was None when the final arrived).
+    # This test validates that there is no crash in the flow.
     final_calls = [
         call for call in on_event.call_args_list if isinstance(call.args[0], TranscriptFinalEvent)
     ]
@@ -484,8 +484,8 @@ async def test_final_delay_recorded_when_final_after_speech_end():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_final_delay_not_recorded_when_no_speech_end():
-    """Final delay NAO e registrado quando speech_end nao ocorreu antes do final."""
-    # Arrange: final chega enquanto ainda esta falando (sem speech_end)
+    """Final delay is NOT recorded when speech_end did not occur before the final."""
+    # Arrange: final arrives while still speaking (without speech_end)
     final_seg = TranscriptSegment(
         text="ola mundo",
         is_final=True,
@@ -505,7 +505,7 @@ async def test_final_delay_not_recorded_when_no_speech_end():
         session_id="no_final_delay_test",
     )
 
-    # Apenas speech_start (sem speech_end)
+    # Only speech_start (without speech_end)
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -515,7 +515,7 @@ async def test_final_delay_not_recorded_when_no_speech_end():
 
     await asyncio.sleep(0.05)
 
-    # Assert: final_delay NAO foi registrado (speech_end_monotonic e None)
+    # Assert: final_delay was NOT recorded (speech_end_monotonic is None)
     current_count = _get_histogram_count("macaw_stt_final_delay_seconds")
     assert current_count == initial_count
 
@@ -553,7 +553,7 @@ async def test_session_works_without_prometheus():
         stream_handle = _make_stream_handle_mock()
         on_event = _make_on_event()
 
-        # Act: criar sessao, processar frames, fechar
+        # Act: create session, process frames, close
         session = StreamingSession(
             session_id="no_metrics_test",
             preprocessor=make_preprocessor_mock(),
@@ -583,13 +583,13 @@ async def test_session_works_without_prometheus():
         # Close
         await session.close()
 
-    # Assert: nenhum crash, sessao completou normalmente
+    # Assert: no crash, session completed normally
     assert session.is_closed
 
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_metrics_objects_are_not_none():
-    """Quando prometheus_client esta instalado, metricas nao sao None."""
+    """When prometheus_client is installed, metrics are not None."""
     from macaw.session import metrics as metrics_mod
 
     # M5 metrics
@@ -611,8 +611,8 @@ async def test_metrics_objects_are_not_none():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_ttfb_recorded_per_segment_across_segments():
-    """TTFB e registrado separadamente para cada segmento de fala."""
-    # Arrange: primeiro segmento com partial
+    """TTFB is recorded separately for each speech segment."""
+    # Arrange: first segment with partial
     partial1 = TranscriptSegment(
         text="primeiro",
         is_final=False,
@@ -636,7 +636,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
         on_event=on_event,
     )
 
-    # Segmento 1: speech_start -> partial -> speech_end
+    # Segment 1: speech_start -> partial -> speech_end
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -645,7 +645,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
-    # Preparar novo stream_handle para segundo segmento
+    # Prepare new stream_handle for second segment
     partial2 = TranscriptSegment(
         text="segundo",
         is_final=False,
@@ -662,7 +662,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Segmento 2: speech_start -> partial
+    # Segment 2: speech_start -> partial
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=3000,
@@ -671,7 +671,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
-    # Assert: TTFB registrado 2x (uma por segmento)
+    # Assert: TTFB recorded 2x (one per segment)
     current_count = _get_histogram_count("macaw_stt_ttfb_seconds")
     assert current_count == initial_count + 2
 
@@ -686,7 +686,7 @@ async def test_ttfb_recorded_per_segment_across_segments():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_session_duration_recorded_on_close():
-    """session_duration_seconds e registrado quando sessao e fechada."""
+    """session_duration_seconds is recorded when session is closed."""
     initial_count = _get_histogram_count("macaw_stt_session_duration_seconds")
 
     session, _, _, _ = _make_session(session_id="duration_test")
@@ -694,18 +694,18 @@ async def test_session_duration_recorded_on_close():
     # Act
     await session.close()
 
-    # Assert: duracao registrada
+    # Assert: duration recorded
     current_count = _get_histogram_count("macaw_stt_session_duration_seconds")
     assert current_count == initial_count + 1
 
-    # Sum deve ter aumentado (duracao > 0)
+    # Sum should have increased (duration > 0)
     current_sum = _get_histogram_sum("macaw_stt_session_duration_seconds")
     assert current_sum > 0
 
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_session_duration_not_recorded_twice_on_double_close():
-    """session_duration_seconds registrado apenas 1x mesmo com close() duplo."""
+    """session_duration_seconds recorded only once even with double close()."""
     initial_count = _get_histogram_count("macaw_stt_session_duration_seconds")
 
     session, _, _, _ = _make_session(session_id="duration_double_test")
@@ -724,7 +724,7 @@ async def test_session_duration_not_recorded_twice_on_double_close():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_confidence_recorded_on_final_transcript():
-    """confidence_avg e registrado quando transcript.final com confidence chega."""
+    """confidence_avg is recorded when transcript.final with confidence arrives."""
     final_seg = TranscriptSegment(
         text="ola mundo",
         is_final=True,
@@ -745,7 +745,7 @@ async def test_confidence_recorded_on_final_transcript():
         session_id="confidence_test",
     )
 
-    # Trigger speech_start -> receiver task processa final
+    # Trigger speech_start -> receiver task processes final
     vad.process_frame.return_value = VADEvent(
         type=VADEventType.SPEECH_START,
         timestamp_ms=1000,
@@ -754,7 +754,7 @@ async def test_confidence_recorded_on_final_transcript():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
-    # Assert: confidence registrado
+    # Assert: confidence recorded
     current_count = _get_histogram_count("macaw_stt_confidence_avg")
     assert current_count == initial_count + 1
 
@@ -763,14 +763,14 @@ async def test_confidence_recorded_on_final_transcript():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_confidence_not_recorded_when_none():
-    """confidence_avg NAO e registrado quando segment.confidence e None."""
+    """confidence_avg is NOT recorded when segment.confidence is None."""
     final_seg = TranscriptSegment(
         text="ola",
         is_final=True,
         segment_id=0,
         start_ms=1000,
         end_ms=2000,
-        confidence=None,  # sem confidence
+        confidence=None,  # no confidence
     )
 
     vad = make_vad_mock()
@@ -791,7 +791,7 @@ async def test_confidence_not_recorded_when_none():
     await session.process_frame(make_raw_bytes())
     await asyncio.sleep(0.05)
 
-    # Assert: confidence NAO registrado
+    # Assert: confidence NOT recorded
     current_count = _get_histogram_count("macaw_stt_confidence_avg")
     assert current_count == initial_count
 
@@ -805,7 +805,7 @@ async def test_confidence_not_recorded_when_none():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_force_commit_counter_increments():
-    """segments_force_committed_total incrementa no callback do ring buffer."""
+    """segments_force_committed_total increments on ring buffer callback."""
     from macaw.session.ring_buffer import RingBuffer
 
     initial_count = _get_counter_value(
@@ -816,9 +816,9 @@ async def test_force_commit_counter_increments():
     vad = make_vad_mock()
     stream_handle = _make_stream_handle_mock()
 
-    # Criar ring buffer de 1s — 16000 * 2 = 32000 bytes.
-    # Cada frame = 1024 * 2 = 2048 bytes, 90% = ~28800 bytes = ~14 frames.
-    # Force commit callback dispara quando uncommitted > 90% da capacity.
+    # Create 1s ring buffer -- 16000 * 2 = 32000 bytes.
+    # Each frame = 1024 * 2 = 2048 bytes, 90% = ~28800 bytes = ~14 frames.
+    # Force commit callback fires when uncommitted > 90% of capacity.
     rb = RingBuffer(duration_s=1.0, sample_rate=16000, bytes_per_sample=2)
 
     session = StreamingSession(
@@ -839,16 +839,16 @@ async def test_force_commit_counter_increments():
     vad.is_speaking = True
     await session.process_frame(make_raw_bytes())
 
-    # Enviar frames para atingir >90% de uncommitted data.
-    # A 90% o callback dispara e seta flag -> process_frame chama commit()
-    # que avanca o fence liberando espaco para mais writes.
+    # Send frames to reach >90% of uncommitted data.
+    # At 90% the callback fires and sets flag -> process_frame calls commit()
+    # which advances the fence freeing space for more writes.
     vad.process_frame.return_value = None
     for _ in range(14):
         await session.process_frame(make_raw_bytes())
 
     await asyncio.sleep(0.01)
 
-    # Assert: force commit counter incrementou
+    # Assert: force commit counter incremented
     current_count = _get_counter_value(
         "macaw_stt_segments_force_committed",
         {},
@@ -865,7 +865,7 @@ async def test_force_commit_counter_increments():
 
 @pytest.mark.skipif(not _HAS_PROMETHEUS, reason="prometheus_client not installed")
 async def test_recovery_success_increments_counter():
-    """worker_recoveries_total com result=success incrementa apos recovery."""
+    """worker_recoveries_total with result=success increments after recovery."""
     from macaw.exceptions import WorkerCrashError
 
     initial_success = _get_counter_value(
@@ -874,9 +874,9 @@ async def test_recovery_success_increments_counter():
     )
 
     vad = make_vad_mock()
-    # Primeiro stream handle: crash no receive_events
+    # First stream handle: crash on receive_events
     crash_handle = _make_stream_handle_mock(events=[WorkerCrashError("w1")])
-    # Segundo stream handle: recovery normal (vazio)
+    # Second stream handle: normal recovery (empty)
     recovery_handle = _make_stream_handle_mock(events=[])
 
     grpc_client = AsyncMock()
@@ -905,10 +905,10 @@ async def test_recovery_success_increments_counter():
     vad.is_speaking = False
     await session.process_frame(make_raw_bytes())
 
-    # Dar tempo para receiver task crashar e recovery executar
+    # Give time for receiver task to crash and recovery to execute
     await asyncio.sleep(0.15)
 
-    # Assert: recovery success counter incrementou
+    # Assert: recovery success counter incremented
     current_success = _get_counter_value(
         "macaw_stt_worker_recoveries",
         {"result": "success"},

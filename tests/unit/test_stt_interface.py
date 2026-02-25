@@ -1,7 +1,7 @@
-"""Testes do contrato STTBackend.
+"""Tests for the STTBackend contract.
 
-Verifica que a interface esta corretamente definida e que
-implementacoes concretas sao forcadas a implementar todos os metodos.
+Verifies that the interface is correctly defined and that
+concrete implementations are forced to implement all methods.
 """
 
 from collections.abc import AsyncIterator
@@ -18,11 +18,11 @@ from macaw.workers.stt.interface import STTBackend
 
 
 class IncompleteBackend(STTBackend):  # type: ignore[abstract]
-    """Backend que nao implementa nenhum metodo abstrato."""
+    """Backend that does not implement any abstract methods."""
 
 
 class MinimalBackend(STTBackend):
-    """Backend com implementacao minima para validar o contrato."""
+    """Backend with minimal implementation to validate the contract."""
 
     @property
     def architecture(self) -> STTArchitecture:

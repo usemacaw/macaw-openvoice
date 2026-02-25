@@ -7,8 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from macaw.codec import CodecEncoder, create_encoder
+from macaw.codec import CodecEncoder, create_encoder, is_codec_available
 from macaw.codec.opus import OpusEncoder
+from macaw.exceptions import CodecUnavailableError
 
 
 def _make_encoder_with_mock(
@@ -29,7 +30,7 @@ def _make_encoder_with_mock(
 
     encoder = OpusEncoder(sample_rate=sample_rate, channels=channels)
     encoder._encoder = mock_enc
-    encoder._available = True
+    encoder._init_attempted = True
 
     return encoder, mock_enc
 
@@ -45,10 +46,15 @@ class TestCreateEncoder:
         enc = create_encoder("opus")
         assert isinstance(enc, OpusEncoder)
 
-    def test_create_encoder_unknown_returns_none(self) -> None:
-        """Factory returns None for unrecognized codec name."""
-        assert create_encoder("mp3") is None
-        assert create_encoder("") is None
+    def test_create_encoder_unknown_raises_codec_unavailable(self) -> None:
+        """Factory raises CodecUnavailableError for unrecognized codec name."""
+        with pytest.raises(CodecUnavailableError, match="unknown codec"):
+            create_encoder("flac")
+
+    def test_create_encoder_empty_name_raises_codec_unavailable(self) -> None:
+        """Factory raises CodecUnavailableError for empty codec name."""
+        with pytest.raises(CodecUnavailableError, match="unknown codec"):
+            create_encoder("")
 
     def test_create_encoder_custom_params(self) -> None:
         """Factory passes sample_rate and bitrate to OpusEncoder."""
@@ -56,6 +62,51 @@ class TestCreateEncoder:
         assert isinstance(enc, OpusEncoder)
         assert enc._sample_rate == 48000
         assert enc._bitrate == 128000
+
+    def test_create_encoder_mulaw(self) -> None:
+        """Factory returns MuLawEncoder for 'mulaw'."""
+        from macaw.codec.g711 import MuLawEncoder
+
+        enc = create_encoder("mulaw")
+        assert isinstance(enc, MuLawEncoder)
+
+    def test_create_encoder_alaw(self) -> None:
+        """Factory returns ALawEncoder for 'alaw'."""
+        from macaw.codec.g711 import ALawEncoder
+
+        enc = create_encoder("alaw")
+        assert isinstance(enc, ALawEncoder)
+
+
+# ---------------------------------------------------------------------------
+# is_codec_available
+# ---------------------------------------------------------------------------
+
+
+class TestIsCodecAvailable:
+    def test_is_codec_available_opus_installed(self) -> None:
+        """Returns True when opuslib is importable."""
+        mock_opuslib = MagicMock()
+        with patch.dict(sys.modules, {"opuslib": mock_opuslib}):
+            assert is_codec_available("opus") is True
+
+    def test_is_codec_available_opus_missing(self) -> None:
+        """Returns False when opuslib import fails."""
+        with patch.dict(sys.modules, {"opuslib": None}):
+            assert is_codec_available("opus") is False
+
+    def test_is_codec_available_unknown_codec(self) -> None:
+        """Returns False for unknown codec names."""
+        assert is_codec_available("flac") is False
+        assert is_codec_available("") is False
+
+    def test_is_codec_available_mulaw(self) -> None:
+        """G.711 mu-law is always available (pure numpy)."""
+        assert is_codec_available("mulaw") is True
+
+    def test_is_codec_available_alaw(self) -> None:
+        """G.711 A-law is always available (pure numpy)."""
+        assert is_codec_available("alaw") is True
 
 
 # ---------------------------------------------------------------------------
@@ -173,8 +224,18 @@ class TestOpusEncoderFlush:
         assert padded_data[:100] == b"\x01" * 100
         assert padded_data[100:] == b"\x00" * 860
 
-    def test_flush_empty_buffer(self) -> None:
-        """Flush with empty buffer returns empty bytes."""
+    def test_flush_empty_buffer_returns_empty_bytes(self) -> None:
+        """Flush with empty buffer returns empty bytes without checking encoder."""
+        encoder = OpusEncoder()
+        # Do not set _init_attempted or _encoder — empty buffer should return
+        # immediately without triggering _ensure_encoder.
+        result = encoder.flush()
+        assert result == b""
+        # Verify encoder was NOT initialized (no attempt was made)
+        assert encoder._init_attempted is False
+
+    def test_flush_empty_buffer_with_mock(self) -> None:
+        """Flush with empty buffer returns empty bytes (mock encoder)."""
         encoder, _ = _make_encoder_with_mock()
 
         result = encoder.flush()
@@ -182,31 +243,27 @@ class TestOpusEncoderFlush:
 
 
 # ---------------------------------------------------------------------------
-# OpusEncoder — passthrough when unavailable
+# OpusEncoder — raises when unavailable
 # ---------------------------------------------------------------------------
 
 
-class TestOpusEncoderPassthrough:
-    def test_passthrough_when_opuslib_missing(self) -> None:
-        """Returns raw PCM when opuslib is not installed."""
+class TestOpusEncoderFailFast:
+    def test_encode_raises_when_opuslib_missing(self) -> None:
+        """Raises CodecUnavailableError when opuslib is not installed."""
         encoder = OpusEncoder()
-        # Simulate import failure
-        encoder._available = False
 
         pcm = b"\x00\x01" * 500
-        result = encoder.encode(pcm)
-        assert result == pcm
+        with pytest.raises(CodecUnavailableError, match="opuslib not installed"):
+            encoder.encode(pcm)
 
-    def test_flush_passthrough_when_unavailable(self) -> None:
-        """Flush returns raw buffer content when encoder is unavailable."""
+    def test_flush_raises_when_unavailable_and_buffer_has_data(self) -> None:
+        """Flush raises CodecUnavailableError when encoder is unavailable and buffer has data."""
         encoder = OpusEncoder()
-        encoder._available = False
-
         # Manually put data in buffer
         encoder._buffer.extend(b"\xab" * 50)
-        result = encoder.flush()
-        assert result == b"\xab" * 50
-        assert len(encoder._buffer) == 0
+
+        with pytest.raises(CodecUnavailableError, match="opuslib not installed"):
+            encoder.flush()
 
 
 # ---------------------------------------------------------------------------
@@ -215,36 +272,33 @@ class TestOpusEncoderPassthrough:
 
 
 class TestOpusEncoderLazyInit:
-    def test_ensure_encoder_marks_unavailable_when_import_fails(self) -> None:
-        """When opuslib is not installed, _ensure_encoder sets _available=False."""
+    def test_ensure_encoder_raises_when_import_fails(self) -> None:
+        """When opuslib is not installed, _ensure_encoder raises CodecUnavailableError."""
         encoder = OpusEncoder(sample_rate=24000)
-        assert encoder._available is None
+        assert encoder._init_attempted is False
 
         # opuslib is not installed in test env — import will fail
-        result = encoder._ensure_encoder()
+        with pytest.raises(CodecUnavailableError, match="opuslib not installed"):
+            encoder._ensure_encoder()
 
-        assert result is False
-        assert encoder._available is False
+        assert encoder._init_error is not None
 
-    def test_ensure_encoder_caches_unavailable(self) -> None:
-        """Second call to _ensure_encoder returns cached False without retrying."""
+    def test_ensure_encoder_caches_failure(self) -> None:
+        """Second call to _ensure_encoder raises immediately with cached error."""
         encoder = OpusEncoder()
-        encoder._ensure_encoder()
-        assert encoder._available is False
 
-        # Second call should return immediately
-        result = encoder._ensure_encoder()
-        assert result is False
+        # First call triggers import failure
+        with pytest.raises(CodecUnavailableError):
+            encoder._ensure_encoder()
 
-    def test_ensure_encoder_caches_available(self) -> None:
-        """When _available is True, _ensure_encoder returns True immediately."""
-        encoder = OpusEncoder()
-        encoder._available = True  # Pre-set
+        assert encoder._init_error is not None
+        cached_error = encoder._init_error
 
-        result = encoder._ensure_encoder()
-        assert result is True
+        # Second call should raise immediately with same error
+        with pytest.raises(CodecUnavailableError, match=cached_error):
+            encoder._ensure_encoder()
 
-    def test_ensure_encoder_with_mock_opuslib(self) -> None:
+    def test_ensure_encoder_succeeds_with_mock_opuslib(self) -> None:
         """When opuslib is importable, _ensure_encoder creates the encoder."""
         mock_opuslib = MagicMock()
         mock_enc = MagicMock()
@@ -252,12 +306,37 @@ class TestOpusEncoderLazyInit:
 
         with patch.dict(sys.modules, {"opuslib": mock_opuslib}):
             encoder = OpusEncoder(sample_rate=24000)
-            result = encoder._ensure_encoder()
+            encoder._ensure_encoder()
 
-            assert result is True
-            assert encoder._available is True
             assert encoder._encoder is mock_enc
+            assert encoder._init_error is None
             mock_opuslib.Encoder.assert_called_once()
+
+    def test_ensure_encoder_no_op_when_already_initialized(self) -> None:
+        """When encoder is already set, _ensure_encoder returns immediately."""
+        encoder, _ = _make_encoder_with_mock()
+
+        # Should not raise, just return
+        encoder._ensure_encoder()
+
+    def test_ensure_encoder_caches_init_exception(self) -> None:
+        """When opuslib.Encoder() raises, error is cached and re-raised."""
+        mock_opuslib = MagicMock()
+        mock_opuslib.Encoder.side_effect = RuntimeError("GPU init failed")
+
+        with patch.dict(sys.modules, {"opuslib": mock_opuslib}):
+            encoder = OpusEncoder(sample_rate=24000)
+
+            with pytest.raises(CodecUnavailableError, match="GPU init failed"):
+                encoder._ensure_encoder()
+
+            assert encoder._init_error == "GPU init failed"
+
+            # Second call raises immediately without calling Encoder again
+            mock_opuslib.Encoder.reset_mock()
+            with pytest.raises(CodecUnavailableError, match="GPU init failed"):
+                encoder._ensure_encoder()
+            mock_opuslib.Encoder.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
